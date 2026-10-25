@@ -76,6 +76,10 @@ describe("parseJsonBody", () => {
     expect(() => parseJsonBody(Buffer.from([0x7b, 0x22, 0xff, 0x22, 0x3a, 0x31, 0x7d]))).toThrow(/UTF-8/);
   });
 
+  it("treats an empty body as no body", () => {
+    expect(parseJsonBody(Buffer.alloc(0))).toBeUndefined();
+  });
+
   it("rejects invalid JSON", () => {
     expect(() => parseJsonBody(Buffer.from("{nope"))).toThrow(/JSON/);
   });

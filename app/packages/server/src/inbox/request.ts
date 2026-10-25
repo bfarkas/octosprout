@@ -36,8 +36,12 @@ const IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{8,128}$/;
 const HTTPS_URL = /^https:\/\/[^\s]+$/;
 const RFC_3339 = /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$/;
 
-/** Decodes a request body as strict UTF-8 JSON, so invalid bytes are rejected instead of replaced. */
+/**
+ * Decodes a request body as strict UTF-8 JSON, so invalid bytes are rejected instead of replaced.
+ * An empty body parses to `undefined`; handlers decide whether they need one.
+ */
 export function parseJsonBody(raw: Buffer): unknown {
+  if (raw.length === 0) return undefined;
   let text: string;
   try {
     text = new TextDecoder("utf-8", { fatal: true }).decode(raw);

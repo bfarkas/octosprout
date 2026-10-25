@@ -67,6 +67,9 @@ button:disabled { opacity: 0.6; cursor: progress; }
 .hint, .meta { color: var(--muted); font-size: 0.9rem; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
 .card pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0.5rem 0 0; font: inherit; }
+ul.plain { list-style: none; padding: 0; margin: 0; }
+h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+[hidden] { display: none !important; }
 .banner { border: 1px solid var(--warn); color: var(--warn); border-radius: 8px; padding: 0.5rem 0.75rem; margin: 0.75rem 0; }
 `;
 
@@ -255,6 +258,52 @@ export const APP_JS = `
         button.disabled = false;
       }
     });
+  }
+
+  const tokenForm = document.getElementById("token-form");
+  if (tokenForm) {
+    const status = document.getElementById("status");
+    const show = (text, kind) => {
+      status.textContent = text;
+      status.className = "status " + (kind || "");
+    };
+    const call = async (method, url, body) => {
+      const csrf = await csrfToken();
+      const response = await fetch(url, {
+        method,
+        credentials: "same-origin",
+        headers: { "content-type": "application/json", "x-csrf-token": csrf },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.message || data.error || response.statusText);
+      return data;
+    };
+
+    tokenForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const created = await call("POST", "/api/v1/tokens", { name: tokenForm.elements.name.value });
+        document.getElementById("new-token-value").textContent = created.token;
+        document.getElementById("new-token").hidden = false;
+        tokenForm.reset();
+        show("Created token " + created.name + ".", "ok");
+      } catch (error) {
+        show(error.message, "error");
+      }
+    });
+
+    for (const button of document.querySelectorAll('[data-action="revoke-token"]')) {
+      button.addEventListener("click", async () => {
+        if (!window.confirm("Revoke token " + button.dataset.name + "? Anything using it stops working.")) return;
+        try {
+          await call("DELETE", "/api/v1/tokens/" + encodeURIComponent(button.dataset.name));
+          window.location.reload();
+        } catch (error) {
+          show(error.message, "error");
+        }
+      });
+    }
   }
 
   for (const button of document.querySelectorAll('[data-action="logout"]')) {

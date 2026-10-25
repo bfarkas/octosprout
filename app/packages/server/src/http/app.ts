@@ -10,7 +10,7 @@ import { denyUnauthenticated, registerAuth, type AuthOptions } from "../auth/rou
 import { ValidationRejectedError, type WriteStatus } from "../git/write-service.js";
 import { InvalidRequestError, parseInboxRequest, parseJsonBody } from "../inbox/request.js";
 import type { CaptureStatus, InboxOutcome, InboxService } from "../inbox/service.js";
-import { registerUi } from "../ui/routes.js";
+import { registerSettings, registerUi } from "../ui/routes.js";
 import { RateLimiter } from "./rate-limit.js";
 import type { TokenStore } from "./tokens.js";
 
@@ -127,7 +127,28 @@ export function buildApp(options: AppOptions): FastifyInstance {
       return respondWithOutcome(reply, outcome);
     });
 
-    registerUi(app, { requireSession, inbox, status });
+    // Token management (spec §18.2: "Created and revoked in the UI").
+    app.get("/api/v1/tokens", { preHandler: requireSession }, async () => ({ tokens: tokens.list() }));
+    app.post("/api/v1/tokens", { preHandler: requireSession }, async (request, reply) => {
+      const name = (request.body as { name?: unknown } | null)?.name;
+      if (typeof name !== "string") return reply.code(400).send({ error: "invalid_request", field: "name", message: "'name' is required." });
+      try {
+        const token = tokens.create(name);
+        request.log.info({ name }, "inbox token created");
+        return reply.code(201).send({ name, token });
+      } catch (error) {
+        return reply.code(400).send({ error: "invalid_request", field: "name", message: (error as Error).message });
+      }
+    });
+    app.delete<{ Params: { name: string } }>("/api/v1/tokens/:name", { preHandler: requireSession }, async (request, reply) => {
+      if (!tokens.revoke(request.params.name)) return reply.code(404).send({ error: "not_found" });
+      request.log.info({ name: request.params.name }, "inbox token revoked");
+      return { ok: true };
+    });
+
+    const ui = { requireSession, inbox, tokens, passkeys: options.auth.passkeys, status };
+    registerUi(app, ui);
+    registerSettings(app, ui);
   }
 
   app.register(

@@ -7,12 +7,16 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import type { WriteStatus } from "../git/write-service.js";
+import type { PasskeyStore } from "../auth/passkeys.js";
+import type { TokenStore } from "../http/tokens.js";
 import type { CaptureSummary, InboxService } from "../inbox/service.js";
 import { esc, page } from "./html.js";
 
 export interface UiOptions {
   requireSession: (request: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply | undefined>;
   inbox: InboxService;
+  tokens: TokenStore;
+  passkeys: PasskeyStore;
   status: () => Promise<WriteStatus>;
 }
 
@@ -102,4 +106,49 @@ ${more}`,
       }),
     ),
   );
+}
+
+export function registerSettings(app: FastifyInstance, options: UiOptions): void {
+  const { requireSession, tokens, passkeys } = options;
+
+  app.get("/settings", { preHandler: requireSession }, async (_request, reply) => {
+    const rows = tokens
+      .list()
+      .map((token) =>
+        token.revoked === undefined
+          ? `<li class="card" data-token="${esc(token.name)}"><strong>${esc(token.name)}</strong> <span class="meta">created ${esc(formatTime(token.created))}</span>
+<button type="button" class="link" data-action="revoke-token" data-name="${esc(token.name)}">Revoke</button></li>`
+          : `<li class="card meta">${esc(token.name)} · revoked ${esc(formatTime(token.revoked))}</li>`,
+      )
+      .join("\n");
+    const keys = passkeys
+      .list()
+      .map((key) => `<li class="card"><strong>${esc(key.name)}</strong> <span class="meta">added ${esc(formatTime(key.created))}${key.lastUsed ? `, last used ${esc(formatTime(key.lastUsed))}` : ""}</span></li>`)
+      .join("\n");
+    return reply.type("text/html; charset=utf-8").send(
+      page({
+        title: "Settings",
+        page: "settings",
+        nav: "settings",
+        scripts: ["app.js"],
+        body: `<h1>Settings</h1>
+<h2>Inbox tokens</h2>
+<p class="hint">A token lets the iOS Shortcut add captures, and nothing else. It is shown once.</p>
+<ul class="plain" id="token-list">${rows}</ul>
+<form id="token-form" autocomplete="off">
+<label for="token-name">New token name</label>
+<input type="text" id="token-name" name="name" placeholder="iphone-shortcut" maxlength="64" pattern="[A-Za-z0-9._-]+" required>
+<div class="actions"><button type="submit">Create token</button></div>
+</form>
+<div id="new-token" class="card" hidden>
+<p>Copy this token now. It will not be shown again.</p>
+<pre id="new-token-value"></pre>
+</div>
+<p id="status" class="status" role="status" aria-live="polite"></p>
+<h2>Passkeys</h2>
+<ul class="plain">${keys}</ul>
+<p class="hint">Add another device at <a href="/setup">/setup</a> with the setup token.</p>`,
+      }),
+    );
+  });
 }

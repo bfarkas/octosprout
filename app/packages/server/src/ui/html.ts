@@ -19,12 +19,13 @@ export interface PageOptions {
   /** Script files from /static, loaded deferred. */
   scripts?: readonly string[];
   /** Show the navigation bar (signed-in pages). */
-  nav?: "inbox" | "capture";
+  nav?: "inbox" | "capture" | "settings";
 }
 
 const NAV = [
   { key: "inbox", href: "/", label: "Inbox" },
   { key: "capture", href: "/capture", label: "Capture" },
+  { key: "settings", href: "/settings", label: "Settings" },
 ] as const;
 
 export function page(options: PageOptions): string {

@@ -224,6 +224,74 @@ describe("the capture form", () => {
   });
 });
 
+describe("token management", () => {
+  const api = (method: "GET" | "POST" | "DELETE", url: string, payload?: unknown, headers: Record<string, string> = { cookie, origin: ORIGIN, "x-csrf-token": csrf }) =>
+    app.inject({ method, url, headers: { "content-type": "application/json", ...headers }, ...(payload === undefined ? {} : { payload: JSON.stringify(payload) }) });
+
+  it("creates a token that works on the inbox API, shown once", async () => {
+    const created = await api("POST", "/api/v1/tokens", { name: "iphone-shortcut" });
+    expect(created.statusCode).toBe(201);
+    const { token } = created.json() as { token: string };
+    expect(token).toMatch(/^ost_/);
+
+    const stored = await app.inject({
+      method: "POST",
+      url: "/api/v1/inbox",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      payload: JSON.stringify({ text: "from the shortcut", idempotency_key: "shortcut-0001" }),
+    });
+    expect(stored.statusCode).toBe(201);
+
+    const listed = (await api("GET", "/api/v1/tokens")).json() as { tokens: Array<Record<string, unknown>> };
+    expect(listed.tokens).toEqual([expect.objectContaining({ name: "iphone-shortcut" })]);
+    expect(JSON.stringify(listed)).not.toContain(token);
+  });
+
+  it("revokes a token", async () => {
+    const { token } = (await api("POST", "/api/v1/tokens", { name: "to-revoke" })).json() as { token: string };
+    expect((await api("DELETE", "/api/v1/tokens/to-revoke")).statusCode).toBe(200);
+    expect((await api("DELETE", "/api/v1/tokens/to-revoke")).statusCode).toBe(404);
+    const rejected = await app.inject({ method: "GET", url: "/api/v1/inbox/abcdefgh", headers: { authorization: `Bearer ${token}` } });
+    expect(rejected.statusCode).toBe(401);
+  });
+
+  it("rejects bad names and duplicates", async () => {
+    expect((await api("POST", "/api/v1/tokens", {})).statusCode).toBe(400);
+    expect((await api("POST", "/api/v1/tokens", { name: "has space" })).statusCode).toBe(400);
+    await api("POST", "/api/v1/tokens", { name: "one" });
+    expect((await api("POST", "/api/v1/tokens", { name: "one" })).statusCode).toBe(400);
+  });
+
+  it("needs a session, the Origin and the CSRF token", async () => {
+    expect((await api("POST", "/api/v1/tokens", { name: "x1" }, { origin: ORIGIN, "x-csrf-token": csrf })).statusCode).toBe(401);
+    expect((await api("POST", "/api/v1/tokens", { name: "x2" }, { cookie, origin: ORIGIN })).statusCode).toBe(403);
+    expect((await api("DELETE", "/api/v1/tokens/x3", undefined, { cookie })).statusCode).toBe(403);
+    expect((await api("GET", "/api/v1/tokens", undefined, {})).statusCode).toBe(401);
+    expect(tokens.list()).toEqual([]);
+  });
+
+  it("is not reachable with an inbox token", async () => {
+    const token = tokens.create("existing");
+    const response = await app.inject({ method: "GET", url: "/api/v1/tokens", headers: { authorization: `Bearer ${token}` } });
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("renders the settings page with tokens and passkeys, escaped", async () => {
+    tokens.create("active-token");
+    tokens.create("old-token");
+    tokens.revoke("old-token");
+    const response = await page("/settings");
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('data-token="active-token"');
+    expect(response.body).toContain("old-token");
+    expect(response.body).toMatch(/old-token · revoked/);
+    expect(response.body).not.toContain('data-name="old-token"');
+    expect(response.body).toContain('id="token-form"');
+    expect(response.body).not.toMatch(/ost_[A-Za-z0-9_-]{20,}/); // no secret ever appears in the page
+    expect((await app.inject({ method: "GET", url: "/settings" })).statusCode).toBe(401);
+  });
+});
+
 describe("client scripts", () => {
   it.each([
     ["auth.js", AUTH_JS],

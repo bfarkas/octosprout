@@ -148,6 +148,31 @@ try {
   assert.ok(await page.isVisible(`article#${id}`));
   step("signed back in with the passkey");
 
+  // Create an inbox token in the UI, use it as the Shortcut would, then revoke it.
+  page.on("dialog", (dialog) => dialog.accept());
+  await page.click("nav >> text=Settings");
+  await page.waitForURL(`${origin}/settings`);
+  await noHorizontalScroll();
+  await page.fill("#token-name", "iphone-shortcut");
+  await page.click("#token-form button[type=submit]");
+  await page.waitForSelector("#new-token:not([hidden])");
+  const token = (await page.textContent("#new-token-value")).trim();
+  assert.match(token, /^ost_/);
+  const viaToken = (key) =>
+    fetch(`${origin}/api/v1/inbox`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ text: "from the shortcut", idempotency_key: key, source: "shortcut" }),
+    });
+  assert.equal((await viaToken("e2e-shortcut-0001")).status, 201);
+  step("created an inbox token in Settings; it stores a capture");
+
+  await page.reload();
+  await page.click('[data-action="revoke-token"][data-name="iphone-shortcut"]');
+  await page.waitForSelector('[data-action="revoke-token"]', { state: "detached" });
+  assert.equal((await viaToken("e2e-shortcut-0002")).status, 401);
+  step("revoked the token in Settings; it is refused");
+
   // The cookie is the hardened kind.
   const cookies = await context.cookies();
   const session = cookies.find((cookie) => cookie.name === "__Host-octosprout_session");
