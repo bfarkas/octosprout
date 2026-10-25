@@ -17,6 +17,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@octosprout/core": "workspace:*"
+    "@octosprout/core": "workspace:*",
+    "fastify": "^5.12.7"
   }
 }
