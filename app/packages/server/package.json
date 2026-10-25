@@ -19,5 +19,8 @@
   "dependencies": {
     "@octosprout/core": "workspace:*",
     "fastify": "^5.12.7"
+  },
+  "bin": {
+    "octosprout-server": "./dist/main.js"
   }
 }

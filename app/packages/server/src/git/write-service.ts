@@ -211,7 +211,15 @@ export class GitWriteService {
    * Retries pending pushes in the background (§8.3): every `intervalMs`, backing
    * off up to `maxBackoffMs` while pushes keep failing.
    */
-  startBackgroundSync(options: { intervalMs?: number; maxBackoffMs?: number; onError?: (error: unknown) => void } = {}): { stop: () => void } {
+  startBackgroundSync(
+    options: {
+      intervalMs?: number;
+      maxBackoffMs?: number;
+      /** Called after every successful sync, so callers can refresh what they derived from the tree. */
+      onSynced?: (result: SyncResult) => void | Promise<void>;
+      onError?: (error: unknown) => void;
+    } = {},
+  ): { stop: () => void } {
     const interval = options.intervalMs ?? 60_000;
     const maxBackoff = options.maxBackoffMs ?? 15 * 60_000;
     let delay = interval;
@@ -221,6 +229,7 @@ export class GitWriteService {
     const tick = async (): Promise<void> => {
       try {
         const result = await this.sync();
+        await options.onSynced?.(result);
         delay = result.pending > 0 ? Math.min(delay * 2, maxBackoff) : interval;
       } catch (error) {
         options.onError?.(error);
