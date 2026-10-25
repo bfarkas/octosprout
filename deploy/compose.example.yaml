@@ -1,0 +1,30 @@
+# Example Docker Compose service for rei3 (spec §18.1). No secrets here:
+# every secret is a Docker secret whose file lives outside both repositories.
+services:
+  octosprout:
+    image: octosprout-server:latest   # built from octosprout/app
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - octosprout-repo:/var/lib/octosprout/repo
+      - octosprout-state:/var/lib/octosprout/state
+    secrets:
+      - deploy_key              # SSH deploy key, write access to octosprout-private only
+      - approval_signing_key    # Ed25519
+      - session_secret
+      - setup_token
+
+volumes:
+  octosprout-repo:
+  octosprout-state:
+
+secrets:
+  deploy_key:
+    file: /etc/octosprout/secrets/deploy_key
+  approval_signing_key:
+    file: /etc/octosprout/secrets/approval_signing_key
+  session_secret:
+    file: /etc/octosprout/secrets/session_secret
+  setup_token:
+    file: /etc/octosprout/secrets/setup_token

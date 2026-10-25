@@ -1,0 +1,14 @@
+# Example Caddy site block for rei3 (spec §18.1). No secrets.
+app.octosprout.de {
+    encode zstd gzip
+    request_body {
+        max_size 512KB
+    }
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        -Server
+    }
+    reverse_proxy 127.0.0.1:8080
+}

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://octosprout.de/schemas/common.v1.schema.json",
+  "title": "OctoSprout common definitions, version 1",
+  "description": "Field definitions shared by every record type (spec §6.2–§6.4).",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^OS-(C|I|T|P|D|R|E|PROP)-[0-9A-HJKMNP-TV-Z]{5}$"
+    },
+    "proposalId": {
+      "type": "string",
+      "pattern": "^OS-PROP-[0-9A-HJKMNP-TV-Z]{5}$"
+    },
+    "timestamp": {
+      "description": "UTC RFC 3339, e.g. 2026-10-25T14:03:11Z",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+      "uniqueItems": true
+    },
+    "httpsUrl": {
+      "type": "string",
+      "maxLength": 2048,
+      "pattern": "^https://[^\\s]+$"
+    },
+    "link": {
+      "type": "object",
+      "required": ["rel", "id"],
+      "additionalProperties": false,
+      "properties": {
+        "rel": {
+          "enum": [
+            "relates_to",
+            "belongs_to",
+            "derived_from",
+            "promoted_to",
+            "blocks",
+            "supersedes",
+            "supports",
+            "implements",
+            "consulted"
+          ]
+        },
+        "id": { "$ref": "#/$defs/id" }
+      }
+    },
+    "links": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/link" }
+    },
+    "ref": {
+      "type": "object",
+      "required": ["kind", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["repo", "pr", "commit", "branch", "issue", "file", "url"] },
+        "url": { "$ref": "#/$defs/httpsUrl" },
+        "note": { "type": "string" }
+      }
+    },
+    "refs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ref" }
+    }
+  }
+}

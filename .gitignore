@@ -1,0 +1,24 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Runtime state (never commit; see spec §18)
+/state/
+/var/
+*.local.yaml
+.env
+.env.*
+!.env.example
+
+# Secrets
+*.pem
+*.key
+deploy_key*
+secrets/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
