@@ -6,10 +6,7 @@
  */
 import { hasErrors, validateDirectory, type Finding } from "@octosprout/core";
 
-export interface Io {
-  out: (text: string) => void;
-  err: (text: string) => void;
-}
+import type { Io } from "./io.js";
 
 interface Options {
   ci: boolean;

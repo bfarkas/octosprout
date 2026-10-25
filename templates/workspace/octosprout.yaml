@@ -1,0 +1,5 @@
+workspace_schema_version: 1
+id_prefix: OS
+approval_public_keys: []       # Ed25519 public keys trusted for approval signatures
+consequential:                 # optional overrides; defaults are in the spec
+  bulk_threshold: 10

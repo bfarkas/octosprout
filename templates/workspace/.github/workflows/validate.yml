@@ -1,0 +1,46 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # The validator ships with the public OctoSprout application.
+      - uses: actions/checkout@v5
+        with:
+          repository: bfarkas/octosprout
+          ref: main
+          path: .octosprout
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: .octosprout/app/package.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .octosprout/.nvmrc
+          cache: pnpm
+          cache-dependency-path: .octosprout/app/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile && pnpm build
+        working-directory: .octosprout/app
+
+      - run: node .octosprout/app/packages/cli/dist/index.js validate --ci
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

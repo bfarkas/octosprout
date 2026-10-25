@@ -44,6 +44,16 @@ pnpm typecheck
 pnpm test
 ```
 
+### CLI
+
+```sh
+node app/packages/cli/dist/index.js init [dir]       # create a private workspace skeleton
+node app/packages/cli/dist/index.js validate [--ci] [--json] [path…]
+```
+
+`init` never overwrites existing files and installs a `pre-push` hook that
+runs `validate` when the target is a Git repository.
+
 ## License
 
 The application code license is still open (spec §23). The vendored ADR
