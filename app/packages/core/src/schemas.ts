@@ -33,6 +33,14 @@ export class SchemaRegistry {
     }
   }
 
+  /** True if any schema version exists for the type. */
+  hasType(type: RecordType): boolean {
+    for (const key of this.#validators.keys()) {
+      if (key.startsWith(`${type}@`)) return true;
+    }
+    return false;
+  }
+
   /** Returns the frontmatter validator for a type and schema version, if supported. */
   get(type: RecordType, schemaVersion: number): ValidateFunction | undefined {
     return this.#validators.get(`${type}@${schemaVersion}`);
