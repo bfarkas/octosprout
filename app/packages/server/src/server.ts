@@ -1,6 +1,10 @@
 /**
  * Wires the services together and starts listening.
  */
+import { readFileSync } from "node:fs";
+
+import { PasskeyStore } from "./auth/passkeys.js";
+import { SessionStore } from "./auth/sessions.js";
 import { prepareRepo } from "./bootstrap.js";
 import type { ServerConfig } from "./config.js";
 import { GitWriteService } from "./git/write-service.js";
@@ -23,7 +27,21 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   const writer = new GitWriteService({ repoDir: config.repoDir });
   const inbox = new InboxService({ writer, repoDir: config.repoDir });
   const tokens = new TokenStore(config.stateDir);
-  const app = buildApp({ inbox, tokens, logger: { level: config.logLevel }, trustProxy: config.trustProxy });
+  const setupToken = config.setupTokenFile ? readFileSync(config.setupTokenFile, "utf8").trim() : undefined;
+  const app = buildApp({
+    inbox,
+    tokens,
+    auth: {
+      passkeys: new PasskeyStore(config.stateDir),
+      sessions: new SessionStore(config.stateDir),
+      rpId: config.rpId,
+      origin: config.origin,
+      ...(setupToken ? { setupToken } : {}),
+      status: () => writer.status(),
+    },
+    logger: { level: config.logLevel },
+    trustProxy: config.trustProxy,
+  });
 
   // Report pending commits left by an earlier run, and resume pushing them (spec §8.3).
   const status = await writer.status();

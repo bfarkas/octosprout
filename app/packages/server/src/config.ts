@@ -14,6 +14,12 @@ export interface ServerConfig {
   remoteUrl?: string;
   /** SSH deploy key with write access to the workspace repository only. */
   deployKeyFile?: string;
+  /** WebAuthn relying party ID. Passkeys keep working across subdomains of it. */
+  rpId: string;
+  /** The exact origin the app is served from. */
+  origin: string;
+  /** File holding the setup token for passkey registration. Without it, /setup is disabled. */
+  setupTokenFile?: string;
   /** Trust `X-Forwarded-For` from these proxies (Caddy), or not at all. */
   trustProxy: boolean | string[];
   syncIntervalMs: number;
@@ -39,6 +45,17 @@ function integer(env: NodeJS.ProcessEnv, name: string, fallback: number, min: nu
   return value;
 }
 
+/** Normalizes to a bare origin; WebAuthn compares it exactly. */
+function origin(value: string): string {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" && url.hostname !== "localhost") throw new Error("not https");
+    return url.origin;
+  } catch {
+    throw new ConfigError(`OCTOSPROUT_ORIGIN must be an https origin (http is allowed for localhost only), got '${value}'.`);
+  }
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const logLevel = env.OCTOSPROUT_LOG_LEVEL || "info";
   if (!LOG_LEVELS.includes(logLevel)) {
@@ -55,6 +72,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     port: integer(env, "OCTOSPROUT_PORT", 8080, 1, 65535),
     ...(env.OCTOSPROUT_REMOTE_URL ? { remoteUrl: env.OCTOSPROUT_REMOTE_URL } : {}),
     ...(env.OCTOSPROUT_DEPLOY_KEY_FILE ? { deployKeyFile: env.OCTOSPROUT_DEPLOY_KEY_FILE } : {}),
+    rpId: env.OCTOSPROUT_RP_ID || "octosprout.de",
+    origin: origin(env.OCTOSPROUT_ORIGIN || "https://app.octosprout.de"),
+    ...(env.OCTOSPROUT_SETUP_TOKEN_FILE ? { setupTokenFile: env.OCTOSPROUT_SETUP_TOKEN_FILE } : {}),
     trustProxy,
     syncIntervalMs: integer(env, "OCTOSPROUT_SYNC_INTERVAL_SECONDS", 60, 1, 3600) * 1000,
     logLevel,

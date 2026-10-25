@@ -3,12 +3,18 @@ import { describe, expect, it } from "vitest";
 import { ConfigError, loadConfig } from "./config.js";
 
 describe("loadConfig", () => {
+  it("allows http for localhost development", () => {
+    expect(loadConfig({ OCTOSPROUT_ORIGIN: "http://localhost:8080", OCTOSPROUT_RP_ID: "localhost" }).origin).toBe("http://localhost:8080");
+  });
+
   it("has working defaults", () => {
     expect(loadConfig({})).toEqual({
       repoDir: "/var/lib/octosprout/repo",
       stateDir: "/var/lib/octosprout/state",
       host: "0.0.0.0",
       port: 8080,
+      rpId: "octosprout.de",
+      origin: "https://app.octosprout.de",
       trustProxy: false,
       syncIntervalMs: 60_000,
       logLevel: "info",
@@ -24,6 +30,9 @@ describe("loadConfig", () => {
         OCTOSPROUT_PORT: "9000",
         OCTOSPROUT_REMOTE_URL: "git@github.com:bfarkas/octosprout-private.git",
         OCTOSPROUT_DEPLOY_KEY_FILE: "/run/secrets/deploy_key",
+        OCTOSPROUT_RP_ID: "example.org",
+        OCTOSPROUT_ORIGIN: "https://app.example.org/",
+        OCTOSPROUT_SETUP_TOKEN_FILE: "/run/secrets/setup_token",
         OCTOSPROUT_TRUST_PROXY: "172.18.0.0/16, 10.0.0.1",
         OCTOSPROUT_SYNC_INTERVAL_SECONDS: "30",
         OCTOSPROUT_LOG_LEVEL: "debug",
@@ -35,6 +44,9 @@ describe("loadConfig", () => {
       port: 9000,
       remoteUrl: "git@github.com:bfarkas/octosprout-private.git",
       deployKeyFile: "/run/secrets/deploy_key",
+      rpId: "example.org",
+      origin: "https://app.example.org",
+      setupTokenFile: "/run/secrets/setup_token",
       trustProxy: ["172.18.0.0/16", "10.0.0.1"],
       syncIntervalMs: 30_000,
       logLevel: "debug",
@@ -47,6 +59,8 @@ describe("loadConfig", () => {
     [{ OCTOSPROUT_PORT: "70000" }, /OCTOSPROUT_PORT/],
     [{ OCTOSPROUT_SYNC_INTERVAL_SECONDS: "0" }, /SYNC_INTERVAL/],
     [{ OCTOSPROUT_LOG_LEVEL: "loud" }, /LOG_LEVEL/],
+    [{ OCTOSPROUT_ORIGIN: "http://app.example.org" }, /ORIGIN/],
+    [{ OCTOSPROUT_ORIGIN: "not a url" }, /ORIGIN/],
   ])("rejects %j", (env, message) => {
     expect(() => loadConfig(env)).toThrow(ConfigError);
     expect(() => loadConfig(env)).toThrow(message);

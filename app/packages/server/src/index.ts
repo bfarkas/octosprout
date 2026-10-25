@@ -16,3 +16,6 @@ export * from "./inbox/service.js";
 export * from "./bootstrap.js";
 export * from "./config.js";
 export * from "./server.js";
+export * from "./auth/passkeys.js";
+export * from "./auth/routes.js";
+export * from "./auth/sessions.js";

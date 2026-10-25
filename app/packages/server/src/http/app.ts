@@ -6,7 +6,8 @@
  */
 import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, type FastifyRequest, type FastifyServerOptions } from "fastify";
 
-import { ValidationRejectedError } from "../git/write-service.js";
+import { denyUnauthenticated, registerAuth, type AuthOptions } from "../auth/routes.js";
+import { ValidationRejectedError, type WriteStatus } from "../git/write-service.js";
 import { InvalidRequestError, parseInboxRequest, parseJsonBody } from "../inbox/request.js";
 import type { CaptureStatus, InboxService } from "../inbox/service.js";
 import { RateLimiter } from "./rate-limit.js";
@@ -18,6 +19,8 @@ export const MAX_BODY_BYTES = 512 * 1024;
 export interface AppOptions {
   inbox: InboxService;
   tokens: TokenStore;
+  /** Browser sign-in. Without it, only the token-protected inbox API is served. */
+  auth?: AuthOptions & { status: () => Promise<WriteStatus> };
   rateLimiter?: RateLimiter;
   logger?: FastifyServerOptions["logger"];
   /** Trust `X-Forwarded-For` from these proxies only (Caddy). */
@@ -72,7 +75,8 @@ export function buildApp(options: AppOptions): FastifyInstance {
     reply.header("Content-Security-Policy", "default-src 'self'");
   });
 
-  app.setNotFoundHandler((_request, reply) => unauthorized(reply));
+  // Anonymous requests get 401 everywhere, including for paths that do not exist.
+  app.setNotFoundHandler((request, reply) => (options.auth ? denyUnauthenticated(request, reply) : unauthorized(reply)));
 
   app.setErrorHandler((error: FastifyError | Error, request, reply) => {
     if (error instanceof InvalidRequestError) {
@@ -93,6 +97,15 @@ export function buildApp(options: AppOptions): FastifyInstance {
   });
 
   app.get("/healthz", async () => ({ status: "ok" }));
+
+  if (options.auth) {
+    const { status, ...authOptions } = options.auth;
+    const { requireSession } = registerAuth(app, authOptions);
+    app.get("/api/v1/status", { preHandler: requireSession }, async () => {
+      const writer = await status();
+      return { head: writer.head, pending: writer.pending, pending_branches: writer.pendingBranches };
+    });
+  }
 
   app.register(
     async (scope) => {

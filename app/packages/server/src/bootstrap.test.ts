@@ -24,6 +24,8 @@ const config = (overrides: Partial<ServerConfig> = {}): ServerConfig => ({
   stateDir: join(root, "state"),
   host: "127.0.0.1",
   port: 0,
+  rpId: "localhost",
+  origin: "http://localhost",
   trustProxy: false,
   syncIntervalMs: 60_000,
   logLevel: "silent",
