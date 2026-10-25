@@ -1,7 +1,8 @@
 # Deploying octosprout-server to rei3
 
-Covers the inbox service as built so far (spec §18.1). Passkey login, the web
-UI and approvals are not deployed yet.
+Covers what is built so far (spec §18.1): the inbox API, passkey sign-in, the
+Inbox view, the capture form and token management. Boards, proposals and
+approvals come later.
 
 ## 1. DNS and Caddy
 
@@ -27,7 +28,20 @@ ssh-keygen -t ed25519 -N '' -C octosprout-server -f deploy_key
 The container copies the key to its state directory with mode 0600 at start,
 and pins GitHub's host key on first use.
 
-## 3. Build and start
+## 3. Setup token
+
+The setup token authorizes registering a passkey at `/setup`, for the first
+device and for recovery.
+
+```sh
+openssl rand -base64 32 | sudo tee /etc/octosprout/secrets/setup_token >/dev/null
+sudo chmod 600 /etc/octosprout/secrets/setup_token
+```
+
+Rotate it (replace the file and restart) after you have registered your
+devices. Without a setup token, `/setup` is disabled.
+
+## 4. Build and start
 
 ```sh
 docker build -f deploy/Dockerfile -t octosprout-server:latest .
@@ -40,18 +54,33 @@ On first start the server clones `octosprout-private` into the `octosprout-repo`
 volume. The log line `workspace ready` reports the head commit and the number
 of unpushed commits.
 
-## 4. Create an inbox token
+## 5. Register your passkeys
+
+1. Open `https://app.octosprout.de/setup` on your iPhone (Safari), enter the
+   setup token, name the device and confirm with Face ID. You are signed in.
+2. Repeat on your Mac and any other device. Several passkeys can be registered.
+3. Sign out and back in once on each device to confirm.
+
+The passkeys are bound to `octosprout.de` and `https://app.octosprout.de`. If
+you change either setting, every passkey stops working and you register again.
+
+## 6. Create an inbox token
+
+In the app, open **Settings**, create a token named `iphone-shortcut` and copy
+it. It is shown once; only its hash is stored (in the state volume). Put it into
+the iOS Shortcut ([`deploy/shortcut/`](../../deploy/shortcut/README.md)).
+Revoke it in Settings when needed.
+
+Without a browser, the CLI does the same:
 
 ```sh
 docker compose -f /srv/octosprout/compose.yaml exec octosprout \
   node /opt/octosprout/app/packages/server/dist/main.js token create iphone-shortcut
 ```
 
-The token is printed once; only its hash is stored (in the state volume).
-Put it into the iOS Shortcut ([`deploy/shortcut/`](../../deploy/shortcut/README.md)).
-Revoke it with `token revoke <name>`, list tokens with `token list`.
+(`token revoke <name>` and `token list` are also available.)
 
-## 5. Check it end to end
+## 7. Check it end to end
 
 ```sh
 curl -sS https://app.octosprout.de/healthz
@@ -63,6 +92,7 @@ curl -sS -X POST https://app.octosprout.de/api/v1/inbox \
 
 Expect `201` with a capture ID and commit, and a new commit on
 `octosprout-private`. Repeating the same request returns `200` with the same ID.
+The capture appears in the Inbox at `https://app.octosprout.de/`.
 
 ## Operating notes
 

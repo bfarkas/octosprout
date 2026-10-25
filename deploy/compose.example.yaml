@@ -12,6 +12,10 @@ services:
     environment:
       OCTOSPROUT_REMOTE_URL: git@github.com:bfarkas/octosprout-private.git
       OCTOSPROUT_DEPLOY_KEY_FILE: /run/secrets/deploy_key
+      OCTOSPROUT_SETUP_TOKEN_FILE: /run/secrets/setup_token
+      # Passkeys are bound to these. Changing either invalidates every registered passkey.
+      OCTOSPROUT_RP_ID: octosprout.de
+      OCTOSPROUT_ORIGIN: https://app.octosprout.de
       # Caddy reaches the container from the Docker bridge network; trust
       # X-Forwarded-For from there and nowhere else.
       OCTOSPROUT_TRUST_PROXY: 172.16.0.0/12
@@ -20,10 +24,9 @@ services:
       - octosprout-state:/var/lib/octosprout/state
     secrets:
       - deploy_key              # SSH deploy key, write access to octosprout-private only
+      - setup_token             # registers passkeys at /setup
       # Used from later phases:
       # - approval_signing_key  # Ed25519
-      # - session_secret
-      # - setup_token
 
 volumes:
   octosprout-repo:
@@ -32,9 +35,7 @@ volumes:
 secrets:
   deploy_key:
     file: /etc/octosprout/secrets/deploy_key
+  setup_token:
+    file: /etc/octosprout/secrets/setup_token
   # approval_signing_key:
   #   file: /etc/octosprout/secrets/approval_signing_key
-  # session_secret:
-  #   file: /etc/octosprout/secrets/session_secret
-  # setup_token:
-  #   file: /etc/octosprout/secrets/setup_token
