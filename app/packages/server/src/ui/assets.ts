@@ -196,6 +196,67 @@ export const APP_JS = `
     return (await response.json()).csrf;
   }
 
+  const form = document.getElementById("capture-form");
+  if (form) {
+    const status = document.getElementById("status");
+    const button = form.querySelector("button");
+    const DRAFT = "octosprout.capture.draft";
+    const show = (text, kind) => {
+      status.textContent = text;
+      status.className = "status " + (kind || "");
+    };
+    const remember = (value) => {
+      try {
+        if (value) localStorage.setItem(DRAFT, value);
+        else localStorage.removeItem(DRAFT);
+      } catch (_) {}
+    };
+
+    // An unsent draft survives a reload or a failed save (nothing is lost until the server acknowledges it).
+    try {
+      form.elements.text.value = localStorage.getItem(DRAFT) || "";
+    } catch (_) {}
+
+    // One idempotency key per attempt: a retry of the same text can never create a duplicate.
+    let key = null;
+    form.elements.text.addEventListener("input", () => {
+      key = null;
+      remember(form.elements.text.value);
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const text = form.elements.text.value;
+      if (!text.trim()) return show("Write something first.", "error");
+      button.disabled = true;
+      show("Saving…");
+      key = key || "web-" + crypto.randomUUID();
+      const payload = { text, idempotency_key: key };
+      if (form.elements.source_url.value.trim()) payload.source_url = form.elements.source_url.value.trim();
+      try {
+        const csrf = await csrfToken();
+        const response = await fetch("/api/v1/capture", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json", "x-csrf-token": csrf },
+          body: JSON.stringify(payload),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.message || data.error || response.statusText);
+        form.elements.text.value = "";
+        form.elements.source_url.value = "";
+        remember("");
+        key = null;
+        if (data.status === "pending") show("Saved " + data.id + " (sync pending)", "pending");
+        else show("Saved " + data.id + " ✓", "ok");
+      } catch (error) {
+        show((error && error.message ? error.message : String(error)) + " Your text is still here; try again.", "error");
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
   for (const button of document.querySelectorAll('[data-action="logout"]')) {
     button.addEventListener("click", async () => {
       try {

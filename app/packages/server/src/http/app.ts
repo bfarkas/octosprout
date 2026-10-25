@@ -9,7 +9,8 @@ import Fastify, { type FastifyError, type FastifyInstance, type FastifyReply, ty
 import { denyUnauthenticated, registerAuth, type AuthOptions } from "../auth/routes.js";
 import { ValidationRejectedError, type WriteStatus } from "../git/write-service.js";
 import { InvalidRequestError, parseInboxRequest, parseJsonBody } from "../inbox/request.js";
-import type { CaptureStatus, InboxService } from "../inbox/service.js";
+import type { CaptureStatus, InboxOutcome, InboxService } from "../inbox/service.js";
+import { registerUi } from "../ui/routes.js";
 import { RateLimiter } from "./rate-limit.js";
 import type { TokenStore } from "./tokens.js";
 
@@ -39,6 +40,13 @@ function statusBody(status: CaptureStatus): Record<string, string> {
   return status.status === "committed"
     ? { id: status.id, status: "committed", commit: status.commit, path: status.path }
     : { id: status.id, status: "pending", local_commit: status.commit };
+}
+
+/** Maps an inbox outcome to the response of spec §15.2. */
+function respondWithOutcome(reply: FastifyReply, outcome: InboxOutcome): FastifyReply {
+  if (outcome.kind === "conflict") return reply.code(409).send({ error: "idempotency_conflict", id: outcome.id });
+  if (outcome.kind === "created") return reply.code(outcome.status === "committed" ? 201 : 202).send(statusBody(outcome));
+  return reply.code(200).send(statusBody(outcome));
 }
 
 function unauthorized(reply: FastifyReply): FastifyReply {
@@ -105,6 +113,21 @@ export function buildApp(options: AppOptions): FastifyInstance {
       const writer = await status();
       return { head: writer.head, pending: writer.pending, pending_branches: writer.pendingBranches };
     });
+
+    // The browser capture form uses the same pipeline as the inbox API (spec §12.2).
+    app.post("/api/v1/capture", { preHandler: requireSession }, async (request, reply) => {
+      const body = typeof request.body === "object" && request.body !== null ? (request.body as Record<string, unknown>) : request.body;
+      const parsed = parseInboxRequest(
+        typeof body === "object" && body !== null && !Array.isArray(body) ? { ...body, source: "web" } : body,
+      );
+      const outcome = await inbox.submit(parsed, "web-session");
+      if (outcome.kind === "created") {
+        request.log.info({ id: outcome.id, size: Buffer.byteLength(parsed.text), source: parsed.source, token: "web-session" }, "capture stored");
+      }
+      return respondWithOutcome(reply, outcome);
+    });
+
+    registerUi(app, { requireSession, inbox, status });
   }
 
   app.register(
@@ -128,15 +151,10 @@ export function buildApp(options: AppOptions): FastifyInstance {
         const parsed = parseInboxRequest(request.body);
         const token = request.inboxToken!.name;
         const outcome = await inbox.submit(parsed, `token:${token}`);
-
-        if (outcome.kind === "conflict") {
-          return reply.code(409).send({ error: "idempotency_conflict", id: outcome.id });
-        }
         if (outcome.kind === "created") {
           request.log.info({ id: outcome.id, size: Buffer.byteLength(parsed.text), source: parsed.source, token }, "capture stored");
-          return reply.code(outcome.status === "committed" ? 201 : 202).send(statusBody(outcome));
         }
-        return reply.code(200).send(statusBody(outcome));
+        return respondWithOutcome(reply, outcome);
       });
       scope.route({ method: ["GET", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"], url: "/", handler: methodNotAllowed("POST") });
 

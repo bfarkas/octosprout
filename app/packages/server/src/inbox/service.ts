@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { generateId, parseRecord, sha256Hex } from "@octosprout/core";
 
 import { ConflictError, type WriteOperation, type WriteResult } from "../git/write-service.js";
-import { buildCapture } from "./capture.js";
+import { buildCapture, formatTimestamp } from "./capture.js";
 import type { InboxRequest } from "./request.js";
 
 /** What the inbox needs from the Git write service. */
@@ -33,9 +33,19 @@ export type InboxOutcome =
   | ({ kind: "replay" } & CaptureStatus)
   | { kind: "conflict"; id: string };
 
-interface IndexedCapture {
+/** What the Inbox view shows about a capture. The body is read on demand. */
+export interface CaptureSummary {
   id: string;
   path: string;
+  status: string;
+  /** UTC RFC 3339 receive time. */
+  created: string;
+  source: string;
+  sourceDetail?: string;
+  sourceUrl?: string;
+}
+
+interface IndexedCapture extends CaptureSummary {
   contentSha256: string;
 }
 
@@ -95,12 +105,44 @@ export class InboxService {
   #indexFile(path: string): void {
     const parsed = parseRecord(readFileSync(join(this.#repoDir, path), "utf8"));
     if (!parsed.ok) return;
-    const { id, idempotency_key: key, content_sha256: sha } = parsed.record.frontmatter;
+    const fm = parsed.record.frontmatter;
+    const { id, idempotency_key: key, content_sha256: sha } = fm;
     if (typeof id !== "string") return;
     this.#ids.add(id);
     if (typeof key === "string" && typeof sha === "string") {
-      this.#byKey.set(key, { id, path, contentSha256: sha });
+      const text = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
+      const sourceDetail = text(fm.source_detail);
+      const sourceUrl = text(fm.source_url);
+      this.#byKey.set(key, {
+        id,
+        path,
+        contentSha256: sha,
+        status: text(fm.status) ?? "new",
+        created: text(fm.created) ?? "",
+        source: text(fm.source) ?? "other",
+        ...(sourceDetail !== undefined ? { sourceDetail } : {}),
+        ...(sourceUrl !== undefined ? { sourceUrl } : {}),
+      });
     }
+  }
+
+  /** Captures with status `new`, newest first (the Inbox view, spec §12.2). */
+  listInbox(limit = 100): { captures: CaptureSummary[]; total: number } {
+    const fresh = [...this.#byKey.values()]
+      .filter((capture) => capture.status === "new")
+      .sort((a, b) => b.created.localeCompare(a.created) || b.id.localeCompare(a.id));
+    return {
+      total: fresh.length,
+      captures: fresh.slice(0, limit).map(({ contentSha256: _hash, ...summary }) => summary),
+    };
+  }
+
+  /** The stored text of an indexed capture, exactly as submitted. */
+  readBody(path: string): string | undefined {
+    const known = [...this.#byKey.values()].some((capture) => capture.path === path);
+    if (!known) return undefined;
+    const parsed = parseRecord(readFileSync(join(this.#repoDir, path), "utf8"));
+    return parsed.ok ? parsed.record.body : undefined;
   }
 
   /**
@@ -165,7 +207,16 @@ export class InboxService {
         if (result.status === "unchanged") throw new Error("A new capture produced no change.");
 
         this.#ids.add(id);
-        this.#byKey.set(request.idempotencyKey, { id, path: capture.path, contentSha256: sha256Hex(request.text) });
+        this.#byKey.set(request.idempotencyKey, {
+          id,
+          path: capture.path,
+          contentSha256: sha256Hex(request.text),
+          status: "new",
+          created: formatTimestamp(receivedAt),
+          source: request.source,
+          ...(request.sourceDetail !== undefined ? { sourceDetail: request.sourceDetail } : {}),
+          ...(request.sourceUrl !== undefined ? { sourceUrl: request.sourceUrl } : {}),
+        });
         return {
           kind: "created",
           id,
