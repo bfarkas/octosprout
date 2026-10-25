@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://octosprout.de/schemas/capture.v1.schema.json",
+  "title": "OctoSprout capture record frontmatter, version 1",
+  "description": "Spec §6.5 (Capture) and §15.2. The body is the submitted text, verbatim and immutable.",
+  "type": "object",
+  "required": [
+    "id",
+    "type",
+    "schema_version",
+    "status",
+    "created",
+    "updated",
+    "source",
+    "idempotency_key",
+    "received_via",
+    "content_sha256"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^OS-C-[0-9A-HJKMNP-TV-Z]{5}$"
+    },
+    "type": {
+      "const": "capture"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "enum": [
+        "new",
+        "planted",
+        "composted"
+      ]
+    },
+    "created": {
+      "$ref": "common.v1.schema.json#/$defs/timestamp"
+    },
+    "updated": {
+      "$ref": "common.v1.schema.json#/$defs/timestamp"
+    },
+    "tags": {
+      "$ref": "common.v1.schema.json#/$defs/tags"
+    },
+    "links": {
+      "$ref": "common.v1.schema.json#/$defs/links"
+    },
+    "refs": {
+      "$ref": "common.v1.schema.json#/$defs/refs"
+    },
+    "source": {
+      "enum": [
+        "shortcut",
+        "chatgpt",
+        "claude",
+        "apple-notes",
+        "web",
+        "cli",
+        "other"
+      ]
+    },
+    "source_detail": {
+      "description": "Original submitted source value when it was not a known enum value.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "source_url": {
+      "$ref": "common.v1.schema.json#/$defs/httpsUrl"
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+    },
+    "received_via": {
+      "description": "token:<name>, web-session or cli.",
+      "type": "string",
+      "pattern": "^(token:[A-Za-z0-9._-]{1,64}|web-session|cli)$"
+    },
+    "client_created_at": {
+      "description": "Client-supplied RFC 3339 timestamp, stored as provided for reference.",
+      "type": "string",
+      "maxLength": 64
+    },
+    "content_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "patternProperties": {
+    "^x-": true
+  },
+  "additionalProperties": false
+}
