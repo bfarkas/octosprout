@@ -10,7 +10,8 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "e2e": "node e2e/browser.e2e.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",
