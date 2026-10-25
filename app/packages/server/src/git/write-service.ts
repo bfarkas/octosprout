@@ -181,6 +181,22 @@ export class GitWriteService {
     );
   }
 
+  /**
+   * The commit that added `path`, and whether it is on the remote branch yet.
+   * Reads refs only, so it does not wait behind queued writes.
+   */
+  async commitFor(path: string): Promise<{ commit: string; onRemote: boolean } | undefined> {
+    safePath(path);
+    const find = async (rev: string): Promise<string> =>
+      (await this.#git(["log", "-1", "--diff-filter=A", "--format=%H", rev, "--", path])).stdout.trim();
+    if (await this.#hasRemoteRef()) {
+      const commit = await find(this.#remoteRef);
+      if (commit !== "") return { commit, onRemote: true };
+    }
+    const commit = await find("HEAD");
+    return commit === "" ? undefined : { commit, onRemote: false };
+  }
+
   status(): Promise<WriteStatus> {
     return this.#enqueue(async () => {
       const head = (await this.#git(["rev-parse", "HEAD"])).stdout.trim();
