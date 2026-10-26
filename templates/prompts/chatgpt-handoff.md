@@ -50,7 +50,7 @@ headings: the headings are what makes every brief look the same.
 3. Capture it: tap the OctoSprout home screen icon, then **Paste & save**. Or,
    to keep the chat link and record `source: chatgpt`, share the chat to
    **OctoSprout from ChatGPT** and tap **Paste & save** (see
-   [`deploy/shortcut/README.md`](../../deploy/shortcut/README.md)).
+   [`deploy/shortcut/README.md`](https://github.com/bfarkas/octosprout/blob/main/deploy/shortcut/README.md)).
 
 ## Limits
 
