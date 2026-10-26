@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://octosprout.de/schemas/research.v1.schema.json",
+  "title": "OctoSprout research record frontmatter, version 1",
+  "description": "Spec §6.5 (Research) and §7.5. Sources are refs of kind url.",
+  "type": "object",
+  "required": [
+    "id",
+    "type",
+    "schema_version",
+    "title",
+    "status",
+    "created",
+    "updated"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^OS-R-[0-9A-HJKMNP-TV-Z]{5}$"
+    },
+    "type": {
+      "const": "research"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "title": {
+      "$ref": "common.v1.schema.json#/$defs/title"
+    },
+    "status": {
+      "enum": [
+        "open",
+        "concluded",
+        "archived"
+      ]
+    },
+    "created": {
+      "$ref": "common.v1.schema.json#/$defs/timestamp"
+    },
+    "updated": {
+      "$ref": "common.v1.schema.json#/$defs/timestamp"
+    },
+    "tags": {
+      "$ref": "common.v1.schema.json#/$defs/tags"
+    },
+    "links": {
+      "$ref": "common.v1.schema.json#/$defs/links"
+    },
+    "refs": {
+      "$ref": "common.v1.schema.json#/$defs/refs"
+    },
+    "approval": {
+      "$ref": "common.v1.schema.json#/$defs/proposalId"
+    }
+  },
+  "patternProperties": {
+    "^x-": true
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://octosprout.de/schemas/decision.v1.schema.json",
+  "title": "OctoSprout decision (ADR) record frontmatter, version 1",
+  "description": "Spec §6.5 (Decision), §7.6 and §13. The body follows the pinned upstream ADR template.",
+  "type": "object",
+  "required": [
+    "id",
+    "type",
+    "schema_version",
+    "title",
+    "status",
+    "created",
+    "updated",
+    "template"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^OS-D-[0-9A-HJKMNP-TV-Z]{5}$"
+    },
+    "type": {
+      "const": "decision"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "title": {
+      "$ref": "common.v1.schema.json#/$defs/title"
+    },
+    "status": {
+      "enum": [
+        "DRAFT",
+        "PROPOSED",
+        "ACCEPTED",
+        "ADOPTED",
+        "SUPERSEDED",
+        "EXPIRED"
+      ]
+    },
+    "created": {
+      "$ref": "common.v1.schema.json#/$defs/timestamp"
+    },
+    "updated": {
+      "$ref": "common.v1.schema.json#/$defs/timestamp"
+    },
+    "tags": {
+      "$ref": "common.v1.schema.json#/$defs/tags"
+    },
+    "links": {
+      "$ref": "common.v1.schema.json#/$defs/links"
+    },
+    "refs": {
+      "$ref": "common.v1.schema.json#/$defs/refs"
+    },
+    "approval": {
+      "$ref": "common.v1.schema.json#/$defs/proposalId"
+    },
+    "template": {
+      "description": "Pinned upstream template, harmel-law-adr@<40-hex commit SHA>.",
+      "type": "string",
+      "pattern": "^harmel-law-adr@[0-9a-f]{40}$"
+    }
+  },
+  "patternProperties": {
+    "^x-": true
+  },
+  "additionalProperties": false
+}

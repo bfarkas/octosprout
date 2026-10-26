@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://octosprout.de/schemas/common.v1.schema.json",
   "title": "OctoSprout common definitions, version 1",
-  "description": "Field definitions shared by every record type (spec §6.2–§6.4).",
+  "description": "Field definitions shared by every record type (spec §6.2–§6.4, §8.6, §9.3).",
   "$defs": {
     "id": {
       "type": "string",
@@ -11,6 +11,25 @@
     "proposalId": {
       "type": "string",
       "pattern": "^OS-PROP-[0-9A-HJKMNP-TV-Z]{5}$"
+    },
+    "gitSha": {
+      "description": "Git object ID (SHA-1, or SHA-256 in SHA-256 repositories).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+    },
+    "actor": {
+      "description": "user:web, token:<name>, cli or agent:<client> (spec §8.6).",
+      "type": "string",
+      "pattern": "^(user:web|cli|token:[A-Za-z0-9._-]{1,64}|agent:[A-Za-z0-9._-]{1,64})$"
+    },
+    "workspacePath": {
+      "description": "Workspace-relative path with / separators. No absolute paths, no . or .. segments, nothing under .git.",
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9._@+-]+(/[A-Za-z0-9._@+-]+)*$",
+      "not": {
+        "pattern": "(^|/)\\.{1,2}(/|$)|^\\.git(/|$)"
+      }
     },
     "timestamp": {
       "description": "UTC RFC 3339, e.g. 2026-10-25T14:03:11Z",
@@ -24,7 +43,10 @@
     },
     "tags": {
       "type": "array",
-      "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
       "uniqueItems": true
     },
     "httpsUrl": {
@@ -34,7 +56,10 @@
     },
     "link": {
       "type": "object",
-      "required": ["rel", "id"],
+      "required": [
+        "rel",
+        "id"
+      ],
       "additionalProperties": false,
       "properties": {
         "rel": {
@@ -50,26 +75,49 @@
             "consulted"
           ]
         },
-        "id": { "$ref": "#/$defs/id" }
+        "id": {
+          "$ref": "#/$defs/id"
+        }
       }
     },
     "links": {
       "type": "array",
-      "items": { "$ref": "#/$defs/link" }
+      "items": {
+        "$ref": "#/$defs/link"
+      }
     },
     "ref": {
       "type": "object",
-      "required": ["kind", "url"],
+      "required": [
+        "kind",
+        "url"
+      ],
       "additionalProperties": false,
       "properties": {
-        "kind": { "enum": ["repo", "pr", "commit", "branch", "issue", "file", "url"] },
-        "url": { "$ref": "#/$defs/httpsUrl" },
-        "note": { "type": "string" }
+        "kind": {
+          "enum": [
+            "repo",
+            "pr",
+            "commit",
+            "branch",
+            "issue",
+            "file",
+            "url"
+          ]
+        },
+        "url": {
+          "$ref": "#/$defs/httpsUrl"
+        },
+        "note": {
+          "type": "string"
+        }
       }
     },
     "refs": {
       "type": "array",
-      "items": { "$ref": "#/$defs/ref" }
+      "items": {
+        "$ref": "#/$defs/ref"
+      }
     }
   }
 }

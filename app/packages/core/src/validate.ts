@@ -267,10 +267,6 @@ function checkSchema(entry: LoadedRecord, schemas: SchemaRegistry, findings: Fin
     return;
   }
   const version = fm.schema_version as number;
-  if (!schemas.hasType(entry.type)) {
-    emit("warning", "schema_version", `No schema for '${entry.type}' records is available yet, so their frontmatter is not checked.`, "Schemas for the remaining types arrive in Phase 2.");
-    return;
-  }
   const validate = schemas.get(entry.type, version);
   if (!validate) {
     emit("error", "schema_version", `Unsupported ${entry.type} schema_version ${version}.`, "Upgrade OctoSprout or migrate the record to a supported version.");

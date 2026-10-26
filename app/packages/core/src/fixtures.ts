@@ -1,5 +1,6 @@
 /** Builders for validator tests. */
 import { renderRecord, sha256Hex, type Frontmatter } from "./record.js";
+import { ADR_TEMPLATE_PIN } from "./types.js";
 import type { SourceFile } from "./validate.js";
 
 export function capture(
@@ -29,13 +30,14 @@ export function capture(
   };
 }
 
-/** A record type that has no schema yet (Phase 2), for link and lifecycle tests. */
+/** A titled record with the minimum valid frontmatter for its type. */
 export function record(
   type: string,
   dir: string,
   id: string,
   overrides: Frontmatter = {},
   path = `${dir}/${id}--example.md`,
+  body = "",
 ): SourceFile {
   return {
     path,
@@ -48,9 +50,10 @@ export function record(
         status: { idea: "seed", task: "backlog", project: "proposed", decision: "DRAFT", research: "open", expert: "active" }[type],
         created: "2026-10-25T15:00:00Z",
         updated: "2026-10-25T15:00:00Z",
+        ...(type === "decision" ? { template: ADR_TEMPLATE_PIN } : {}),
         ...overrides,
       },
-      "",
+      body,
     ),
   };
 }
@@ -59,3 +62,31 @@ export const idea = (id: string, overrides: Frontmatter = {}) => record("idea", 
 export const task = (id: string, overrides: Frontmatter = {}) => record("task", "records/tasks", id, overrides);
 export const project = (id: string, overrides: Frontmatter = {}) => record("project", "records/projects", id, overrides);
 export const decision = (id: string, overrides: Frontmatter = {}) => record("decision", "records/decisions", id, overrides);
+export const research = (id: string, overrides: Frontmatter = {}) => record("research", "records/research", id, overrides);
+export const expert = (id: string, overrides: Frontmatter = {}) => record("expert", "experts", id, overrides);
+
+export const SHA1 = "4f1c2e9a0b7d3c5e6f8091a2b3c4d5e6f7a8b9c0";
+
+/** A pending proposal with one `set_status` operation. */
+export function proposal(id = "OS-PROP-8V3KD", overrides: Frontmatter = {}, body = "## Rationale\n"): SourceFile {
+  return {
+    path: `proposals/2026/10/${id}.md`,
+    content: renderRecord(
+      {
+        id,
+        type: "proposal",
+        schema_version: 1,
+        status: "pending",
+        title: "Example proposal",
+        created: "2026-10-25T15:00:00Z",
+        updated: "2026-10-25T15:00:00Z",
+        origin: { actor: "agent:claude-code" },
+        base_commit: SHA1,
+        consequential: false,
+        operations: [{ op: "set_status", id: "OS-I-2HD9W", base_blob: SHA1, status: "sprouting" }],
+        ...overrides,
+      },
+      body,
+    ),
+  };
+}

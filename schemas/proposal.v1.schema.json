@@ -1,0 +1,334 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://octosprout.de/schemas/proposal.v1.schema.json",
+  "title": "OctoSprout proposal frontmatter, version 1",
+  "description": "Spec §9.3. Operations are applied in order, in one commit, after approval in the browser UI. Proposals are never link targets.",
+  "type": "object",
+  "required": [
+    "id",
+    "type",
+    "schema_version",
+    "title",
+    "status",
+    "created",
+    "updated",
+    "origin",
+    "base_commit",
+    "consequential",
+    "operations"
+  ],
+  "properties": {
+    "id": {
+      "$ref": "common.v1.schema.json#/$defs/proposalId"
+    },
+    "type": {
+      "const": "proposal"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "title": {
+      "$ref": "common.v1.schema.json#/$defs/title"
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "applied",
+        "rejected",
+        "stale"
+      ]
+    },
+    "created": {
+      "$ref": "common.v1.schema.json#/$defs/timestamp"
+    },
+    "updated": {
+      "$ref": "common.v1.schema.json#/$defs/timestamp"
+    },
+    "tags": {
+      "$ref": "common.v1.schema.json#/$defs/tags"
+    },
+    "origin": {
+      "type": "object",
+      "required": [
+        "actor"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "actor": {
+          "$ref": "common.v1.schema.json#/$defs/actor"
+        },
+        "session": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "base_commit": {
+      "$ref": "common.v1.schema.json#/$defs/gitSha"
+    },
+    "consequential": {
+      "type": "boolean"
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "op",
+              "path",
+              "content"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "op": {
+                "const": "create"
+              },
+              "path": {
+                "$ref": "common.v1.schema.json#/$defs/workspacePath"
+              },
+              "content": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "op",
+              "base_blob",
+              "content"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "op": {
+                "const": "update"
+              },
+              "id": {
+                "$ref": "common.v1.schema.json#/$defs/id"
+              },
+              "path": {
+                "$ref": "common.v1.schema.json#/$defs/workspacePath"
+              },
+              "base_blob": {
+                "$ref": "common.v1.schema.json#/$defs/gitSha"
+              },
+              "content": {
+                "type": "string"
+              }
+            },
+            "oneOf": [
+              {
+                "properties": {
+                  "id": true
+                },
+                "required": [
+                  "id"
+                ],
+                "not": {
+                  "properties": {
+                    "path": true
+                  },
+                  "required": [
+                    "path"
+                  ]
+                }
+              },
+              {
+                "properties": {
+                  "path": true
+                },
+                "required": [
+                  "path"
+                ],
+                "not": {
+                  "properties": {
+                    "id": true
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "type": "object",
+            "required": [
+              "op",
+              "id",
+              "base_blob",
+              "status"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "op": {
+                "const": "set_status"
+              },
+              "id": {
+                "$ref": "common.v1.schema.json#/$defs/id"
+              },
+              "base_blob": {
+                "$ref": "common.v1.schema.json#/$defs/gitSha"
+              },
+              "status": {
+                "type": "string",
+                "minLength": 1
+              },
+              "body_sha256": {
+                "description": "Decisions moving to ACCEPTED: SHA-256 of the body without its '* Status:' line (OSV007).",
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "op",
+              "id",
+              "base_blob",
+              "link"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "op": {
+                "const": "add_link"
+              },
+              "id": {
+                "$ref": "common.v1.schema.json#/$defs/id"
+              },
+              "base_blob": {
+                "$ref": "common.v1.schema.json#/$defs/gitSha"
+              },
+              "link": {
+                "$ref": "common.v1.schema.json#/$defs/link"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "op",
+              "id",
+              "base_blob",
+              "link"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "op": {
+                "const": "remove_link"
+              },
+              "id": {
+                "$ref": "common.v1.schema.json#/$defs/id"
+              },
+              "base_blob": {
+                "$ref": "common.v1.schema.json#/$defs/gitSha"
+              },
+              "link": {
+                "$ref": "common.v1.schema.json#/$defs/link"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "op",
+              "base_blob"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "op": {
+                "const": "delete"
+              },
+              "id": {
+                "$ref": "common.v1.schema.json#/$defs/id"
+              },
+              "path": {
+                "$ref": "common.v1.schema.json#/$defs/workspacePath"
+              },
+              "base_blob": {
+                "$ref": "common.v1.schema.json#/$defs/gitSha"
+              }
+            },
+            "oneOf": [
+              {
+                "properties": {
+                  "id": true
+                },
+                "required": [
+                  "id"
+                ],
+                "not": {
+                  "properties": {
+                    "path": true
+                  },
+                  "required": [
+                    "path"
+                  ]
+                }
+              },
+              {
+                "properties": {
+                  "path": true
+                },
+                "required": [
+                  "path"
+                ],
+                "not": {
+                  "properties": {
+                    "id": true
+                  },
+                  "required": [
+                    "id"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "approval": {
+      "description": "Written by the server when the proposal is applied or rejected.",
+      "type": "object",
+      "required": [
+        "decision",
+        "at",
+        "key_id",
+        "ops_sha256",
+        "signature"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "enum": [
+            "approved",
+            "rejected"
+          ]
+        },
+        "at": {
+          "$ref": "common.v1.schema.json#/$defs/timestamp"
+        },
+        "key_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]{1,64}$"
+        },
+        "ops_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^ed25519:[A-Za-z0-9+/]+={0,2}$"
+        }
+      }
+    }
+  },
+  "patternProperties": {
+    "^x-": true
+  },
+  "additionalProperties": false
+}

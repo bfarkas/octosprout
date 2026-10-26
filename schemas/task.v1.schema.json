@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://octosprout.de/schemas/task.v1.schema.json",
+  "title": "OctoSprout task record frontmatter, version 1",
+  "description": "Spec §6.5 (Task), §7.3 and §11.2. Readiness is derived from the body and never stored.",
+  "type": "object",
+  "required": [
+    "id",
+    "type",
+    "schema_version",
+    "title",
+    "status",
+    "created",
+    "updated"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^OS-T-[0-9A-HJKMNP-TV-Z]{5}$"
+    },
+    "type": {
+      "const": "task"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "title": {
+      "$ref": "common.v1.schema.json#/$defs/title"
+    },
+    "status": {
+      "enum": [
+        "backlog",
+        "ready",
+        "in_progress",
+        "blocked",
+        "done",
+        "cancelled"
+      ]
+    },
+    "created": {
+      "$ref": "common.v1.schema.json#/$defs/timestamp"
+    },
+    "updated": {
+      "$ref": "common.v1.schema.json#/$defs/timestamp"
+    },
+    "tags": {
+      "$ref": "common.v1.schema.json#/$defs/tags"
+    },
+    "links": {
+      "$ref": "common.v1.schema.json#/$defs/links"
+    },
+    "refs": {
+      "$ref": "common.v1.schema.json#/$defs/refs"
+    },
+    "approval": {
+      "$ref": "common.v1.schema.json#/$defs/proposalId"
+    }
+  },
+  "patternProperties": {
+    "^x-": true
+  },
+  "additionalProperties": false
+}

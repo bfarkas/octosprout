@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { capture, decision, idea, project, record, task } from "./fixtures.js";
+import { capture, decision, expert, idea, project, proposal, record, research, task } from "./fixtures.js";
 import { hasErrors, type Finding } from "./findings.js";
 import { renderRecord, sha256Hex } from "./record.js";
 import { SchemaRegistry } from "./schemas.js";
@@ -99,9 +99,12 @@ describe("OSV003 frontmatter", () => {
     expect(finding?.line).toBeGreaterThan(1);
   });
 
-  it("warns, rather than errors, for types whose schema has not shipped", () => {
-    const findings = run(idea("OS-I-2HD9W"));
-    expect(findings).toEqual([expect.objectContaining({ code: "OSV003", severity: "warning" })]);
+  it("checks every record type against its schema", () => {
+    expect(run(idea("OS-I-2HD9W"), task("OS-T-QF81M"), project("OS-P-0XZ4K"), decision("OS-D-4M9TZ"), research("OS-R-B7N2C"), expert("OS-E-SEC01"), proposal())).toEqual([]);
+    expect(codes(run(idea("OS-I-2HD9W", { title: undefined })))).toEqual(["OSV003"]);
+    expect(codes(run(task("OS-T-QF81M", { priority: 1 })))).toEqual(["OSV003"]);
+    expect(codes(run(decision("OS-D-4M9TZ", { template: undefined })))).toEqual(["OSV003"]);
+    expect(codes(run(proposal("OS-PROP-8V3KD", { operations: [] })))).toEqual(["OSV003"]);
   });
 });
 
@@ -155,8 +158,7 @@ describe("OSV005 links", () => {
   });
 
   it("never lets a link target a proposal", () => {
-    const proposal = record("proposal", "proposals", "OS-PROP-8V3KD", { status: "pending" }, "proposals/2026/10/OS-PROP-8V3KD.md");
-    expect(osv005(run(idea(ids.i, link("relates_to", "OS-PROP-8V3KD")), proposal))).toHaveLength(1);
+    expect(osv005(run(idea(ids.i, link("relates_to", "OS-PROP-8V3KD")), proposal()))).toHaveLength(1);
   });
 
   it("flags self-links and duplicates", () => {
