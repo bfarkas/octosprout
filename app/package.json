@@ -1,6 +1,7 @@
 {
   "name": "octosprout-workspace",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "packageManager": "pnpm@10.28.0",
   "engines": {

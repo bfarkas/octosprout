@@ -1,8 +1,9 @@
 {
   "name": "@octosprout/web",
   "version": "0.0.0",
+  "license": "Apache-2.0",
   "private": true,
-  "description": "Browser UI. Shape depends on the Phase 0 board engine decision (spec §12.1, D5).",
+  "description": "Browser UI. Shape depends on the Phase 0 board engine decision (spec \u00a712.1, D5).",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

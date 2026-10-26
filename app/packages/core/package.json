@@ -1,6 +1,7 @@
 {
   "name": "@octosprout/core",
   "version": "0.0.0",
+  "license": "Apache-2.0",
   "private": true,
   "description": "Record model, schemas, IDs and validation shared by the server, CLI and CI.",
   "type": "module",

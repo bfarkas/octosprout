@@ -42,6 +42,7 @@ The terms MUST, MUST NOT, SHOULD and MAY are used in their RFC 2119 sense.
 | D19 | Write lock | `flock(1)` helper process on `repo/.git/octosprout.lock` (ADR003). |
 | D20 | Sessions | Random 256-bit IDs, stored hashed; no `session_secret` (ADR004). |
 | D21 | ChatGPT handoff | `/octosprout` defined in ChatGPT Custom Instructions; the pasted prompt is the fallback (ADR005). |
+| D22 | Application code license | Apache-2.0 for the public `octosprout` repository. The vendored ADR template keeps MPL-2.0. The public library's licensing policy (§17) is still to be decided. |
 
 ### 0.3 Changes in v0.4
 
@@ -56,6 +57,7 @@ The terms MUST, MUST NOT, SHOULD and MAY are used in their RFC 2119 sense.
 | §18.2 | Sign-in attempts: burst 10, 20 per minute per IP. Token changes made with the CLI apply to the running server immediately. | — |
 | §20 | Adds the real-browser end-to-end check and an image build to CI. | — |
 | §21 | Records Phase 0 and Phase 1 status. | — |
+| §5.1, §23 | The application code is licensed Apache-2.0 (D22). | — |
 
 ---
 
@@ -166,7 +168,7 @@ The server is configured with exactly one **workspace repository**, the private 
 
 ```text
 README.md
-LICENSE                      # [Open question] application code license (§23)
+LICENSE                      # Apache-2.0 (D22)
 docs/
   spec/                      # this document and successors
   handoffs/                  # briefs for work handed to another agent
@@ -1191,7 +1193,7 @@ The MVP is complete when all of the following are demonstrated:
 
 ## 23. Open questions
 
-1. **Application code license** for public `octosprout`, for example MIT or Apache-2.0. This is needed before the repository attracts contributions.
+1. ~~**Application code license** for public `octosprout`.~~ Decided: Apache-2.0 (D22).
 2. **MPL-2.0 implications** of instantiating ADRs from the vendored template. The template file keeps its notice. Confirm that filled-in private ADRs need no further action, and decide how this applies once ADRs could be published through the library.
 3. **[Assumption]** Hostnames: is the app at `app.octosprout.de` with the apex reserved, or at the apex itself?
 4. **[Assumption]** Task status `cancelled`, and Research statuses `open`, `concluded` and `archived`.

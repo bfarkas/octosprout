@@ -64,6 +64,7 @@ runs `validate` when the target is a Git repository.
 
 ## License
 
-The application code license is still open (spec §23). The vendored ADR
-template in `templates/adr/` is MPL-2.0; see its
-[`NOTICE.md`](templates/adr/NOTICE.md).
+OctoSprout is licensed under the [Apache License 2.0](LICENSE).
+
+The vendored ADR template in `templates/adr/` keeps its own licence, MPL-2.0;
+see its [`NOTICE.md`](templates/adr/NOTICE.md).
