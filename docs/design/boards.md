@@ -2,7 +2,7 @@
 
 Status: sketch for review, written so ADR006 can be accepted or rejected.
 Nothing here is built. The owner's answers of 26 Oct 2026 are worked in
-(§9). Companion mockup: [`boards-mockup.html`](boards-mockup.html)
+(§9); none are open. Companion mockup: [`boards-mockup.html`](boards-mockup.html)
 (open it in a browser; sample data, saves are simulated).
 
 ADR006 proposes a thin custom UI: server-rendered board pages from the
@@ -72,16 +72,31 @@ card is stored anywhere but in the record files.
   "blocked by OS-T-…" chip in whatever column it is in. The index computes
   this; nothing is written.
 
-The two meet in the UI, never in an automatic commit:
+How the two meet:
 
-| Situation | The board shows |
+| Situation | What happens |
 |---|---|
 | Task has open blockers, status is not `blocked` | Red "blocked by" chip. Moving it to In progress or Done asks "Still blocked by OS-T-…. Move anyway?" |
-| Task is `blocked`, its last blocker becomes `done` or `cancelled` | Green "unblocked" chip with a one-tap **Move to Ready** |
+| A blocker is moved to `done` | Every task that is `blocked` and has no other open blocker moves to `ready` **in the same commit** (owner, 26 Oct 2026). Move to… shows it in advance ("Done (+1 unblocked)"), and those cards move and flash with the blocker. |
+| Task is `blocked`, its last blocker is `cancelled`, or was finished somewhere that didn't unblock it | Green "unblocked" chip with a one-tap **Move to Ready**. A cancelled blocker did not do its work, so it does not unblock anything by itself. |
 | Task is `blocked`, no blocking links | Normal card in Blocked: blocked for a reason outside the workspace |
 
-The status never changes by itself, so every status change stays one commit
-the user made.
+Rules for the unblocking move:
+
+- Only tasks whose status is `blocked` move. A task with a "blocked by" chip in
+  another column keeps its status.
+- It is one operation and one commit: subject
+  `status: OS-T-2B7KC ready -> done (+1 unblocked)`, with a precondition on
+  every file it touches. If any of them changed since the server read it, the
+  whole move is a 409, so nothing half-applies.
+- The unblocked tasks count towards `bulk_threshold` (§9.2 item 5): if the
+  move would touch more than 10 records, it needs approval.
+- The rule lives in `@octosprout/core`, so `octosprout` on the Mac and the MCP
+  server unblock the same way. A blocker finished by hand-editing a file
+  unblocks nothing; the chip covers that case.
+
+A status never changes without a move by the user: the unblocking rides on
+the user's own commit.
 
 ### Moving a card
 
@@ -129,9 +144,9 @@ so the script holds no rules of its own.
 | | ADOPTED | SUPERSEDED, EXPIRED |
 | | SUPERSEDED, EXPIRED | none |
 
-The Decisions moves are an **assumption**: §7.6 lists the states but no
-transitions. They follow its rule that an accepted decision is not reopened;
-a reversal is a new decision that supersedes it.
+The Decisions moves were confirmed by the owner on 26 Oct 2026. They follow
+§7.6's rule that an accepted decision is not reopened; a reversal is a new
+decision that supersedes it.
 
 Consequential moves (§9.2) never commit straight from the board:
 
@@ -183,6 +198,11 @@ Responses:
 
 The new `base_blob` in the response replaces the card's `data-blob`, so a
 second move of the same card needs no reload.
+
+Moving a task to `done` can include unblocked tasks (§1, Blocked tasks). The
+request is the same; the server adds those files to `changes` and
+`preconditions`, and the response lists them as
+`unblocked: [{ id, base_blob }]` so the page moves those cards too.
 
 Rule while a request is in flight: the card is moved optimistically and shows
 *Saving…*; on any error it moves back. A second move of the same card waits
@@ -286,17 +306,21 @@ UI is chosen:
 
 - §7.3, §7.4: every move between task statuses and between project statuses
   is allowed.
-- §7.6: the Decision transitions in §2, once confirmed.
+- §7.6: the Decision transitions in §2.
 - §9.2 item 3: moving an `active` project to `archived` is consequential.
 - §12.2: Decisions become a board with columns by status, filterable by
   project; the row "Ideas, Tasks and Projects boards" includes Decisions.
 - §22 criterion 7: Decisions get a board.
-- §7.3: a note that `blocked` is a status set by hand, and that `blocks`
-  links are shown on the card but never change the status.
+- §7.3: `blocked` is a status set by hand; `blocks` links are shown on the
+  card; moving a task to `done` also moves every `blocked` task it was the
+  last open blocker of to `ready`, in the same commit.
 
-### Still open
+Follow-up answers:
 
-1. The Decision transitions in §2 are an assumption. Correct?
-2. Blocked: the board flags a task with open blockers but never changes its
-   status by itself. Alternatively, moving a blocker to Done could move the
-   tasks it unblocks from Blocked to Ready in the same commit. Keep it manual?
+| Question | Answer | Where it went |
+|---|---|---|
+| Decision transitions as in §2? | Yes | §2 |
+| Moving a blocker to Done also moves the tasks it unblocks to Ready, in the same commit? | Yes | §1, Blocked tasks; §3 |
+
+No questions are open. ADR006 can be accepted as it stands, and the spec
+changes above made with it.

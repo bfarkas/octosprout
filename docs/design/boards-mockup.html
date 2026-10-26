@@ -239,7 +239,7 @@ dialog::backdrop { background: var(--shade); }
     <div class="note"><h3>Sync indicator</h3><p>Every move shows <i>Saving…</i>, then <i>committed</i> with the short commit SHA, or <i>pending</i> when GitHub can't be reached. The top bar sums it up for the whole page (§12.2).</p></div>
     <div class="note"><h3>409 conflict</h3><p>If the file changed since the page was rendered, the server rejects the move. The dialog shows base, current and yours for the fields that differ, and offers to move anyway on the current version or keep it (§8.4).</p></div>
     <div class="note"><h3>Consequential moves</h3><p><i>Ready → Transplanted</i> starts the promotion wizard instead of moving the card (§10). A project from <i>Active</i> to <i>Completed</i> or <i>Archived</i>, and a decision to ACCEPTED, SUPERSEDED or EXPIRED, open the confirmation with the diff and a passkey check (§9.2).</p></div>
-    <div class="note"><h3>Blocked, two ways</h3><p>The Blocked column is the status, set by hand. Separately, a red <i>blocked by</i> chip shows open <code>blocks</code> links in any column, and moving such a task to In progress or Done asks first.</p><p>When the last blocker of a Blocked task is done, a green <i>unblocked</i> chip offers a one-tap move to Ready. The status never changes by itself.</p></div>
+    <div class="note"><h3>Blocked, two ways</h3><p>The Blocked column is the status, set by hand. Separately, a red <i>blocked by</i> chip shows open <code>blocks</code> links in any column, and moving such a task to In progress or Done asks first.</p><p>Moving a blocker to Done also moves the Blocked tasks it was the last open blocker of to Ready, in the same commit; Move to… shows it as “Done (+1 unblocked)”. Try it with <span class="mono">OS-T-2B7KC</span>. If a blocker was cancelled instead, a green <i>unblocked</i> chip offers a one-tap move.</p></div>
     <div class="note"><h3>Decisions board</h3><p>Columns are the upper-case ADR states. A move rewrites both the frontmatter <code>status</code> and the body's <code>* Status:</code> line. SUPERSEDED is only allowed once a newer decision <code>supersedes</code> this one; otherwise the drop offers to draft that decision.</p></div>
     <div class="note"><h3>Changes from the Mac</h3><p>The server fetches every 60 s. The page asks whether the board changed when it becomes visible and every 60 s, and offers a refresh, or swaps the board in place if no move is in flight.</p></div>
     <div class="note"><h3>No order within a column</h3><p>Cards sort by <code>updated</code>, newest first. Manual ordering would need a stored position, which would mean an <code>x-</code> key in every file. Left out of the first version.</p></div>
@@ -378,7 +378,7 @@ dialog::backdrop { background: var(--shade); }
       R("OS-T-2B7KC", "set_status route with base_blob", "ready", 1, { project: "OS-P-7RW2N" }),
       R("OS-T-H4V9X", "409 dialog for moves", "blocked", 1, { project: "OS-P-7RW2N", blockedBy: ["OS-T-2B7KC"] }),
       R("OS-T-5NM3A", "Pointer drag on iPhone Safari", "backlog", 2, { project: "OS-P-7RW2N", blockedBy: ["OS-T-QF81M"] }),
-      R("OS-T-XE6R1", "Board change check (ETag)", "blocked", 2, { project: "OS-P-7RW2N", blockedBy: ["OS-T-J1S8V"] }),
+      R("OS-T-XE6R1", "Board change check (ETag)", "blocked", 2, { project: "OS-P-7RW2N", blockedBy: ["OS-T-G8B2M"] }),
       R("OS-T-7YC0P", "Digest email template", "blocked", 5, { project: "OS-P-0XZ4K", note: "waiting for a mail provider" }),
       R("OS-T-AK4WD", "Pick digest send day", "ready", 6, { project: "OS-P-0XZ4K" }),
       R("OS-T-J1S8V", "Inbox view", "done", 9, { project: "OS-P-7RW2N" }),
@@ -406,6 +406,9 @@ dialog::backdrop { background: var(--shade); }
   const openBlockers = (rec) => (rec.blockedBy || []).filter((id) => !["done", "cancelled"].includes(TASK(id).status));
   const blocksOf = (rec) => DATA.tasks.filter((t) => (t.blockedBy || []).includes(rec.id)).map((t) => t.id);
   const supersededBy = (rec) => DATA.decisions.find((d) => d.supersedes === rec.id);
+  // Tasks a move to done takes along to ready: blocked, and this was their last open blocker.
+  const unblockedBy = (rec) =>
+    DATA.tasks.filter((t) => t.status === "blocked" && (t.blockedBy || []).includes(rec.id) && t.blockedBy.every((id) => id === rec.id || TASK(id).status === "done"));
 
   const state = { board: "ideas", width: "wide", result: "committed", unfolded: new Set(), pending: 0, conflicts: 0 };
   const $ = (sel) => document.querySelector(sel);
@@ -446,7 +449,8 @@ dialog::backdrop { background: var(--shade); }
     const opts = targets(rec)
       .map((k) => {
         const g = B().gate(rec.status, k, rec);
-        return `<option value="${k}">${esc(label(k))}${g === "wizard" ? " (promote…)" : g === "supersede" ? " (draft new…)" : g ? " (approve…)" : ""}</option>`;
+        const n = state.board === "tasks" && k === "done" ? unblockedBy(rec).length : 0;
+        return `<option value="${k}">${esc(label(k))}${g === "wizard" ? " (promote…)" : g === "supersede" ? " (draft new…)" : g ? " (approve…)" : n ? ` (+${n} unblocked)` : ""}</option>`;
       })
       .join("");
     const sync = rec.sync
@@ -553,6 +557,9 @@ ${c.hint ? `<div class="colhint">${esc(c.hint)}</div>` : ""}
   function save(rec, to, prefix) {
     if (state.result === "conflict") return conflict(rec, to);
     const from = rec.status;
+    const along = state.board === "tasks" && to === "done" ? unblockedBy(rec) : [];
+    if (along.length) prefix += `${along.map((t) => t.id).join(", ")} unblocked and moved to Ready in the same commit. `;
+    for (const t of along) { t.status = "ready"; t.updated = 0; t.flash = true; }
     rec.status = to;
     rec.updated = 0;
     rec.sync = "saving";
