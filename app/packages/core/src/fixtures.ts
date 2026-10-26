@@ -61,7 +61,41 @@ export function record(
 export const idea = (id: string, overrides: Frontmatter = {}) => record("idea", "records/ideas", id, overrides);
 export const task = (id: string, overrides: Frontmatter = {}) => record("task", "records/tasks", id, overrides);
 export const project = (id: string, overrides: Frontmatter = {}) => record("project", "records/projects", id, overrides);
-export const decision = (id: string, overrides: Frontmatter = {}) => record("decision", "records/decisions", id, overrides);
+export const decision = (id: string, overrides: Frontmatter = {}, body?: string) =>
+  record("decision", "records/decisions", id, overrides, undefined, body ?? adrBody(id, String(overrides.status ?? "DRAFT")));
+
+/** A decision body that follows the ADR template, with option 1 selected. */
+export function adrBody(id: string, status: string, { title = "Example", advice = "* None recorded." } = {}): string {
+  return [
+    `# ADR ${id} - ${title}`,
+    "* Date: Oct 25, 2026",
+    `* Status: ${status}`,
+    "* Author: Example",
+    "",
+    "## Decision",
+    "Do the thing.",
+    "",
+    "## Context",
+    "Why.",
+    "",
+    "## Options Considered",
+    "### Option 1 (SELECTED): The thing",
+    "#### Consequences",
+    " * Adopted because: it works",
+    " * Adopted despite: it costs",
+    "",
+    "### Option 2: Another thing",
+    "#### Consequences",
+    " * Rejected because: it does not",
+    "",
+    "## Advice",
+    ` ${advice}`,
+    "",
+    "## Supporting Material",
+    " * None",
+    "",
+  ].join("\n");
+}
 export const research = (id: string, overrides: Frontmatter = {}) => record("research", "records/research", id, overrides);
 export const expert = (id: string, overrides: Frontmatter = {}) => record("expert", "experts", id, overrides);
 

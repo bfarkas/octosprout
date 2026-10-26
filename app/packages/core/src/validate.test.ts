@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { capture, decision, expert, idea, project, proposal, record, research, task } from "./fixtures.js";
+import { decisionBodySha256 } from "./adr.js";
+import { adrBody, capture, decision, expert, idea, project, proposal, record, research, SHA1, task } from "./fixtures.js";
 import { hasErrors, type Finding } from "./findings.js";
 import { renderRecord, sha256Hex } from "./record.js";
 import { SchemaRegistry } from "./schemas.js";
@@ -192,6 +193,28 @@ describe("OSV005 links", () => {
   });
 });
 
+describe("OSV004 lifecycle states that depend on links", () => {
+  const promoted = { links: [{ rel: "promoted_to", id: "OS-P-0XZ4K" }] };
+  const osv004 = (findings: Finding[]) => findings.filter((f) => f.code === "OSV004");
+
+  it("requires exactly one promoted_to link on a transplanted idea", () => {
+    expect(osv004(run(idea("OS-I-2HD9W", { status: "transplanted" })))).toHaveLength(1);
+    expect(osv004(run(idea("OS-I-2HD9W", { status: "transplanted", ...promoted }), project("OS-P-0XZ4K")))).toEqual([]);
+    const twice = { links: [...promoted.links, { rel: "promoted_to", id: "OS-P-11111" }] };
+    expect(osv004(run(idea("OS-I-2HD9W", { status: "transplanted", ...twice }), project("OS-P-0XZ4K"), project("OS-P-11111")))).toHaveLength(1);
+  });
+
+  it("allows promoted_to only on a transplanted idea", () => {
+    expect(osv004(run(idea("OS-I-2HD9W", { status: "ready", ...promoted }), project("OS-P-0XZ4K")))).toHaveLength(1);
+  });
+
+  it("requires a newer decision for SUPERSEDED", () => {
+    const old = decision("OS-D-DDDD1", { status: "SUPERSEDED" });
+    expect(osv004(run(old))).toHaveLength(1);
+    expect(osv004(run(old, decision("OS-D-DDDD2", { links: [{ rel: "supersedes", id: "OS-D-DDDD1" }] })))).toEqual([]);
+  });
+});
+
 describe("OSV006 capture immutability", () => {
   it("detects an edited body", () => {
     const original = capture();
@@ -210,6 +233,153 @@ describe("OSV006 capture immutability", () => {
 
   it("does not apply to other record types", () => {
     expect(codes(run(idea("OS-I-2HD9W", { content_sha256: "0".repeat(64) })))).not.toContain("OSV006");
+  });
+});
+
+describe("OSV007 ADR template", () => {
+  const id = "OS-D-4M9TZ";
+  const osv007 = (findings: Finding[]) => findings.filter((f) => f.code === "OSV007");
+  const withBody = (body: string, overrides = {}) => decision(id, overrides, body);
+
+  it("accepts a decision that follows the template", () => {
+    expect(osv007(run(decision(id)))).toEqual([]);
+  });
+
+  it.each([
+    ["a missing title heading", adrBody(id, "DRAFT").replace(`# ADR ${id} - Example\n`, "")],
+    ["a heading with another ID", adrBody(id, "DRAFT").replace(`# ADR ${id}`, "# ADR OS-D-ZZZZZ")],
+    ["a missing Author line", adrBody(id, "DRAFT").replace("* Author: Example\n", "")],
+    ["metadata out of order", adrBody(id, "DRAFT").replace("* Date: Oct 25, 2026\n* Status: DRAFT", "* Status: DRAFT\n* Date: Oct 25, 2026")],
+    ["a status line that disagrees", adrBody(id, "PROPOSED")],
+    ["a missing section", adrBody(id, "DRAFT").replace("## Context\nWhy.\n", "")],
+    ["sections out of order", adrBody(id, "DRAFT").replace("## Decision\nDo the thing.\n\n## Context\nWhy.", "## Context\nWhy.\n\n## Decision\nDo the thing.")],
+  ])("flags %s as an error", (_label, body) => {
+    expect(osv007(run(withBody(body))).filter((f) => f.severity === "error")).not.toEqual([]);
+  });
+
+  it("points at the body line", () => {
+    const [finding] = osv007(run(withBody(adrBody(id, "PROPOSED"))));
+    expect(finding?.line).toBe(13);
+  });
+
+  it("requires exactly one selected option once accepted", () => {
+    const none = adrBody(id, "ADOPTED").replace(" (SELECTED)", "");
+    const errors = (findings: Finding[]) => osv007(findings).filter((f) => f.severity === "error");
+    expect(errors(run(withBody(none, { status: "ADOPTED" })))).toEqual([expect.objectContaining({ message: expect.stringContaining("exactly one") })]);
+    expect(errors(run(withBody(none.replace("ADOPTED", "DRAFT"))))).toEqual([]);
+  });
+
+  it("warns about contradicting consequences, extra sections and a differing title", () => {
+    const body = adrBody(id, "DRAFT", { title: "Other" }).replace("Rejected because", "Adopted because").replace("## Advice", "## Notes\n\n## Advice");
+    const findings = osv007(run(withBody(body)));
+    expect(findings).toHaveLength(3);
+    expect(findings.every((f) => f.severity === "warning")).toBe(true);
+  });
+
+  it("requires advice from consulted expert profiles to be marked as simulated", () => {
+    const consulted = { links: [{ rel: "consulted", id: "OS-E-SEC01" }] };
+    const profile = expert("OS-E-SEC01", { title: "Security Architect" });
+    const unmarked = adrBody(id, "DRAFT", { advice: "* Prefer per-file checks - Security Architect, Security, Oct 25, 2026" });
+    expect(osv007(run(withBody(unmarked, consulted), profile))).toHaveLength(1);
+    const marked = adrBody(id, "DRAFT", { advice: "* Prefer per-file checks - Security Architect (simulated, AI-generated, model), Security, Oct 25, 2026" });
+    expect(osv007(run(withBody(marked, consulted), profile))).toEqual([]);
+  });
+
+  describe("frozen body", () => {
+    const body = adrBody(id, "ACCEPTED");
+    const approving = (body_sha256?: string) =>
+      proposal("OS-PROP-8V3KD", { status: "applied", consequential: true, operations: [{ op: "set_status", id, base_blob: SHA1, status: "ACCEPTED", ...(body_sha256 ? { body_sha256 } : {}) }] });
+    const accepted = (text = body, status = "ACCEPTED") => withBody(text.replace("* Status: ACCEPTED", `* Status: ${status}`), { status, approval: "OS-PROP-8V3KD" });
+
+    it("accepts the approved body, also after a status change", () => {
+      expect(osv007(run(accepted(), approving(decisionBodySha256(body))))).toEqual([]);
+      expect(osv007(run(accepted(body, "ADOPTED"), approving(decisionBodySha256(body))))).toEqual([]);
+    });
+
+    it("detects an edit after acceptance", () => {
+      const edited = body.replace("Do the thing.", "Do another thing.");
+      expect(osv007(run(accepted(edited), approving(decisionBodySha256(body))))).toEqual([expect.objectContaining({ severity: "error", message: expect.stringContaining("body changed") })]);
+    });
+
+    it("requires the approval to record the body hash", () => {
+      expect(osv007(run(accepted(), approving()))).toEqual([expect.objectContaining({ message: expect.stringContaining("body_sha256") })]);
+    });
+  });
+});
+
+describe("OSV009 task and project contracts", () => {
+  const filled = "## Objective\nShip it.\n\n## Acceptance criteria\n- [ ] it ships\n\n## Verification\nRun it.\n";
+  const repo = { refs: [{ kind: "repo", url: "https://github.com/bfarkas/x" }] };
+  const osv009 = (findings: Finding[]) => findings.filter((f) => f.code === "OSV009");
+  const taskWith = (status: string, body: string, overrides = {}) =>
+    record("task", "records/tasks", "OS-T-QF81M", { status, ...overrides }, undefined, body);
+
+  it("lets a backlog task have an empty body", () => {
+    expect(osv009(run(taskWith("backlog", "")))).toEqual([]);
+  });
+
+  it.each(["ready", "in_progress", "done"])("requires the contract sections in %s", (status) => {
+    const template = "## Objective\n\n## Acceptance criteria\n\n- [ ] \n\n## Verification\n";
+    const messages = osv009(run(taskWith(status, template, repo))).map((f) => f.message);
+    expect(messages).toHaveLength(3);
+    for (const name of ["Objective", "Acceptance criteria", "Verification"]) {
+      expect(messages).toContainEqual(expect.stringContaining(`'## ${name}'`));
+    }
+    expect(osv009(run(taskWith(status, filled, repo)))).toEqual([]);
+  });
+
+  it("warns when no repository is known, unless the project has one", () => {
+    expect(osv009(run(taskWith("ready", filled)))).toEqual([expect.objectContaining({ severity: "warning" })]);
+    const inProject = taskWith("ready", filled, { links: [{ rel: "belongs_to", id: "OS-P-0XZ4K" }] });
+    expect(osv009(run(inProject, project("OS-P-0XZ4K", repo)))).toEqual([]);
+  });
+
+  it("requires the brief sections of an active project", () => {
+    const brief = "## Goals\nA\n## Non-goals\nB\n## Scope\nC\n## Success criteria\nD\n";
+    const active = (body: string) => record("project", "records/projects", "OS-P-0XZ4K", { status: "active" }, undefined, body);
+    expect(osv009(run(active(brief)))).toEqual([]);
+    expect(osv009(run(active(brief.replace("C\n", ""))))).toEqual([expect.objectContaining({ message: expect.stringContaining("Scope") })]);
+  });
+});
+
+describe("OSV010 refs", () => {
+  const osv010 = (findings: Finding[]) => findings.filter((f) => f.code === "OSV010");
+  const withRefs = (...refs: object[]) => idea("OS-I-2HD9W", { refs });
+
+  it("accepts GitHub refs of every kind", () => {
+    expect(osv010(run(withRefs(
+      { kind: "repo", url: "https://github.com/bfarkas/x" },
+      { kind: "pr", url: "https://github.com/bfarkas/x/pull/12", note: "first slice" },
+      { kind: "issue", url: "https://github.com/bfarkas/x/issues/3" },
+      { kind: "commit", url: "https://github.com/bfarkas/x/commit/4f1c2e9" },
+      { kind: "branch", url: "https://github.com/bfarkas/x/tree/main" },
+      { kind: "file", url: "https://github.com/bfarkas/x/blob/main/README.md" },
+      { kind: "url", url: "https://example.com/paper.pdf" },
+    )))).toEqual([]);
+  });
+
+  it("reports malformed refs as errors", () => {
+    expect(osv010(run(withRefs({ kind: "repo", url: "http://github.com/bfarkas/x" })))).toEqual([expect.objectContaining({ severity: "error" })]);
+    expect(osv010(run(withRefs({ kind: "website", url: "https://example.com" })))).toEqual([expect.objectContaining({ severity: "error" })]);
+  });
+
+  it("warns about non-GitHub, misshapen and duplicate refs", () => {
+    const findings = osv010(run(withRefs(
+      { kind: "repo", url: "https://gitlab.com/bfarkas/x" },
+      { kind: "pr", url: "https://github.com/bfarkas/x/issues/12" },
+      { kind: "url", url: "https://example.com" },
+      { kind: "url", url: "https://example.com" },
+    )));
+    expect(findings.map((f) => f.severity)).toEqual(["warning", "warning", "warning"]);
+  });
+});
+
+describe("OSV013 possible secrets", () => {
+  it("warns with the line and without the secret", () => {
+    const body = "Working title\nghp_" + "aB3".repeat(12) + "\n";
+    const findings = run(capture("OS-C-7K3QX", {}, body));
+    expect(findings).toEqual([expect.objectContaining({ code: "OSV013", severity: "warning", line: 14 })]);
+    expect(findings[0]?.message).not.toContain("aB3aB3aB3");
   });
 });
 

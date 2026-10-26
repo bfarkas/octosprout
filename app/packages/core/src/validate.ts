@@ -1,16 +1,19 @@
 /**
- * Workspace validation (spec §19): OSV001–OSV006 and OSV011.
+ * Workspace validation (spec §19): OSV001–OSV007, OSV009–OSV011 and OSV013.
  *
  * The validator is pure: it takes the workspace's files and returns findings.
  * The CLI, the server and CI all call it.
  */
 import type { ErrorObject } from "ajv";
 
+import { ADR_FIELDS, ADR_SECTIONS, decisionBodySha256, parseAdr } from "./adr.js";
 import { type Finding, type Severity, type ValidationCode } from "./findings.js";
 import { parseId } from "./ids.js";
 import { isLinkAllowed, isLinkRel, type LinkRel } from "./links.js";
 import { parseRecord, sha256Hex, type ParsedRecord } from "./record.js";
 import { SchemaRegistry } from "./schemas.js";
+import { scanForSecrets } from "./secrets.js";
+import { findSection, hasContent } from "./sections.js";
 import { RECORD_TYPES, STATUSES, type RecordType } from "./types.js";
 
 export interface SourceFile {
@@ -47,6 +50,8 @@ const LOCATIONS: Record<RecordType, Location> = {
 
 interface LoadedRecord {
   path: string;
+  /** The whole file. */
+  text: string;
   record: ParsedRecord;
   /** Canonical ID, when the file declares a valid private one. */
   id: string | undefined;
@@ -73,11 +78,17 @@ export function validateWorkspace(files: readonly SourceFile[], options: Validat
     checkStatus(entry, findings);
     checkCaptureIntegrity(entry, findings);
     checkTimestamps(entry, findings);
+    checkRefs(entry, findings);
+    checkSecrets(entry, findings);
   }
 
+  const index = indexRecords(loaded);
   checkDuplicateIds(loaded, findings);
   checkPlantedCaptures(loaded, findings);
   checkLinks(loaded, findings);
+  checkLifecycleLinks(loaded, index, findings);
+  checkDecisions(loaded, index, findings);
+  checkContracts(loaded, index, findings);
 
   return findings.sort(compareFindings);
 }
@@ -135,7 +146,7 @@ function load(file: SourceFile, findings: Finding[]): LoadedRecord | undefined {
   const id = parsedId?.prefix === "OS" ? parsedId.id : undefined;
   const type = isRecordType(fm.type) ? fm.type : undefined;
   const effectiveType = type ?? (parsedId?.prefix === "OS" ? parsedId.type : undefined);
-  return { path: file.path, record, id, type, effectiveType };
+  return { path: file.path, text, record, id, type, effectiveType };
 }
 
 function isRecordType(value: unknown): value is RecordType {
@@ -277,7 +288,9 @@ function checkSchema(entry: LoadedRecord, schemas: SchemaRegistry, findings: Fin
   for (const error of validate.errors ?? []) {
     const message = describeSchemaError(error);
     if (message === undefined) continue;
-    emit("error", message.field, message.text, `See schemas/${entry.type}.v${version}.schema.json.`);
+    const hint = `See schemas/${entry.type}.v${version}.schema.json.`;
+    if (message.field === "refs") report(entry, findings, "OSV010", "error", "refs", message.text, hint);
+    else emit("error", message.field, message.text, hint);
   }
 }
 
@@ -541,4 +554,242 @@ function findCycles(graph: ReadonlyMap<string, readonly string[]>): string[][] {
     if (!state.has(node)) visit(node);
   }
   return cycles;
+}
+
+// ---------------------------------------------------------------------------
+// Cross-record lookups
+
+interface RecordIndex {
+  byId: ReadonlyMap<string, LoadedRecord>;
+  /** Links pointing at each ID, with their source. */
+  inbound: ReadonlyMap<string, ReadonlyArray<{ rel: LinkRel; source: LoadedRecord }>>;
+}
+
+function indexRecords(loaded: readonly LoadedRecord[]): RecordIndex {
+  const byId = new Map<string, LoadedRecord>();
+  const inbound = new Map<string, Array<{ rel: LinkRel; source: LoadedRecord }>>();
+  for (const entry of loaded) {
+    if (entry.id !== undefined && !byId.has(entry.id)) byId.set(entry.id, entry);
+    for (const { rel, target } of readLinks(entry)) {
+      inbound.set(target, [...(inbound.get(target) ?? []), { rel, source: entry }]);
+    }
+  }
+  return { byId, inbound };
+}
+
+/** 1-based file line of a 0-based body line. */
+function bodyLine(entry: LoadedRecord, index: number): number {
+  const prefix = entry.text.slice(0, entry.text.length - entry.record.body.length);
+  return prefix.split("\n").length + index;
+}
+
+function reportAt(entry: LoadedRecord, findings: Finding[], code: ValidationCode, severity: Severity, line: number | undefined, message: string, hint: string): void {
+  findings.push(finding(code, severity, entry.path, entry.id, message, hint, line));
+}
+
+// ---------------------------------------------------------------------------
+// OSV004: lifecycle states that depend on links
+
+function checkLifecycleLinks(loaded: readonly LoadedRecord[], index: RecordIndex, findings: Finding[]): void {
+  for (const entry of loaded) {
+    if (entry.id === undefined) continue;
+    const status = entry.record.frontmatter.status;
+    const emit = (field: string, message: string, hint: string) => report(entry, findings, "OSV004", "error", field, message, hint);
+
+    if (entry.effectiveType === "idea") {
+      const promoted = readLinks(entry).filter((link) => link.rel === "promoted_to").length;
+      if (status === "transplanted" && promoted !== 1) {
+        emit("status", `A transplanted idea needs exactly one promoted_to link; this one has ${promoted}.`, "Promotion adds the promoted_to link and sets 'transplanted' in one commit (spec §10).");
+      } else if (status !== "transplanted" && promoted > 0) {
+        emit("links", "Only a transplanted idea can have a promoted_to link.", "Promote the idea through the wizard or a promotion proposal, or remove the link.");
+      }
+    }
+
+    if (entry.effectiveType === "decision" && status === "SUPERSEDED") {
+      const newer = (index.inbound.get(entry.id) ?? []).some(({ rel, source }) => rel === "supersedes" && source.effectiveType === "decision");
+      if (!newer) {
+        emit("status", "A SUPERSEDED decision needs a newer decision that supersedes it.", "Create the replacing decision with a supersedes link to this one (spec §7.6).");
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// OSV007: ADR template compliance and frozen bodies
+
+const SELECTION_REQUIRED = new Set(["ACCEPTED", "ADOPTED", "SUPERSEDED"]);
+const FROZEN = new Set(["ACCEPTED", "ADOPTED", "SUPERSEDED", "EXPIRED"]);
+const TEMPLATE_HINT = "Decisions follow the pinned upstream ADR template (spec §13.1).";
+
+function checkDecisions(loaded: readonly LoadedRecord[], index: RecordIndex, findings: Finding[]): void {
+  for (const entry of loaded) {
+    if (entry.effectiveType !== "decision" || entry.id === undefined) continue;
+    const fm = entry.record.frontmatter;
+    const body = entry.record.body;
+    const adr = parseAdr(body);
+    const error = (at: number | undefined, message: string, hint = TEMPLATE_HINT) =>
+      reportAt(entry, findings, "OSV007", "error", at === undefined ? undefined : bodyLine(entry, at), message, hint);
+    const warn = (at: number | undefined, message: string, hint = TEMPLATE_HINT) =>
+      reportAt(entry, findings, "OSV007", "warning", at === undefined ? undefined : bodyLine(entry, at), message, hint);
+
+    if (!adr.title) {
+      error(0, `The body must start with '# ADR ${entry.id} - <title>'.`);
+    } else {
+      if (adr.title.id.toUpperCase() !== entry.id) error(adr.title.index, `The heading names ${adr.title.id}, not ${entry.id}.`, `Use '# ADR ${entry.id} - <title>'.`);
+      if (typeof fm.title === "string" && adr.title.text !== fm.title) warn(adr.title.index, "The heading's title differs from 'title'.", "Keep the heading and the frontmatter title the same.");
+    }
+
+    let previous = -1;
+    for (const name of ADR_FIELDS) {
+      const field = adr.fields.find((f) => f.name === name);
+      if (!field) {
+        error(adr.title?.index, `Missing the '* ${name}:' line.`);
+        continue;
+      }
+      if (field.index < previous) error(field.index, `'* ${name}:' is out of order; the template has Date, Status, Author.`);
+      previous = field.index;
+    }
+    const statusField = adr.fields.find((f) => f.name === "Status");
+    if (statusField && typeof fm.status === "string" && statusField.value !== fm.status) {
+      error(statusField.index, `'* Status: ${statusField.value}' does not match the frontmatter status ${fm.status}.`, "A status change rewrites both in the same write (spec §7.6).");
+    }
+
+    previous = -1;
+    for (const name of ADR_SECTIONS) {
+      const section = adr.sections.find((s) => s.text === name);
+      if (!section) {
+        error(undefined, `Missing the '## ${name}' section.`);
+        continue;
+      }
+      if (section.index < previous) error(section.index, `'## ${name}' is out of order.`, `The template's sections are ${ADR_SECTIONS.join(", ")}.`);
+      previous = section.index;
+    }
+    for (const section of adr.sections) {
+      if (!(ADR_SECTIONS as readonly string[]).includes(section.text)) warn(section.index, `'## ${section.text}' is not a template section.`);
+    }
+
+    const selected = adr.options.filter((o) => o.selected).length;
+    if (typeof fm.status === "string" && SELECTION_REQUIRED.has(fm.status) && selected !== 1) {
+      error(undefined, `A ${fm.status} decision needs exactly one '(SELECTED)' option; it has ${selected}.`, "Mark the chosen option '### Option N (SELECTED): …'.");
+    }
+    for (const option of adr.options) {
+      for (const bullet of option.mismatched) {
+        const expected = option.selected ? "Adopted because/despite" : "Rejected because/despite";
+        warn(bullet.index, `Consequence '${bullet.text}' does not match the option's selection.`, `Consequences of ${option.selected ? "the selected" : "a rejected"} option start with '${expected}:'.`);
+      }
+    }
+
+    for (const { rel, target } of readLinks(entry)) {
+      if (rel !== "consulted") continue;
+      const name = index.byId.get(target)?.record.frontmatter.title;
+      if (typeof name !== "string" || name === "") continue;
+      for (const advice of adr.advice) {
+        if (advice.text.toLowerCase().includes(name.toLowerCase()) && !advice.text.includes("(simulated, AI-generated")) {
+          error(advice.index, `Advice from the expert profile '${name}' is not marked as simulated and AI-generated.`, "Attribute it as '- [Profile name] (simulated, AI-generated, <model>), <Role>, <Date>' (spec §14).");
+        }
+      }
+    }
+
+    if (typeof fm.status === "string" && FROZEN.has(fm.status) && typeof fm.approval === "string") {
+      const approving = index.byId.get(parseId(fm.approval)?.id ?? "");
+      if (approving?.effectiveType !== "proposal") continue;
+      const operations = approving.record.frontmatter.operations;
+      const recorded = (Array.isArray(operations) ? (operations as unknown[]) : [])
+        .filter((op): op is { body_sha256: string } => {
+          const o = op as Record<string, unknown>;
+          return o.op === "set_status" && typeof o.id === "string" && parseId(o.id)?.id === entry.id && typeof o.body_sha256 === "string";
+        })
+        .at(-1);
+      if (!recorded) {
+        report(entry, findings, "OSV007", "error", "approval", `${approving.id} records no body_sha256 for this decision, so its frozen body cannot be checked.`, "The approval that accepts a decision records the hash of its body (spec §19).");
+      } else if (recorded.body_sha256 !== decisionBodySha256(body)) {
+        report(entry, findings, "OSV007", "error", "approval", `The body changed after ${fm.status === "ACCEPTED" ? "it was accepted" : "acceptance"}; only the '* Status:' line may change.`, "Restore the accepted body. A reversal is a new decision that supersedes this one (spec §7.6).");
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// OSV009: task readiness and project activation
+
+const TASK_SECTIONS = ["Objective", "Acceptance criteria", "Verification"];
+const PROJECT_SECTIONS = ["Goals", "Non-goals", "Scope", "Success criteria"];
+const READY_OR_BEYOND = new Set(["ready", "in_progress", "done"]);
+
+function hasRepoRef(entry: LoadedRecord): boolean {
+  const refs = entry.record.frontmatter.refs;
+  return Array.isArray(refs) && refs.some((ref) => (ref as { kind?: unknown } | null)?.kind === "repo");
+}
+
+function checkContracts(loaded: readonly LoadedRecord[], index: RecordIndex, findings: Finding[]): void {
+  for (const entry of loaded) {
+    const status = entry.record.frontmatter.status;
+    const body = entry.record.body;
+    const missing = (names: readonly string[]) => names.filter((name) => !hasContent(findSection(body, name)?.content ?? ""));
+
+    if (entry.effectiveType === "task" && typeof status === "string" && READY_OR_BEYOND.has(status)) {
+      for (const name of missing(TASK_SECTIONS)) {
+        report(entry, findings, "OSV009", "error", "status", `A task in '${status}' needs a non-empty '## ${name}' section.`, "Fill in Objective, Acceptance criteria and Verification before the task moves to ready (spec §11.2).");
+      }
+      const projects = readLinks(entry).filter((l) => l.rel === "belongs_to").map((l) => index.byId.get(l.target));
+      if (!hasRepoRef(entry) && !projects.some((p) => p !== undefined && hasRepoRef(p))) {
+        report(entry, findings, "OSV009", "warning", "status", "No target repository: neither the task nor its project has a refs entry of kind repo.", "Add one if the task changes code (spec §11.2).");
+      }
+    }
+
+    if (entry.effectiveType === "project" && status === "active") {
+      for (const name of missing(PROJECT_SECTIONS)) {
+        report(entry, findings, "OSV009", "error", "status", `An active project needs a non-empty '## ${name}' section.`, "Fill in Goals, Non-goals, Scope and Success criteria before activating the project (spec §6.5).");
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// OSV010: refs
+
+const GITHUB_SHAPES: Record<string, RegExp> = {
+  repo: /^\/[^/]+\/[^/]+\/?$/,
+  pr: /^\/[^/]+\/[^/]+\/pull\/\d+(\/|$)/,
+  issue: /^\/[^/]+\/[^/]+\/issues\/\d+(\/|$)/,
+  commit: /^\/[^/]+\/[^/]+\/commit\/[0-9a-f]{7,64}(\/|$)/,
+  branch: /^\/[^/]+\/[^/]+\/tree\/.+/,
+  file: /^\/[^/]+\/[^/]+\/blob\/.+/,
+};
+
+function checkRefs(entry: LoadedRecord, findings: Finding[]): void {
+  const refs = entry.record.frontmatter.refs;
+  if (!Array.isArray(refs)) return;
+  const seen = new Set<string>();
+  for (const ref of refs as unknown[]) {
+    const { kind, url } = (ref ?? {}) as { kind?: unknown; url?: unknown };
+    if (typeof kind !== "string" || typeof url !== "string") continue;
+    const warn = (message: string, hint: string) => report(entry, findings, "OSV010", "warning", "refs", message, hint);
+    const key = `${kind} ${url}`;
+    if (seen.has(key)) warn(`Duplicate ref: ${kind} ${url}.`, "Remove the repeated entry.");
+    seen.add(key);
+
+    const shape = GITHUB_SHAPES[kind];
+    if (!shape) continue;
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      continue;
+    }
+    if (parsed.hostname !== "github.com") {
+      warn(`The ${kind} ref ${url} is not a GitHub URL.`, `${kind} refs should point at github.com (spec §6.4).`);
+    } else if (!shape.test(parsed.pathname)) {
+      warn(`${url} does not look like a GitHub ${kind} URL.`, "Check the ref's kind (spec §6.4).");
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// OSV013: possible secrets
+
+function checkSecrets(entry: LoadedRecord, findings: Finding[]): void {
+  for (const hit of scanForSecrets(entry.text)) {
+    reportAt(entry, findings, "OSV013", "warning", hit.index + 1, `Possible ${hit.kind} (${hit.preview}).`, "Never store tokens or keys in records. If it is a secret, remove it, rewrite history if it was pushed, and rotate it (spec §18.3).");
+  }
 }
