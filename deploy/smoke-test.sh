@@ -20,7 +20,9 @@ cleanup() {
     docker logs "$NAME" 2>&1 | tail -n 50 || true
   fi
   docker rm -f "$NAME" >/dev/null 2>&1 || true
-  rm -rf "$WORK"
+  # The container's user owns the objects it pushed; delete them from a container as root.
+  docker run --rm --user 0 --entrypoint rm -v "$WORK:/work" "$IMAGE" -rf /work/remote.git >/dev/null 2>&1 || true
+  rm -rf "$WORK" || true
   exit "$status"
 }
 trap cleanup EXIT
