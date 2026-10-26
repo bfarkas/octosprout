@@ -57,9 +57,19 @@ Work like this instead:
 
 - Put everything in `/srv/octosprout-spike/` and use a separate Compose
   project name (`-p octosprout-spike`).
-- Publish ports on `127.0.0.1` only, and reach them through an SSH tunnel
-  (`ssh -L 9000:127.0.0.1:9000 rei3`). Nothing from the spike is exposed to
-  the internet, so it needs no TLS or DNS.
+- Publish the spike's web UIs directly on rei3, on ports **9100–9199**, so the
+  owner can open them from the Mac at `http://<rei3>:91xx` without a tunnel.
+  Never use 80, 443 or 8080, which production and Caddy use. List every URL in
+  your report.
+- These ports serve plain HTTP and only the throwaway test data. Before
+  publishing, check whether they would be reachable from the internet (for
+  example, rei3's firewall and which address the ports bind to). If they
+  would, **ask** the owner which address to bind to (a LAN or VPN address) or
+  whether to limit them in the firewall.
+- Browsers only allow passkeys on HTTPS or `localhost`, so plain
+  `http://<rei3>:91xx` cannot show a passkey sign-in. For criterion 5, judge
+  it from how the engine would be mounted behind `octosprout-server`, and test
+  with a browser on rei3 itself (`http://localhost:91xx`) if needed.
 - Use a throwaway workspace (below), not real data.
 - When you finish, remove the spike's containers, images, volumes and
   directory, and say so in your report.
