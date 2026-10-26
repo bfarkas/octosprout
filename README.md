@@ -11,7 +11,7 @@ decisions, and preparing context for coding agents.
 > **Status:** early development. Phase 1 (ingestion) is implemented and tested
 > but not yet deployed: the inbox API, Git write service, passkey sign-in,
 > Inbox view, capture form and token management. The current specification is
-> [`docs/spec/implementation-spec-v0.3-draft.md`](docs/spec/implementation-spec-v0.3-draft.md).
+> [`docs/spec/implementation-spec-v0.4-draft.md`](docs/spec/implementation-spec-v0.4-draft.md).
 
 ## Repository layout
 
