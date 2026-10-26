@@ -6,6 +6,7 @@
 services:
   octosprout:
     image: octosprout-server:latest
+    container_name: octosprout
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:8080"

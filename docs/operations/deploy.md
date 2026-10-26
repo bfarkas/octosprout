@@ -11,6 +11,11 @@ approvals come later.
    to Caddy's configuration and reload Caddy. It obtains the Let's Encrypt
    certificate automatically and enforces the 512 KiB body limit.
 
+If Caddy has a global `acme_dns` (as on rei3, Hetzner DNS-01), certificates are
+issued by DNS-01 and port 80 need not be reachable; the DNS API token must be
+able to edit the zone. Otherwise HTTP-01 needs ports 80 and 443 forwarded to the
+host. With Caddy on the host network, `reverse_proxy 127.0.0.1:8080` applies.
+
 ## 2. Deploy key
 
 The server pushes to `octosprout-private` with an SSH deploy key that has
@@ -23,7 +28,21 @@ ssh-keygen -t ed25519 -N '' -C octosprout-server -f deploy_key
 1. On GitHub, open `octosprout-private` → Settings → Deploy keys → Add deploy
    key. Paste `deploy_key.pub` and tick **Allow write access**.
 2. Move the private key to `/etc/octosprout/secrets/deploy_key` on rei3
-   (`chmod 600`, owned by root) and delete the local copy.
+   (owned by root) and delete the local copy.
+
+Compose file secrets keep the host's owner and mode, and the container runs as
+`node` (uid/gid 1000). A root-only `600` file is therefore unreadable in the
+container (`EACCES: copyfile '/run/secrets/deploy_key'`). Make both secret files
+group-readable by gid 1000 and let that group traverse the directories:
+
+```sh
+sudo chgrp 1000 /etc/octosprout /etc/octosprout/secrets /etc/octosprout/secrets/*
+sudo chmod 710 /etc/octosprout /etc/octosprout/secrets
+sudo chmod 640 /etc/octosprout/secrets/deploy_key /etc/octosprout/secrets/setup_token
+```
+
+GitHub accepts a deploy key on one repository only; add it to `octosprout-private`
+and nowhere else.
 
 The container copies the key to its state directory with mode 0600 at start,
 and pins GitHub's host key on first use.
@@ -45,7 +64,7 @@ devices. Without a setup token, `/setup` is disabled.
 
 ```sh
 docker build -f deploy/Dockerfile -t octosprout-server:latest .
-cp deploy/compose.example.yaml /srv/octosprout/compose.yaml
+mkdir -p /srv/octosprout && cp deploy/compose.example.yaml /srv/octosprout/compose.yaml
 docker compose -f /srv/octosprout/compose.yaml up -d
 docker compose -f /srv/octosprout/compose.yaml logs -f octosprout
 ```
@@ -79,6 +98,10 @@ docker compose -f /srv/octosprout/compose.yaml exec octosprout \
 ```
 
 (`token revoke <name>` and `token list` are also available.)
+
+Tokens created or revoked with the CLI take effect on the running server
+immediately, like tokens managed in the Settings page: the server re-reads
+`tokens.json` whenever it changes, so no restart is needed.
 
 ## 7. Check it end to end
 
