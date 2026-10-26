@@ -1,7 +1,9 @@
 # Boards: design details for ADR006
 
-Status: design for ADR006, which is accepted. Nothing here is built yet;
-it is Phase 2 work. The owner's answers of 26 Oct 2026 are worked in
+Status: design for ADR006, which is accepted, and built (Phase 2): the
+four boards, the status-move API, drag and *Move to…*, the conflict dialog
+and the refresh check. Consequential moves are listed but disabled until
+proposals and signed approvals land; see §10. The owner's answers of 26 Oct 2026 are worked in
 (§9); none are open. Companion mockup: [`boards-mockup.html`](boards-mockup.html)
 (open it in a browser; sample data, saves are simulated).
 The visual direction (palette, navigation, phone layout) is in
@@ -326,3 +328,24 @@ Follow-up answers:
 
 No questions are open. ADR006 is accepted and the spec changes above are
 made in `implementation-spec-v0.4-draft.md`.
+
+## 10. As built
+
+Differences from the design above, all deliberate:
+
+- **Columns are `<details>` elements.** Folding and unfolding works without
+  JavaScript; open columns are kept across refreshes, not in `localStorage`.
+- **Consequential moves are disabled options** ("Accept… (needs approval)")
+  and gated columns refuse the drop, until the approval dialog with passkey
+  re-verification exists (proposals, spec §9). The server answers `403
+  approval_required` for them either way.
+- **After every answer the board is re-rendered** from `?fragment=board`
+  rather than patched card by card, so the script holds no lifecycle rules
+  and never shows a state the server does not have. The moved card then shows
+  the commit SHA or *pending push*.
+- **The conflict dialog** offers *Keep the current version* and *Move
+  anyway*; *Open record* comes with Record detail.
+- **Card titles are plain text** until Record detail exists.
+- **A move that would add validation errors** (for example a task to `ready`
+  without its contract sections) is refused with `422 validation` and the
+  first finding is shown.

@@ -4,7 +4,7 @@
  * Starts the built server against a local bare repository that plays GitHub,
  * then drives Chromium with a virtual WebAuthn authenticator through:
  * passkey registration at /setup, capturing from the form, signing out and
- * back in, and the Inbox view.
+ * back in, the Inbox view, and moving cards on the Tasks board.
  *
  * It exercises the client scripts and the real browser WebAuthn API, which
  * the unit tests cannot. It does not replace trying it on an iPhone.
@@ -22,6 +22,7 @@ import { join } from "node:path";
 
 import { chromium } from "playwright";
 
+import { renderRecord } from "../packages/core/dist/index.js";
 import { startServer } from "../packages/server/dist/index.js";
 
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
@@ -41,12 +42,26 @@ const root = mkdtempSync(join(tmpdir(), "octosprout-e2e-"));
 let server;
 let browser;
 try {
-  // A bare repository standing in for GitHub, with one commit.
+  // A bare repository standing in for GitHub, with three tasks for the board.
   const remote = join(root, "remote.git");
   const seed = join(root, "seed");
   git(root, "init", "-q", "--bare", "-b", "main", remote);
   git(root, "clone", "-q", remote, seed);
-  git(seed, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "first commit");
+  const contract = "## Objective\nX\n\n## Acceptance criteria\n- [ ] Y\n\n## Verification\nZ\n";
+  const taskFile = (id, title, status, links = []) =>
+    renderRecord(
+      { id, type: "task", schema_version: 1, title, status, created: "2026-10-25T15:00:00Z", updated: "2026-10-25T15:00:00Z", links, refs: [{ kind: "repo", url: "https://github.com/bfarkas/x" }] },
+      contract,
+    );
+  const seedTask = (id, ...args) => {
+    mkdirSync(join(seed, "records/tasks"), { recursive: true });
+    writeFileSync(join(seed, `records/tasks/${id}--task.md`), taskFile(id, ...args));
+  };
+  seedTask("OS-T-2B7KC", "Status route", "in_progress", [{ rel: "blocks", id: "OS-T-H4V9X" }]);
+  seedTask("OS-T-H4V9X", "Conflict dialog", "blocked");
+  seedTask("OS-T-5NM3A", "Pointer drag", "backlog");
+  git(seed, "add", "-A");
+  git(seed, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "first commit");
   git(seed, "push", "-q", "origin", "HEAD:main");
 
   const port = await freePort();
@@ -112,7 +127,7 @@ try {
   step("passkey registered at /setup; signed in");
 
   // Capture from the form.
-  await page.click("nav >> text=Capture");
+  await page.click('.side a[title="Capture"]');
   await page.waitForURL(`${origin}/capture`);
   await noHorizontalScroll();
   await page.fill("#text", "Idea from the browser:\n<b>not bold</b> & more");
@@ -127,7 +142,7 @@ try {
   // The capture is in Git on the remote, then visible in the Inbox.
   const id = /OS-C-[0-9A-HJKMNP-TV-Z]{5}/.exec(saved)[0];
   assert.match(git(remote, "log", "-1", "--format=%s", "main"), new RegExp(`capture: ${id} \\(web\\)`));
-  await page.click("nav >> text=Inbox");
+  await page.click('.side a[title="Inbox"]');
   await page.waitForURL(`${origin}/`);
   assert.ok(await page.isVisible(`article#${id}`));
   assert.ok((await page.textContent(`article#${id}`)).includes("<b>not bold</b> & more"), "text is shown literally, not interpreted");
@@ -156,7 +171,7 @@ try {
   step("a long capture expands to its full text without repeating the preview");
 
   // Sign out, then sign back in with the passkey.
-  await page.click("text=Sign out");
+  await page.click('.side [data-action="logout"]');
   await page.waitForURL(`${origin}/login`);
   assert.equal((await page.goto(`${origin}/`)).status(), 401);
   step("signed out: / answers 401 again");
@@ -171,7 +186,7 @@ try {
   // iOS Shortcuts' "URL Encode" leaves characters such as & + = # unencoded, so do the same.
   const sharedText = "Brief from ChatGPT: a+b & c=d #tag\n100% ready";
   const shortcutEncoded = encodeURIComponent(sharedText).replace(/%26/g, "&").replace(/%2B/g, "+").replace(/%3D/g, "=").replace(/%23/g, "#");
-  await page.click("text=Sign out");
+  await page.click('.side [data-action="logout"]');
   await page.waitForURL(`${origin}/login`);
   assert.equal((await page.goto(`${origin}/capture#source=chatgpt&text=${shortcutEncoded}`)).status(), 401);
   await page.getByRole("link", { name: "Sign in with a passkey" }).click();
@@ -225,7 +240,7 @@ try {
 
   // Create an inbox token in the UI, use it as the Shortcut would, then revoke it.
   page.on("dialog", (dialog) => dialog.accept());
-  await page.click("nav >> text=Settings");
+  await page.click('.side a[title="Settings"]');
   await page.waitForURL(`${origin}/settings`);
   await noHorizontalScroll();
   await page.fill("#token-name", "iphone-shortcut");
@@ -256,6 +271,44 @@ try {
   assert.equal(session.secure, true);
   assert.equal(session.sameSite, "Strict");
   step("session cookie is __Host-, Secure, HttpOnly, SameSite=Strict");
+
+  // The Tasks board at 375 px: Move to…, which also unblocks the task it blocked.
+  const column = (id) => page.evaluate((cardId) => document.getElementById(`card-${cardId}`)?.closest(".col")?.dataset.status, id);
+  await page.click('.side a[title="Tasks"]');
+  await page.waitForURL(`${origin}/tasks`);
+  await noHorizontalScroll();
+  assert.equal(await column("OS-T-H4V9X"), "blocked");
+  assert.match(await page.textContent("#card-OS-T-H4V9X"), /blocked by OS-T-2B7KC/);
+  await page.selectOption("#card-OS-T-2B7KC select", "done");
+  await page.waitForSelector("#col-done #card-OS-T-2B7KC .sync.committed");
+  assert.equal(await column("OS-T-H4V9X"), "ready");
+  assert.equal(git(remote, "log", "-1", "--format=%s", "main"), "status: OS-T-2B7KC in_progress -> done (+1 unblocked)");
+  step("Move to… on the Tasks board commits the move and unblocks the blocked task");
+
+  // Drag by the grip.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.reload();
+  const grip = await page.locator("#card-OS-T-5NM3A .grip").boundingBox();
+  const target = await page.locator("#col-in_progress").boundingBox();
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target.x + target.width / 2, target.y + 80, { steps: 8 });
+  assert.equal(await page.evaluate(() => document.getElementById("col-in_progress").classList.contains("drop-ok")), true);
+  await page.mouse.up();
+  await page.waitForSelector("#col-in_progress #card-OS-T-5NM3A .sync.committed");
+  step("dragging a card by its grip moves it");
+
+  // A change pushed from another clone makes the next move a conflict.
+  git(seed, "pull", "-q", "origin", "main");
+  writeFileSync(join(seed, "records/tasks/OS-T-5NM3A--task.md"), taskFile("OS-T-5NM3A", "Pointer drag", "blocked"));
+  git(seed, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-am", "mac change");
+  git(seed, "push", "-q", "origin", "HEAD:main");
+  await page.selectOption("#card-OS-T-5NM3A select", "done");
+  await page.waitForSelector("#dlg-conflict[open]");
+  assert.match(await page.textContent("#dlg-conflict"), /blocked/);
+  await page.click('#dlg-conflict button[value="theirs"]');
+  await page.waitForFunction(() => document.getElementById("card-OS-T-5NM3A")?.closest(".col")?.dataset.status === "blocked");
+  step("a move against a stale card shows the conflict dialog and keeps the current version");
 
   console.log("\nAll browser checks passed.");
 } finally {

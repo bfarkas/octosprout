@@ -12,6 +12,7 @@ import { InvalidRequestError, parseInboxRequest, parseJsonBody } from "../inbox/
 import type { CaptureStatus, InboxOutcome, InboxService } from "../inbox/service.js";
 import { registerRecordRoutes } from "../records/routes.js";
 import type { StatusMoveDeps } from "../records/status.js";
+import { registerBoards } from "../ui/boards.js";
 import { registerSettings, registerUi } from "../ui/routes.js";
 import { RateLimiter } from "./rate-limit.js";
 import type { TokenStore } from "./tokens.js";
@@ -154,7 +155,10 @@ export function buildApp(options: AppOptions): FastifyInstance {
       return { ok: true };
     });
 
-    if (options.records) registerRecordRoutes(app, { ...options.records, requireSession });
+    if (options.records) {
+      registerRecordRoutes(app, { ...options.records, requireSession });
+      registerBoards(app, { requireSession, records: options.records.records, status, ...(options.records.now ? { now: options.records.now } : {}) });
+    }
 
     const ui = { requireSession, inbox, tokens, passkeys: options.auth.passkeys, status };
     registerUi(app, ui);

@@ -1134,7 +1134,8 @@ Tests use Vitest. Git tests run against temporary bare repositories that act as 
 
 - **Phase 0:** domain, DNS, Caddy and TLS are live; the Git write service is proven in tests and in production; passkey login works on the iPhone; the ADR template is vendored. The board engine was evaluated and decided (ADR006). Still open: the Ed25519 approval round-trip in CI. Decisions taken so far are ADR001–ADR006.
 - **Phase 1:** complete and deployed. The exit criterion was met with the share link and home screen app instead of the token Shortcut (ADR001).
-- **Phases 2 and 3:** not started.
+- **Phase 2:** in progress. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; and the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief. Next: record detail and editing, triage, proposals with signed approvals (which enable consequential moves on the boards), promotion, ADR creation, research and experts lists, search and the health panel.
+- **Phase 3:** not started.
 
 ### Phase 0 — Compatibility and safety spike
 

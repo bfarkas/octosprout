@@ -229,3 +229,75 @@ describe("GET /api/v1/boards/:board/version", () => {
     expect((await app.inject({ method: "GET", url: "/api/v1/boards/ideas/version" })).statusCode).toBe(401);
   });
 });
+
+describe("board pages", () => {
+  const get = (url: string, cookie = session.cookie) => app.inject({ method: "GET", url, headers: { cookie, accept: "text/html" } });
+
+  it("require a session", async () => {
+    expect((await get("/ideas", "")).statusCode).toBe(401);
+  });
+
+  it("render every status as a column, terminal ones folded, and cards with their blob and allowed moves", async () => {
+    await seed(ideaFile("OS-I-5VT4F", { title: "<b>Weekly</b> digest", tags: ["weekly"] }), ideaFile("OS-I-9TJ5Z", { status: "composted" }));
+    const response = await get("/ideas");
+    expect(response.statusCode).toBe(200);
+    const html = response.body;
+    for (const status of ["seed", "sprouting", "ready", "dormant"]) expect(html).toContain(`id="col-${status}" data-status="${status}" open>`);
+    for (const status of ["transplanted", "composted"]) expect(html).toContain(`id="col-${status}" data-status="${status}">`);
+    const blob = records.index.get("OS-I-5VT4F")!.blob;
+    expect(html).toContain(`data-id="OS-I-5VT4F" data-blob="${blob}" data-status="seed" data-moves="sprouting dormant composted"`);
+    expect(html).toContain("&lt;b&gt;Weekly&lt;/b&gt; digest");
+    expect(html).not.toContain("<b>Weekly</b>");
+    expect(html).toContain('<span class="chip">#weekly</span>');
+    expect(html).toContain('<script src="/static/board.js" defer>');
+  });
+
+  it("list consequential moves as disabled options that need approval", async () => {
+    await seed(ideaFile("OS-I-6Q3D2", { status: "ready" }));
+    const html = (await get("/ideas")).body;
+    expect(html).toContain('data-moves="sprouting dormant composted"');
+    expect(html).toContain('<option value="transplanted" data-kind="promotion" disabled>Promote… (needs approval)</option>');
+  });
+
+  it("show blockers, the unblock preview and the unblocked chip on tasks", async () => {
+    await seed(
+      taskFile("OS-T-2B7KC", { status: "in_progress", links: [{ rel: "blocks", id: "OS-T-AAAAA" }] }),
+      taskFile("OS-T-AAAAA", { status: "blocked" }),
+      taskFile("OS-T-CCCCC", { status: "cancelled", links: [{ rel: "blocks", id: "OS-T-DDDDD" }] }),
+      taskFile("OS-T-DDDDD", { status: "blocked" }),
+    );
+    const html = (await get("/tasks")).body;
+    expect(html).toContain('<span class="chip block">blocked by OS-T-2B7KC</span>');
+    expect(html).toContain('data-blocked-by="OS-T-2B7KC"');
+    expect(html).toContain('<option value="done" data-kind="direct" data-unblocks="OS-T-AAAAA">Done (+1 unblocked)</option>');
+    expect(html).toMatch(/id="card-OS-T-DDDDD"[\s\S]*?data-action="unblock"/);
+  });
+
+  it("filter tasks by project and serve the board alone as a fragment", async () => {
+    await seed(
+      file("project", "records/projects", "OS-P-0XZ4K", { status: "proposed", title: "Garden digest" }),
+      taskFile("OS-T-AAAAA", { links: [{ rel: "belongs_to", id: "OS-P-0XZ4K" }] }),
+      taskFile("OS-T-BBBBB"),
+    );
+    const filtered = (await get("/tasks?project=OS-P-0XZ4K")).body;
+    expect(filtered).toContain("card-OS-T-AAAAA");
+    expect(filtered).not.toContain("card-OS-T-BBBBB");
+    expect(filtered).toContain('<option value="OS-P-0XZ4K" selected>Garden digest</option>');
+    expect(filtered).toContain("OS-T-AAAAA · Garden digest");
+
+    const fragment = (await get("/tasks?fragment=board")).body;
+    expect(fragment.startsWith('<div class="board" id="board" data-board="tasks"')).toBe(true);
+    expect(fragment).toContain("card-OS-T-BBBBB");
+    expect(fragment).not.toContain("<html");
+  });
+
+  it("render the decision board with upper-case columns and supersedes chips", async () => {
+    const adr = (id: string, status: string) => file("decision", "records/decisions", id, { status, template: "harmel-law-adr@1775d49516784bee6824fcd02556926121a7e772", ...(id === "OS-D-22222" ? { links: [{ rel: "supersedes", id: "OS-D-11111" }] } : {}) }, adrBody(id, status, { title: `Example ${id}` }));
+    await seed(adr("OS-D-11111", "PROPOSED"), adr("OS-D-22222", "DRAFT"));
+    const html = (await get("/decisions")).body;
+    expect(html).toContain('id="col-ACCEPTED"');
+    expect(html).toContain("supersedes OS-D-11111");
+    expect(html).toContain("superseded by OS-D-22222");
+    expect(html).toContain('<option value="ACCEPTED" data-kind="approval" disabled>Accept… (needs approval)</option>');
+  });
+});

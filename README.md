@@ -8,9 +8,11 @@ A personal, Markdown-first, Git-backed workspace for capturing ideas, exploring
 them with AI assistants, refining them into projects, recording architectural
 decisions, and preparing context for coding agents.
 
-> **Status:** early development. Phase 1 (ingestion) is implemented and tested
-> but not yet deployed: the inbox API, Git write service, passkey sign-in,
-> Inbox view, capture form and token management. The current specification is
+> **Status:** early development. Phase 1 (ingestion) is deployed: the inbox
+> API, Git write service, passkey sign-in, Inbox view, capture form and token
+> management. Phase 2 (core workspace) is in progress: every record schema,
+> the full validator with signed approvals, the record index and the Ideas,
+> Tasks, Projects and Decisions boards are built. The current specification is
 > [`docs/spec/implementation-spec-v0.4-draft.md`](docs/spec/implementation-spec-v0.4-draft.md).
 
 ## Repository layout
@@ -48,7 +50,7 @@ pnpm test
 
 For an end-to-end check in a real browser (passkey registration, capture,
 share links, *Paste & save*, sign-out and sign-in with a virtual
-authenticator), build and run `pnpm e2e` in `app/`; the first time, install
+authenticator, and moving cards on the Tasks board), build and run `pnpm e2e` in `app/`; the first time, install
 Chromium with `pnpm exec playwright install chromium`. To check the server
 image, build it and run `deploy/smoke-test.sh`. CI runs both.
 

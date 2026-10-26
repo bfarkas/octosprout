@@ -76,21 +76,17 @@ Tasks board, light and dark:
 ![Tasks board, light](images/tasks-board-light.png)
 ![Tasks board, dark](images/tasks-board-dark.png)
 
-## Differences from what is built or specified today
+## As built (Phase 2)
 
-Points to settle when the boards are built; the brief is the target.
+The owner's answers of 26 Oct 2026 settled the open points:
 
-- **Navigation.** The Phase 1 pages use a top navigation bar
-  (`ui/html.ts`); the brief moves to a persistent sidebar with Capture as a
-  button. The Inbox, Capture and Settings pages change with it.
-- **Colours.** `app.css` uses a single green accent (`#1f6b4f` light,
-  `#5cc49a` dark) for actions. The brief makes actions violet and keeps green
-  for sync and status. The PWA `theme-color` and the icons should follow.
-- **Appearance override.** Phase 1 follows the system setting only. An
-  override has to be remembered per browser (`localStorage`) and applied by
-  `/static/*.js`, since the CSP allows no inline script.
-- **"Done (+1 unblocked)".** This is not a consequential move in `boards.md`
-  or spec §7.3: it commits directly, unless it touches more than
+- **Navigation.** Every signed-in page uses the sidebar shell: Inbox, Ideas,
+  Tasks, Projects, Decisions, a Capture button, and Settings and Sign out at
+  the foot. Below 760 px the sidebar is an icon rail.
+- **Colours.** Actions are violet, sync and status green, in light and dark.
+  The PWA `theme-color` follows the page background; the icons are unchanged.
+- **Appearance.** The system setting only; there is no override.
+- **"Done (+1 unblocked)".** Commits directly, unless it touches more than
   `bulk_threshold` records (§9.2 item 5).
-- **Fonts.** The mockups appear to use a rounded sans for display text. Any
-  web font must be served from the app itself (`default-src 'self'`).
+- **Fonts.** System fonts: `ui-rounded` where available (SF Pro Rounded on
+  Apple devices), else `system-ui`. No web font is served.

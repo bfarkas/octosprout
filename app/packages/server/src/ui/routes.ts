@@ -68,6 +68,7 @@ export function registerUi(app: FastifyInstance, options: UiOptions): void {
   const html = (reply: FastifyReply, body: string): FastifyReply => reply.type("text/html; charset=utf-8").send(body);
 
   app.get("/", { preHandler: requireSession }, async (_request, reply) => {
+    const status = await options.status();
     const { captures, total } = inbox.listInbox(INBOX_LIMIT);
     const cards = captures.map((capture) => captureCard(capture, inbox.readBody(capture.path) ?? ""));
     const more = total > captures.length ? `<p class="hint">Showing the newest ${captures.length} of ${total}.</p>` : "";
@@ -78,9 +79,11 @@ export function registerUi(app: FastifyInstance, options: UiOptions): void {
         title: "Inbox",
         page: "inbox",
         nav: "inbox",
+        crumbs: ["Garden", "Inbox"],
+        sync: status,
         scripts: ["app.js"],
         body: `<h1>Inbox <span class="meta">${total} new</span></h1>
-${banners(await options.status())}
+${banners(status)}
 ${cards.length > 0 ? cards.join("\n") : empty}
 ${more}`,
       }),
@@ -94,6 +97,8 @@ ${more}`,
         title: "Capture",
         page: "capture",
         nav: "capture",
+        crumbs: ["Garden", "Capture"],
+        sync: await options.status(),
         scripts: ["app.js"],
         body: `<h1>Capture</h1>
 <form id="capture-form">
@@ -131,6 +136,8 @@ export function registerSettings(app: FastifyInstance, options: UiOptions): void
         title: "Settings",
         page: "settings",
         nav: "settings",
+        crumbs: ["Workspace", "Settings"],
+        sync: await options.status(),
         scripts: ["app.js"],
         body: `<h1>Settings</h1>
 <h2>Inbox tokens</h2>
