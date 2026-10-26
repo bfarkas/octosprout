@@ -1,0 +1,2 @@
+# Test fixture for the OSV013 secrets scan, since assembled at runtime; not a secret.
+5d619b0a6a6ed5caf291607a0816af01de852dda:app/packages/core/src/secrets.test.ts:generic-api-key:12

@@ -9,7 +9,8 @@ describe("scanForSecrets", () => {
     ["an AWS key", "AKIAIOSFODNN7EXAMPLE"],
     ["a private key", "-----BEGIN OPENSSH PRIVATE KEY-----"],
     ["an inbox token", `ost_${"Zx9_".repeat(11)}`],
-    ["a random string", "secret=Q8vT2mLp9XrK4wNz7bYc3HdF6jGs1aEu"],
+    // Assembled at runtime so that secret scanners on this repository do not flag the fixture.
+    ["a random string", ["secret=", "Q8vT2mLp9XrK", "4wNz7bYc3HdF", "6jGs1aEu"].join("")],
   ])("flags %s", (_label, text) => {
     const hits = scanForSecrets(`first line\n${text}\n`);
     expect(hits).toHaveLength(1);
