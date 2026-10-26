@@ -11,9 +11,12 @@ RUN npm install --global pnpm@10.28.0
 WORKDIR /opt/octosprout/app
 COPY app/ ./
 COPY schemas/ ../schemas/
+# `pnpm prune --prod` drops the workspace links (@octosprout/core), so reinstall
+# production dependencies from scratch instead.
 RUN pnpm install --frozen-lockfile \
  && pnpm build \
- && pnpm prune --prod
+ && rm -rf node_modules packages/*/node_modules \
+ && pnpm install --frozen-lockfile --prod
 
 FROM node:24-slim
 # git and ssh talk to GitHub; flock(1) and tar come with the base image.
