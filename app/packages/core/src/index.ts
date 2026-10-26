@@ -3,6 +3,7 @@ export * from "./approvals.js";
 export * from "./config.js";
 export * from "./findings.js";
 export * from "./ids.js";
+export * from "./lifecycle.js";
 export * from "./links.js";
 export * from "./record.js";
 export * from "./schemas.js";

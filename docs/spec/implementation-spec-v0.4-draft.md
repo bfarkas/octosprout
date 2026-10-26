@@ -369,7 +369,7 @@ The canonical JSON Schemas live in `octosprout/schemas/<type>.v<N>.schema.json`.
 
 ## 7. Lifecycles
 
-A board column is a view of `status`. Status is stored only in frontmatter. Transitions not listed below are rejected by the write service and flagged by validation as a warning. Validation cannot see history, so it checks that the current state is consistent rather than which transition led to it.
+A board column is a view of `status`. Status is stored only in frontmatter. The transition table lives in `@octosprout/core` (`TRANSITIONS`), with each move's kind: routine, consequential (§9.2), promotion only (§10), triage only (§7.1) or server only (proposals). A status write changes only the `status` and `updated` values, and for a decision the body's `* Status:` line; every other byte of the file is kept. Transitions not listed below are rejected by the write service and flagged by validation as a warning. Validation cannot see history, so it checks that the current state is consistent rather than which transition led to it.
 
 ### 7.1 Capture (garden)
 
@@ -427,6 +427,8 @@ Allowed transitions: from any status to any other. Moving an `active` project to
 
 `open`, `concluded`, `archived`
 
+Allowed transitions: from any status to any other.
+
 ### 7.6 Decision
 
 The upstream vocabulary is used verbatim and in upper case: `DRAFT`, `PROPOSED`, `ACCEPTED`, `ADOPTED`, `SUPERSEDED`, `EXPIRED`.
@@ -454,7 +456,7 @@ Rules:
 
 ### 7.7 Expert, Proposal
 
-- **Expert:** `active`, `retired`.
+- **Expert:** `active`, `retired`, either way.
 - **Proposal:** `pending`, `applied`, `rejected`, `stale` (§9.3).
 
 ## 8. Git collaboration and the write service
