@@ -11,19 +11,18 @@
  *
  *   pnpm build && pnpm e2e
  *
- * Requires Playwright with a Chromium build (see README).
+ * Needs Playwright's Chromium: `pnpm exec playwright install chromium` once.
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { startServer } from "../packages/server/dist/index.js";
+import { chromium } from "playwright";
 
-const { chromium } = createRequire(import.meta.url)("playwright");
+import { startServer } from "../packages/server/dist/index.js";
 
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
 

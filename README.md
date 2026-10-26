@@ -47,9 +47,10 @@ pnpm test
 ```
 
 For an end-to-end check in a real browser (passkey registration, capture,
-sign-out and sign-in with a virtual authenticator), build and run
-`pnpm e2e` in `app/`. It needs Playwright with a Chromium build available and
-is not part of CI yet.
+share links, *Paste & save*, sign-out and sign-in with a virtual
+authenticator), build and run `pnpm e2e` in `app/`; the first time, install
+Chromium with `pnpm exec playwright install chromium`. To check the server
+image, build it and run `deploy/smoke-test.sh`. CI runs both.
 
 ### CLI
 

@@ -29,6 +29,35 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+  e2e:
+    name: browser end-to-end
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: app/package.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm e2e
+
+  image:
+    name: server image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -f deploy/Dockerfile -t octosprout-server:ci .
+      - run: deploy/smoke-test.sh octosprout-server:ci
+
   gitleaks:
     runs-on: ubuntu-latest
     steps:
