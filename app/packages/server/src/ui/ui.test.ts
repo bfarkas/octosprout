@@ -137,7 +137,9 @@ describe("the Inbox view", () => {
     await store("line one\n  indented\n\nline four", "key-00000002");
     const html = (await page("/")).body;
     expect(html).toContain("<details>");
-    expect(html).toContain("END-OF-LONG-CAPTURE");
+    // The full text is rendered once, outside the summary; the summary holds only the preview.
+    expect(html.split("END-OF-LONG-CAPTURE")).toHaveLength(2);
+    expect(html).toContain(`<summary><pre class="preview">${"word ".repeat(48)}…</pre><span class="toggle"></span></summary><pre class="full">`);
     expect(html).toContain("line one\n  indented\n\nline four");
   });
 

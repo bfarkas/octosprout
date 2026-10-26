@@ -68,6 +68,12 @@ button:disabled { opacity: 0.6; cursor: progress; }
 .hint, .meta { color: var(--muted); font-size: 0.9rem; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
 .card pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0.5rem 0 0; font: inherit; }
+.card summary { list-style: none; cursor: pointer; }
+.card summary::-webkit-details-marker { display: none; }
+.card .toggle { color: var(--accent); font-size: 0.9rem; }
+.card .toggle::after { content: "Show all"; }
+.card details[open] .toggle::after { content: "Show less"; }
+.card details[open] .preview { display: none; }
 ul.plain { list-style: none; padding: 0; margin: 0; }
 h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
 [hidden] { display: none !important; }
@@ -272,10 +278,16 @@ export const APP_JS = `
       }
       if (shared.trim()) {
         form.elements.text.value = shared;
-        form.elements.source_url.value = /^https:\\/\\/\\S+$/.test(shared.trim()) ? shared.trim() : "";
+        const onlyLink = /^https:\\/\\/\\S+$/.test(shared.trim());
+        form.elements.source_url.value = onlyLink ? shared.trim() : "";
         key = null;
         remember(shared);
-        show("Shared text is ready. Check it and tap Save.");
+        // Some apps (ChatGPT among them) share only a link to the conversation, not its text.
+        show(
+          onlyLink
+            ? "Only a link was shared. To capture the text behind it, copy that text, then tap Paste & save; the link is kept."
+            : "Shared text is ready. Check it and tap Save.",
+        );
       }
       // Drop the fragment so a reload after saving does not bring the text back.
       history.replaceState(null, "", location.pathname + location.search);
@@ -285,9 +297,9 @@ export const APP_JS = `
     window.addEventListener("hashchange", takeShared);
 
     // One idempotency key per attempt: a retry of the same text can never create a duplicate.
+    // Editing shared text does not change where it came from, so the source is kept.
     form.elements.text.addEventListener("input", () => {
       key = null;
-      source = "web";
       remember(form.elements.text.value);
     });
 
@@ -305,9 +317,9 @@ export const APP_JS = `
         return;
       }
       if (!pasted.trim()) return show("The clipboard is empty.", "error");
+      // The pasted text replaces the text field; a shared link and its source stay.
       form.elements.text.value = pasted;
       key = null;
-      source = "web";
       remember(pasted);
       form.requestSubmit();
     });

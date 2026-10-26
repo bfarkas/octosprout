@@ -136,6 +136,26 @@ try {
   await noHorizontalScroll();
   step("capture is on the remote and shown in the Inbox, escaped");
 
+  // A long capture: collapsed shows a preview, expanded shows the text exactly once.
+  const longText = `Long note. ${"lorem ipsum ".repeat(40)}LAST-WORDS`;
+  await page.goto(`${origin}/capture`);
+  await page.fill("#text", longText);
+  await page.click("button[type=submit]");
+  await page.waitForFunction(() => /Saved OS-C-/.test(document.getElementById("status").textContent));
+  const longId = /OS-C-[0-9A-HJKMNP-TV-Z]{5}/.exec(await page.textContent("#status"))[0];
+  await page.goto(`${origin}/`);
+  const card = page.locator(`article#${longId}`);
+  assert.ok(!(await card.innerText()).includes("LAST-WORDS"), "collapsed card shows only the preview");
+  // The label is CSS-generated content, which innerText does not include.
+  const toggleLabel = () => card.locator(".toggle").evaluate((element) => getComputedStyle(element, "::after").content);
+  assert.equal(await toggleLabel(), '"Show all"');
+  await card.locator("summary").click();
+  const expanded = await card.innerText();
+  assert.equal(expanded.split("Long note.").length, 2, "expanded card shows the text once, not preview + full");
+  assert.ok(expanded.includes("LAST-WORDS"));
+  assert.equal(await toggleLabel(), '"Show less"');
+  step("a long capture expands to its full text without repeating the preview");
+
   // Sign out, then sign back in with the passkey.
   await page.click("text=Sign out");
   await page.waitForURL(`${origin}/login`);
@@ -170,15 +190,27 @@ try {
   assert.ok(execFileSync("git", ["show", `main:${sharedFile}`], { cwd: remote, encoding: "utf8" }).endsWith(`---\n${sharedText}`));
   step("share link opened while signed out: sign-in returns to it and saves the text exactly, as chatgpt");
 
-  // A shared bare link also fills the link field.
-  await page.goto(`${origin}/capture#text=${encodeURIComponent("https://example.com/article")}`);
-  assert.equal(await page.inputValue("#source_url"), "https://example.com/article");
-  await page.fill("#text", "");
-  await page.fill("#source_url", "");
-  step("a shared link also fills the link field");
-
-  // Paste & save, as from the home screen app.
+  // ChatGPT's share button gives only a link to the chat. Copy the answer, share the link,
+  // then Paste & save: the answer becomes the text and the link and source are kept.
   await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin });
+  await page.goto(`${origin}/capture#source=chatgpt&text=${encodeURIComponent("https://chatgpt.com/s/t_example")}`);
+  assert.equal(await page.inputValue("#source_url"), "https://chatgpt.com/s/t_example");
+  assert.match(await page.textContent("#status"), /Only a link was shared/);
+  await page.evaluate(() => navigator.clipboard.writeText("The answer I copied from ChatGPT"));
+  await page.evaluate(() => (document.getElementById("status").textContent = ""));
+  await page.click("#paste-save");
+  await page.waitForFunction(() => /Saved OS-C-/.test(document.getElementById("status").textContent));
+  const chatId = /OS-C-[0-9A-HJKMNP-TV-Z]{5}/.exec(await page.textContent("#status"))[0];
+  assert.equal(git(remote, "log", "-1", "--format=%s", "main"), `capture: ${chatId} (chatgpt)`);
+  const chatFile = git(remote, "ls-tree", "-r", "--name-only", "main").split("\n").find((path) => path.endsWith(`${chatId}.md`));
+  const chatRecord = execFileSync("git", ["show", `main:${chatFile}`], { cwd: remote, encoding: "utf8" });
+  assert.ok(chatRecord.includes("source_url: https://chatgpt.com/s/t_example"));
+  assert.ok(chatRecord.endsWith("---\nThe answer I copied from ChatGPT"));
+  assert.equal(await page.inputValue("#source_url"), "");
+  step("a shared chat link plus Paste & save stores the copied answer with the link, as chatgpt");
+
+  // Paste & save, as from the home screen app. Clear the previous "Saved" message first.
+  await page.evaluate(() => (document.getElementById("status").textContent = ""));
   await page.evaluate(() => navigator.clipboard.writeText("Pasted from the clipboard"));
   await page.click("#paste-save");
   await page.waitForFunction(() => /Saved OS-C-/.test(document.getElementById("status").textContent));

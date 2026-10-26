@@ -43,7 +43,8 @@ function captureCard(capture: CaptureSummary, body: string): string {
       ? ` · <a href="${esc(capture.sourceUrl)}" rel="noreferrer noopener" target="_blank">source</a>`
       : "";
   const content = long
-    ? `<details><summary><pre>${esc(preview)}</pre></summary><pre>${esc(body)}</pre></details>`
+    ? // Collapsed: the preview and "Show all". Open: "Show less" and the full text, with the preview hidden by CSS.
+      `<details><summary><pre class="preview">${esc(preview)}</pre><span class="toggle"></span></summary><pre class="full">${esc(body)}</pre></details>`
     : `<pre>${esc(body)}</pre>`;
   return `<article class="card" id="${esc(capture.id)}">
 <div class="meta"><strong>${esc(capture.id)}</strong> · <time datetime="${esc(capture.created)}">${esc(formatTime(capture.created))}</time> · ${esc(sourceLabel(capture))}${link}</div>

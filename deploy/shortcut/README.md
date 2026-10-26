@@ -79,16 +79,25 @@ through sign-in.
 
 ### ChatGPT briefs
 
-For UC3 (spec §15.1), duplicate the shortcut, name it **OctoSprout from
-ChatGPT**, and change the prefix to
-`https://app.octosprout.de/capture#source=chatgpt&text=` in Action 2 (keep
-`text=` last, with the variable right after it).
-Captures made with it are recorded with `source: chatgpt`.
+ChatGPT's share button shares only a link to the conversation, not the text of
+an answer. To capture a brief (UC3, spec §15.1):
 
 1. Explore the idea in the ChatGPT app.
 2. Paste the handoff prompt from
    [`templates/prompts/chatgpt-handoff.md`](../../templates/prompts/chatgpt-handoff.md).
-3. Share ChatGPT's brief to **OctoSprout from ChatGPT** and tap **Save**.
+3. Tap **Copy** under ChatGPT's answer.
+4. Either:
+   - **Quickest:** tap the OctoSprout home screen icon, then **Paste & save**.
+   - **With the chat link and `source: chatgpt`:** share the chat to
+     **OctoSprout from ChatGPT**, then tap **Paste & save**. The copied answer
+     becomes the text; the chat link is kept as the capture's link.
+
+For **OctoSprout from ChatGPT**, duplicate the shortcut and change the prefix in
+Action 2 to `https://app.octosprout.de/capture#source=chatgpt&text=` (keep
+`text=` last, with the variable right after it).
+
+Whenever only a link arrives, the capture page says so and keeps the link for
+*Paste & save*.
 
 ### Why the text goes after `#`
 
