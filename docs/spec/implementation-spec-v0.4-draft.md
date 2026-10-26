@@ -13,7 +13,7 @@
 - **v0.1-draft (OctoVault):** single repository, board-centric, detailed record model, ADR process, expert profiles and coding-agent handoff.
 - **v0.2-draft (OctoSprout):** renamed the product, split it into a private workspace and a public resource library, added Capture records and the Inbox Service, and made mobile/ChatGPT ingestion the first milestone.
 - **v0.3:** merges both. v0.2's architecture applies, and v0.1's detailed requirements carry forward unless this document changes them. The public resource library is **post-MVP** (§17).
-- **v0.4 (this document):** v0.3 updated with the decisions taken while building Phase 1 (D17–D21, recorded as ADRs in `octosprout/docs/adr/`). The main change is mobile capture (§15.4).
+- **v0.4 (this document):** v0.3 updated with the decisions taken while building Phase 1 (D17–D21) and the board engine decision (D5), recorded as ADRs in `octosprout/docs/adr/`. The main changes are mobile capture (§15.4) and the boards (§12).
 
 The terms MUST, MUST NOT, SHOULD and MAY are used in their RFC 2119 sense.
 
@@ -25,8 +25,8 @@ The terms MUST, MUST NOT, SHOULD and MAY are used in their RFC 2119 sense.
 | D2 | Public resource library | Post-MVP. Its layout and ID namespace (`OSL-`) are reserved now. |
 | D3 | v0.1 features retained | Separate Ideas/Tasks/Projects boards, expert profiles with advice capture, coding-agent handoff with outcome reporting, and the full v0.1 validation and test list. |
 | D4 | Process layout | One backend serves the inbox API, browser UI and approvals, using one working tree and one serialized writer. |
-| D5 | Board engine | **[Spike]** Phase 0 decides between a thin custom UI and Kanban Lite (§12.1). |
-| D6 | Stack | TypeScript on Node.js. Frontend framework follows D5. |
+| D5 | Board engine | Thin custom UI on `@octosprout/core` and the Fastify server: server-rendered boards with small scripts, no build step. Kanban Lite was evaluated and rejected (§12.1, ADR006). |
+| D6 | Stack | TypeScript on Node.js. No frontend framework; pages are server-rendered with small hand-written scripts (D5, D18). |
 | D7 | Git writes | Local clone on rei3 driven by the git CLI. A rejected push triggers fetch, rebase, re-validate and retry. The service never force-pushes. |
 | D8 | ID prefixes | Private records use `OS-<TYPE>-…`. Public resources use `OSL-<TYPE>-…`. |
 | D9 | ID allocation | Non-sequential random IDs (§6.1). No coordination is needed between writers. |
@@ -58,6 +58,7 @@ The terms MUST, MUST NOT, SHOULD and MAY are used in their RFC 2119 sense.
 | §20 | Adds the real-browser end-to-end check and an image build to CI. | — |
 | §21 | Records Phase 0 and Phase 1 status. | — |
 | §5.1, §23 | The application code is licensed Apache-2.0 (D22). | — |
+| §0.2 D5, D6, §3.1, §7.3, §7.4, §7.6, §9.2, §12, §21, §22, §23 | Boards are a thin custom server-rendered UI. Decisions get a board. Transitions are defined for tasks, projects and decisions; moving a task to `done` unblocks the tasks it was the last open blocker of; archiving an `active` project is consequential. | ADR006 |
 
 ---
 
@@ -88,7 +89,7 @@ OctoSprout is a planning and knowledge layer. It does not replace GitHub, code r
 
 - An authenticated Inbox Service on rei3 that takes captures from the mobile web capture page, reached from the iOS share sheet through a minimal Shortcut or from the home screen (§15.4), and from other API clients with inbox tokens.
 - Capture records committed to the private repository, with idempotency and durable failure handling.
-- A browser UI with an Inbox, separate Ideas/Tasks/Projects boards, Decisions, Research and Experts lists, record detail and editing, triage, promotion, and a Proposals review queue.
+- A browser UI with an Inbox, separate Ideas/Tasks/Projects/Decisions boards, Research and Experts lists, record detail and editing, triage, promotion, and a Proposals review queue.
 - The record model: stable IDs, schemas, typed relationships and validation.
 - Idea-to-project promotion.
 - ADRs using Andrew Harmel-Law's upstream template.
@@ -404,11 +405,21 @@ A `transplanted` idea MUST have exactly one `promoted_to` link and an `approval`
 
 **[Assumption]** `cancelled` is new relative to v0.1. It lets a task be closed without being marked done.
 
+Allowed transitions: from any status to any other.
+
+`blocked` is a status set by hand, for anything that holds a task up, including reasons outside the workspace. Separately, a task is *blocked by* every task that `blocks` it and is not `done` or `cancelled`; the index computes this and the UI shows it on the card, whatever the task's status. The two meet in one rule:
+
+- Moving a task to `done` also moves to `ready`, **in the same commit**, every task whose status is `blocked` and for which this task was the last open blocker. The operation carries a `base_blob` precondition for every file it touches, so it applies completely or not at all. The unblocked tasks count towards `bulk_threshold` (§9.2).
+- Cancelling a blocker does not move anything, and neither does a status changed by editing a file directly. The UI offers a one-tap move to `ready` for a `blocked` task with no open blockers left.
+- The rule lives in `@octosprout/core`, so the server, the CLI and the MCP server apply it the same way. A status never changes except as part of an operation the user started.
+
 Completing every task in a project MUST NOT complete the project automatically.
 
 ### 7.4 Project
 
 `proposed`, `active`, `on_hold`, `completed`, `archived`
+
+Allowed transitions: from any status to any other. Moving an `active` project to `completed` or `archived` is consequential (§9.2).
 
 ### 7.5 Research
 
@@ -426,6 +437,14 @@ The upstream vocabulary is used verbatim and in upper case: `DRAFT`, `PROPOSED`,
 - **EXPIRED** — no longer applicable.
 
 The frontmatter `status` and the body's `* Status:` line MUST match.
+
+Allowed transitions:
+- `DRAFT → PROPOSED`, and back from `PROPOSED → DRAFT`.
+- `PROPOSED → ACCEPTED → ADOPTED`.
+- `ACCEPTED` and `ADOPTED` can move to `SUPERSEDED` or `EXPIRED`.
+- `SUPERSEDED` and `EXPIRED` are terminal. A decision never goes back from `ACCEPTED` or later to `DRAFT` or `PROPOSED`.
+
+A status change rewrites the frontmatter `status` and the body's `* Status:` line in the same write.
 
 Rules:
 - Moving to `SUPERSEDED` requires a newer decision with `supersedes` pointing at this one.
@@ -519,7 +538,7 @@ Agent-originated changes always go through proposals, including routine ones, be
 
 1. Promoting an idea (`ready → transplanted`, together with project creation).
 2. Moving a decision to `ACCEPTED`, `SUPERSEDED` or `EXPIRED`.
-3. Moving an `active` project to `completed`, or editing the Goals, Non-goals, Scope or Success criteria sections of an `active` project.
+3. Moving an `active` project to `completed` or `archived`, or editing the Goals, Non-goals, Scope or Success criteria sections of an `active` project.
 4. Deleting any file. Records are normally composted or archived rather than deleted.
 5. Any operation touching more than `bulk_threshold` records (default 10).
 6. Changes to `octosprout.yaml`, lifecycle rules, schemas, `AGENTS.md`, `CLAUDE.md` or `skills/`.
@@ -675,12 +694,12 @@ You review and approve it in the UI.
 
 ## 12. Browser UI
 
-### 12.1 Board engine decision [Spike]
+### 12.1 Board engine decision
 
 Phase 0 evaluates Kanban Lite against a thin custom UI built on `@octosprout/core`. Any engine MUST satisfy all of these; the first failure eliminates it:
 
 1. The OctoSprout Markdown files in §6 remain canonical, with no hidden database as the real store. Engine metadata stays inside `x-` keys or in derived state.
-2. It supports multiple independent boards: Ideas, Tasks and Projects.
+2. It supports multiple independent boards: Ideas, Tasks, Projects and Decisions.
 3. It refreshes predictably after external file changes, such as a fetch from the Mac.
 4. Its writes can be routed through the write service (§8), including `base_blob` checks. Writing to disk by itself and committing later is not acceptable.
 5. It sits behind OctoSprout's passkey authentication.
@@ -688,7 +707,7 @@ Phase 0 evaluates Kanban Lite against a thin custom UI built on `@octosprout/cor
 
 If Kanban Lite fails any criterion, build the custom UI. The frontend framework is then chosen in Phase 0 and recorded as an ADR in `octosprout/docs/adr/`.
 
-Phase 1 shipped its pages (sign-in, setup, Inbox, Capture, Settings) as server-rendered HTML from the Fastify server, with no frontend framework, so this decision is still open (ADR002). The spike is described in `octosprout/docs/handoffs/board-engine-spike.md`.
+**Decided (ADR006):** Kanban Lite failed criteria 1 and 6, so the boards are a thin custom UI. They are server-rendered by the Fastify server with small hand-written scripts and no build step, like the Phase 1 pages (ADR002). A move is a status write through the write service with the `base_blob` the page was rendered from. Cards move by dragging a grip (Pointer Events) or with a *Move to…* control that lists only allowed targets; the boards need JavaScript to move cards. Cards in a column are sorted by `updated`, newest first; there is no manual ordering. The design is in `octosprout/docs/design/boards.md`, the evidence in `octosprout/docs/handoffs/board-engine-spike-results.md`.
 
 ### 12.2 Required views (either option)
 
@@ -697,8 +716,7 @@ Phase 1 shipped its pages (sign-in, setup, Inbox, Capture, Settings) as server-r
 | Inbox | Captures with status `new`, newest first. Triage actions: create an Idea, Task or Research record (prefilled from the text), attach to an existing record, or compost. |
 | Capture form | `/capture`: a mobile-first single text area, an optional URL field, **Save** and **Paste & save**. Text shared through `/capture#text=…` is filled in (§15.4). Uses the same pipeline as the inbox API, through `POST /api/v1/capture`. The start page of the home screen app. |
 | Settings | Inbox tokens (create, shown once; revoke) and registered passkeys. |
-| Ideas, Tasks and Projects boards | Columns by status. Moving a card is a status change. Promotion opens the wizard. Consequential moves open the confirmation dialog. |
-| Decisions | List filterable by status and project. Create from template. Advice panel. |
+| Ideas, Tasks, Projects and Decisions boards | Columns by status. Moving a card is a status change. Promotion opens the wizard. Consequential moves open the confirmation dialog. Tasks and Decisions filter by project. Decisions: create from template, advice panel. |
 | Research and Experts | Lists |
 | Record detail | Rendered body, frontmatter form, links and backlinks, refs, git history (commits touching the file), and an edit mode with a Markdown editor and `base_blob` |
 | Proposals | Pending queue with diffs, approve or reject, bulk-approve for non-consequential proposals, and history |
@@ -1108,7 +1126,7 @@ Tests use Vitest. Git tests run against temporary bare repositories that act as 
 
 ### Status (26 October 2026)
 
-- **Phase 0:** domain, DNS, Caddy and TLS are live; the Git write service is proven in tests and in production; passkey login works on the iPhone; the ADR template is vendored. Still open: the Ed25519 approval round-trip in CI, and the board engine evaluation (see `octosprout/docs/handoffs/board-engine-spike.md`). Decisions taken so far are ADR001–ADR005.
+- **Phase 0:** domain, DNS, Caddy and TLS are live; the Git write service is proven in tests and in production; passkey login works on the iPhone; the ADR template is vendored. The board engine was evaluated and decided (ADR006). Still open: the Ed25519 approval round-trip in CI. Decisions taken so far are ADR001–ADR006.
 - **Phase 1:** complete and deployed. The exit criterion was met with the share link and home screen app instead of the token Shortcut (ADR001).
 - **Phases 2 and 3:** not started.
 
@@ -1180,7 +1198,7 @@ The MVP is complete when all of the following are demonstrated:
 4. Repeating a request with the same idempotency key never creates a duplicate.
 5. A remote conflict or push failure never loses a capture and never reports it as committed.
 6. The browser UI, reachable only after passkey login, shows the Inbox and lets you triage captures into Ideas, Tasks or Research records, attach them, or compost them, without losing the source content.
-7. Ideas, Tasks and Projects are on separate boards. Decisions, Research, Experts and Proposals have their own views.
+7. Ideas, Tasks, Projects and Decisions are on separate boards. Research, Experts and Proposals have their own views.
 8. An idea can be promoted to a project in one approved commit, and the original idea is preserved.
 9. You can create linked tasks and ADRs, and ADRs follow the pinned upstream template.
 10. Expert profiles can be reused, and their simulated advice is captured in ADRs and clearly marked as AI-generated.
@@ -1198,7 +1216,7 @@ The MVP is complete when all of the following are demonstrated:
 3. **[Assumption]** Hostnames: is the app at `app.octosprout.de` with the apex reserved, or at the apex itself?
 4. **[Assumption]** Task status `cancelled`, and Research statuses `open`, `concluded` and `archived`.
 5. Does `ADOPTED` also require approval? Currently it does not; only `ACCEPTED`, `SUPERSEDED` and `EXPIRED` do.
-6. The board engine and frontend framework, decided in the Phase 0 spike.
+6. ~~The board engine and frontend framework.~~ Decided: thin custom server-rendered UI, no frontend framework (D5, ADR006).
 
 ---
 

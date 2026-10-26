@@ -1,0 +1,736 @@
+<title>OctoSprout Boards Mockup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a short explainer, a control strip, then a framed "app window" that can switch
+   between a desktop width and a 375 px iPhone width, followed by annotated notes.
+   Colours and type come from OctoSprout's own app.css so the mockup looks like the product. */
+:root {
+  --bg: #fbfaf7;
+  --surface: #ffffff;
+  --text: #1d2521;
+  --muted: #5b6760;
+  --border: #d9dfda;
+  --accent: #1f6b4f;
+  --accent-text: #ffffff;
+  --accent-soft: #e3f0ea;
+  --danger: #a3261f;
+  --danger-soft: #f8e4e2;
+  --warn: #8a5a00;
+  --warn-soft: #f7ecd6;
+  --column: #f1f3ef;
+  --shade: rgba(20, 30, 25, 0.35);
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121714; --surface: #1a211d; --text: #e8ece9; --muted: #9aa69f; --border: #2d3832;
+    --accent: #5cc49a; --accent-text: #0c1511; --accent-soft: #1d3329;
+    --danger: #ff8f86; --danger-soft: #3a1f1d; --warn: #f0b84d; --warn-soft: #362a12;
+    --column: #161c19; --shade: rgba(0, 0, 0, 0.55);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121714; --surface: #1a211d; --text: #e8ece9; --muted: #9aa69f; --border: #2d3832;
+  --accent: #5cc49a; --accent-text: #0c1511; --accent-soft: #1d3329;
+  --danger: #ff8f86; --danger-soft: #3a1f1d; --warn: #f0b84d; --warn-soft: #362a12;
+  --column: #161c19; --shade: rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--text); font: 15px/1.5 var(--font);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 1.5rem 3rem;
+}
+.doc { max-width: 76rem; margin: 0 auto; display: grid; gap: 1.25rem; }
+.intro { max-width: 46rem; }
+.intro h1 { font-size: 1.6rem; margin: 0 0 0.4rem; text-wrap: balance; }
+.intro p { margin: 0.4rem 0; color: var(--muted); }
+.eyebrow { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+code, .mono { font-family: var(--mono); font-size: 0.85em; }
+
+/* Control strip */
+.controls { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: end; padding: 0.75rem 1rem; border: 1px dashed var(--border); border-radius: 10px; }
+.control { display: grid; gap: 0.25rem; }
+.control > span { font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { font: inherit; font-size: 0.9rem; border: 0; background: none; color: var(--text); padding: 0.35rem 0.75rem; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+.btn { font: inherit; font-size: 0.9rem; cursor: pointer; border-radius: 8px; padding: 0.4rem 0.8rem; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-text); }
+.btn.secondary { background: none; color: var(--accent); }
+.btn.danger { border-color: var(--danger); background: none; color: var(--danger); }
+button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* The app window */
+.stage { overflow-x: auto; padding-bottom: 0.25rem; }
+.window { margin: 0 auto; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); overflow: hidden; box-shadow: 0 1px 2px var(--shade); transition: max-width 0.25s ease; }
+.window.wide { max-width: 76rem; min-width: 52rem; }
+.window.phone { width: 375px; max-width: 100%; border-radius: 28px; border-width: 6px; }
+.addr { display: flex; justify-content: center; padding: 0.35rem; font-size: 0.75rem; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--surface); }
+.addr span { padding: 0.1rem 0.75rem; border-radius: 6px; background: var(--column); font-family: var(--mono); }
+.nav { display: flex; gap: 1rem; align-items: center; padding: 0.6rem 16px; border-bottom: 1px solid var(--border); background: var(--surface); overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+.nav a { text-decoration: none; color: var(--accent); padding: 0.2rem 0; border-bottom: 2px solid transparent; }
+.nav a[aria-current="page"] { border-bottom-color: var(--accent); font-weight: 600; }
+.nav .sync-global { margin-left: auto; font-size: 0.8rem; color: var(--muted); display: inline-flex; align-items: center; gap: 0.35rem; }
+.dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--accent); display: inline-block; }
+.dot.pending { background: var(--warn); }
+.dot.conflict { background: var(--danger); }
+.appmain { padding: 0.75rem 16px 1.25rem; }
+.boardhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; }
+.boardhead h2 { font-size: 1.35rem; margin: 0.25rem 0; }
+.boardhead .meta { color: var(--muted); font-size: 0.85rem; }
+.boardhead .filter { margin-left: auto; font-size: 0.85rem; color: var(--muted); }
+.banner { border: 1px solid var(--warn); color: var(--warn); background: var(--warn-soft); border-radius: 8px; padding: 0.4rem 0.7rem; margin: 0.5rem 0; font-size: 0.85rem; }
+.banner.info { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+/* Status chips: phone only */
+.jump { display: none; gap: 0.4rem; overflow-x: auto; padding: 0.5rem 0 0.25rem; scrollbar-width: none; }
+.phone .jump { display: flex; }
+.jump button { font: inherit; font-size: 0.8rem; white-space: nowrap; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 999px; padding: 0.2rem 0.65rem; cursor: pointer; }
+.jump button b { color: var(--muted); font-weight: 500; margin-left: 0.2rem; }
+
+/* Board */
+.board { display: flex; gap: 0.75rem; align-items: flex-start; margin-top: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; }
+.phone .board { scroll-snap-type: x mandatory; gap: 0.6rem; margin-inline: -16px; padding-inline: 16px; scroll-padding-inline: 16px; }
+.col { flex: 1 1 0; min-width: 13.5rem; background: var(--column); border: 1px solid transparent; border-radius: 10px; padding: 0.5rem; display: grid; gap: 0.5rem; align-content: start; transition: opacity 0.15s, border-color 0.15s, background 0.15s; }
+.phone .col { flex: 0 0 84%; min-width: 0; scroll-snap-align: start; }
+.col.folded { flex: 0 0 auto; min-width: 0; width: 3rem; cursor: pointer; padding: 0.5rem 0.25rem; }
+.phone .col.folded { flex: 0 0 3rem; }
+.col.folded .colhead { writing-mode: vertical-rl; transform: rotate(180deg); justify-content: flex-end; }
+.col.folded .cards, .col.folded .colhint { display: none; }
+.colhead { display: flex; align-items: baseline; gap: 0.4rem; font-weight: 600; font-size: 0.9rem; padding: 0 0.25rem; }
+.colhead code { font-weight: 500; color: var(--muted); }
+.colhead .count { margin-left: auto; color: var(--muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.col.folded .colhead .count { margin-left: 0; }
+.colhint { font-size: 0.75rem; color: var(--muted); padding: 0 0.25rem; }
+.cards { display: grid; gap: 0.5rem; min-height: 2.5rem; }
+.empty { font-size: 0.8rem; color: var(--muted); border: 1px dashed var(--border); border-radius: 8px; padding: 0.6rem; text-align: center; }
+.dragging .col.drop-no { opacity: 0.45; }
+.dragging .col.drop-ok { border-color: var(--border); border-style: dashed; }
+.dragging .col.drop-ok.over { border-color: var(--accent); background: var(--accent-soft); }
+.dragging .col.drop-gate.over { border-color: var(--warn); background: var(--warn-soft); }
+.dragging .col.drop-no::after { content: "Not allowed from here"; font-size: 0.75rem; color: var(--muted); text-align: center; }
+.dragging .col.folded.drop-no::after { content: none; }
+
+/* Card */
+.bcard { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.6rem; display: grid; gap: 0.3rem; position: relative; }
+.bcard.flash { animation: flash 1.6s ease-out; }
+@keyframes flash { from { box-shadow: 0 0 0 3px var(--accent); } to { box-shadow: 0 0 0 0 transparent; } }
+.bcard.lifted { opacity: 0.35; }
+.bcard-top { display: flex; gap: 0.35rem; align-items: start; }
+.grip { flex: none; width: 1.6rem; height: 1.6rem; margin: -0.1rem 0 0 -0.25rem; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: grab; touch-action: none; font-size: 1rem; line-height: 1; display: grid; place-items: center; }
+.grip:hover { background: var(--column); }
+.btitle { font-weight: 600; color: var(--text); text-decoration: none; line-height: 1.3; min-width: 0; overflow-wrap: anywhere; }
+.btitle:hover { text-decoration: underline; }
+.bmeta { font-size: 0.75rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0.1rem 0.5rem; }
+.chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.chip { font-size: 0.72rem; border-radius: 999px; padding: 0.05rem 0.5rem; background: var(--column); color: var(--muted); border: 1px solid var(--border); }
+.chip.link { color: var(--accent); }
+.chip.block { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
+.chip.ready { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+button.chip { font: inherit; font-size: 0.72rem; cursor: pointer; }
+.bfoot { display: flex; align-items: center; gap: 0.5rem; justify-content: space-between; }
+.move select { font: inherit; font-size: 0.78rem; color: var(--accent); background: none; border: 1px solid var(--border); border-radius: 6px; padding: 0.1rem 0.3rem; max-width: 9.5rem; }
+.sync { font-size: 0.72rem; display: inline-flex; align-items: center; gap: 0.3rem; color: var(--muted); }
+.sync.committed { color: var(--accent); }
+.sync.pending { color: var(--warn); }
+.sync.saving::before { content: ""; width: 0.6rem; height: 0.6rem; border: 2px solid var(--muted); border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.ghost { position: fixed; pointer-events: none; z-index: 50; transform: rotate(2deg); box-shadow: 0 8px 24px var(--shade); }
+
+/* Dialogs */
+dialog { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); padding: 0; width: min(34rem, calc(100vw - 32px)); }
+dialog::backdrop { background: var(--shade); }
+.dlg { padding: 1rem 1.1rem; display: grid; gap: 0.6rem; }
+.dlg h3 { margin: 0; font-size: 1.1rem; }
+.dlg p { margin: 0; }
+.dlg .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; margin-top: 0.25rem; }
+.diff { font-family: var(--mono); font-size: 0.78rem; background: var(--column); border-radius: 8px; padding: 0.5rem 0.6rem; overflow-x: auto; white-space: pre; margin: 0; }
+.diff .del { color: var(--danger); }
+.diff .add { color: var(--accent); }
+.three { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.three th, .three td { text-align: left; padding: 0.3rem 0.4rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+.three th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.three td.changed { background: var(--warn-soft); }
+.tablewrap { overflow-x: auto; }
+.small { font-size: 0.8rem; color: var(--muted); }
+
+.toast { position: fixed; left: 50%; bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 0.45rem 0.9rem; border-radius: 8px; font-size: 0.85rem; z-index: 60; max-width: calc(100vw - 32px); }
+
+/* Notes */
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem 1.5rem; }
+.note h3 { font-size: 0.95rem; margin: 0 0 0.25rem; }
+.note p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.note p + p { margin-top: 0.35rem; }
+.section-title { font-size: 1.15rem; margin: 0.75rem 0 0; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="doc">
+  <header class="intro">
+    <div class="eyebrow">ADR006 · accepted</div>
+    <h1>Boards mockup: thin custom UI</h1>
+    <p>A clickable sketch of the Ideas, Tasks, Projects and Decisions boards as ADR006 proposes them: server-rendered columns of status, with a small script for dragging and moving. The data is sample data. Saving, syncing and conflicts are simulated.</p>
+    <p>Try dragging a card by its <b>⠿</b> grip, or use <b>Move to…</b>. Move a <i>ready</i> idea to Transplanted, an <i>active</i> project to Completed or Archived, or a decision to ACCEPTED or SUPERSEDED, to see the consequential paths. On Tasks, look for the red <i>blocked by</i> and green <i>unblocked</i> chips. Switch to <b>iPhone</b> to see the 375 px layout.</p>
+  </header>
+
+  <div class="controls" role="group" aria-label="Mockup controls">
+    <label class="control"><span>Board</span>
+      <div class="seg" id="ctl-board">
+        <button type="button" data-v="ideas" aria-pressed="true">Ideas</button>
+        <button type="button" data-v="tasks" aria-pressed="false">Tasks</button>
+        <button type="button" data-v="projects" aria-pressed="false">Projects</button>
+        <button type="button" data-v="decisions" aria-pressed="false">Decisions</button>
+      </div>
+    </label>
+    <label class="control"><span>Width</span>
+      <div class="seg" id="ctl-width">
+        <button type="button" data-v="wide" aria-pressed="true">Desktop</button>
+        <button type="button" data-v="phone" aria-pressed="false">iPhone 375</button>
+      </div>
+    </label>
+    <label class="control"><span>Next save returns</span>
+      <div class="seg" id="ctl-result">
+        <button type="button" data-v="committed" aria-pressed="true">committed</button>
+        <button type="button" data-v="pending" aria-pressed="false">pending</button>
+        <button type="button" data-v="conflict" aria-pressed="false">409 conflict</button>
+      </div>
+    </label>
+    <div class="control"><span>Outside world</span>
+      <button type="button" class="btn secondary" id="ctl-mac">Push a change from the Mac</button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="window wide" id="window">
+      <div class="addr"><span id="addr">app.octosprout.de/ideas</span></div>
+      <nav class="nav" aria-label="Main">
+        <a href="#" data-nav>Inbox</a>
+        <a href="#" data-nav="ideas">Ideas</a>
+        <a href="#" data-nav="tasks">Tasks</a>
+        <a href="#" data-nav="projects">Projects</a>
+        <a href="#" data-nav="decisions">Decisions</a>
+        <a href="#" data-nav>Capture</a>
+        <span class="sync-global" id="sync-global" role="status" aria-live="polite"><span class="dot"></span>Up to date</span>
+      </nav>
+      <div class="appmain">
+        <div class="boardhead">
+          <h2 id="board-title">Ideas</h2>
+          <span class="meta" id="board-meta"></span>
+          <span class="filter" id="board-filter"></span>
+        </div>
+        <div id="banners"></div>
+        <div class="jump" id="jump" aria-label="Jump to column"></div>
+        <div class="board" id="board"></div>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="section-title">What the mockup shows</h2>
+  <div class="notes">
+    <div class="note"><h3>Columns are statuses</h3><p>Each column is one status from spec §7, in lifecycle order. Nothing else decides where a card sits, so a card moved on the Mac lands in the right column after the next fetch.</p><p>Terminal columns (Composted, Transplanted, Cancelled, Archived) start folded. Click the strip to open one.</p></div>
+    <div class="note"><h3>Only allowed moves</h3><p>While you drag, columns the lifecycle forbids are dimmed and refuse the drop. <b>Move to…</b> lists only allowed targets. The write service rejects anything else anyway; the UI just doesn't offer it.</p></div>
+    <div class="note"><h3>Drag by the grip</h3><p>Cards drag only by the ⠿ grip, which has <code>touch-action: none</code>. The rest of the card scrolls the board normally on a phone, and tapping the title opens Record detail.</p></div>
+    <div class="note"><h3>Move to… works everywhere</h3><p>A native <code>&lt;select&gt;</code> on every card. On iPhone it opens the system picker. It is also the keyboard and screen-reader path. Without JavaScript the boards can be read but not changed.</p></div>
+    <div class="note"><h3>Sync indicator</h3><p>Every move shows <i>Saving…</i>, then <i>committed</i> with the short commit SHA, or <i>pending</i> when GitHub can't be reached. The top bar sums it up for the whole page (§12.2).</p></div>
+    <div class="note"><h3>409 conflict</h3><p>If the file changed since the page was rendered, the server rejects the move. The dialog shows base, current and yours for the fields that differ, and offers to move anyway on the current version or keep it (§8.4).</p></div>
+    <div class="note"><h3>Consequential moves</h3><p><i>Ready → Transplanted</i> starts the promotion wizard instead of moving the card (§10). A project from <i>Active</i> to <i>Completed</i> or <i>Archived</i>, and a decision to ACCEPTED, SUPERSEDED or EXPIRED, open the confirmation with the diff and a passkey check (§9.2).</p></div>
+    <div class="note"><h3>Blocked, two ways</h3><p>The Blocked column is the status, set by hand. Separately, a red <i>blocked by</i> chip shows open <code>blocks</code> links in any column, and moving such a task to In progress or Done asks first.</p><p>Moving a blocker to Done also moves the Blocked tasks it was the last open blocker of to Ready, in the same commit; Move to… shows it as “Done (+1 unblocked)”. Try it with <span class="mono">OS-T-2B7KC</span>. If a blocker was cancelled instead, a green <i>unblocked</i> chip offers a one-tap move.</p></div>
+    <div class="note"><h3>Decisions board</h3><p>Columns are the upper-case ADR states. A move rewrites both the frontmatter <code>status</code> and the body's <code>* Status:</code> line. SUPERSEDED is only allowed once a newer decision <code>supersedes</code> this one; otherwise the drop offers to draft that decision.</p></div>
+    <div class="note"><h3>Changes from the Mac</h3><p>The server fetches every 60 s. The page asks whether the board changed when it becomes visible and every 60 s, and offers a refresh, or swaps the board in place if no move is in flight.</p></div>
+    <div class="note"><h3>No order within a column</h3><p>Cards sort by <code>updated</code>, newest first. Manual ordering would need a stored position, which would mean an <code>x-</code> key in every file. Left out of the first version.</p></div>
+  </div>
+</div>
+
+<dialog id="dlg-approve"><form method="dialog" class="dlg">
+  <h3 id="approve-title">Complete project?</h3>
+  <p class="small" id="approve-text"></p>
+  <pre class="diff" id="approve-diff"></pre>
+  <p class="small">Your passkey is asked for again before the commit.</p>
+  <div class="actions"><button class="btn secondary" value="cancel">Cancel</button><button class="btn" value="ok" id="approve-ok">Approve with passkey</button></div>
+</form></dialog>
+
+<dialog id="dlg-blocked"><form method="dialog" class="dlg">
+  <h3>Still blocked</h3>
+  <p class="small" id="blk-text"></p>
+  <div class="actions"><button class="btn secondary" value="cancel">Cancel</button><button class="btn" value="ok" id="blk-ok">Move anyway</button></div>
+</form></dialog>
+
+<dialog id="dlg-supersede"><form method="dialog" class="dlg">
+  <h3>Nothing supersedes this decision yet</h3>
+  <p class="small"><span class="mono" id="sup-id"></span> can only become SUPERSEDED when a newer decision has <code>supersedes: <span id="sup-id2"></span></code> (§7.6). Draft that decision now? It starts in DRAFT with the link filled in; this one stays where it is.</p>
+  <div class="actions"><button class="btn secondary" value="cancel">Cancel</button><button class="btn" value="ok">Draft superseding decision</button></div>
+</form></dialog>
+
+<dialog id="dlg-wizard"><form method="dialog" class="dlg">
+  <h3>Promote to a project</h3>
+  <p class="small">Promotion is a workflow, not a column move (§10). Dropping a <b>ready</b> idea on Transplanted opens the wizard at <code>/ideas/<span id="wiz-id"></span>/promote</code>:</p>
+  <ol class="small" style="margin:0;padding-left:1.2rem">
+    <li>Review the idea, its captures, research and related ideas</li>
+    <li>Readiness and open questions</li>
+    <li>Draft the project brief</li>
+    <li>Pick initial tasks</li>
+    <li>Approve one commit with your passkey</li>
+  </ol>
+  <p class="small">The card stays in Ready until that commit lands.</p>
+  <div class="actions"><button class="btn secondary" value="cancel">Not now</button><button class="btn" value="ok">Start promotion</button></div>
+</form></dialog>
+
+<dialog id="dlg-conflict"><form method="dialog" class="dlg">
+  <h3>This card changed while you were looking</h3>
+  <p class="small"><span class="mono" id="cf-id"></span> was changed on GitHub after this page loaded. Your move was not saved.</p>
+  <div class="tablewrap"><table class="three"><thead><tr><th>Field</th><th>When you loaded</th><th>On GitHub now</th><th>Your move</th></tr></thead><tbody id="cf-rows"></tbody></table></div>
+  <p class="small" id="cf-note"></p>
+  <div class="actions"><button class="btn secondary" value="detail">Open record</button><button class="btn secondary" value="theirs">Keep GitHub's version</button><button class="btn" value="mine" id="cf-mine">Move anyway</button></div>
+</form></dialog>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+  const BOARDS = {
+    ideas: {
+      title: "Ideas", path: "/ideas",
+      columns: [
+        { key: "seed", label: "Seed", hint: "New, unexplored" },
+        { key: "sprouting", label: "Sprouting", hint: "Being explored" },
+        { key: "ready", label: "Ready", hint: "Ready to promote" },
+        { key: "dormant", label: "Dormant", hint: "Paused on purpose" },
+        { key: "transplanted", label: "Transplanted", folded: true },
+        { key: "composted", label: "Composted", folded: true },
+      ],
+      allowed: {
+        seed: ["sprouting", "dormant", "composted"],
+        sprouting: ["ready", "dormant", "composted"],
+        ready: ["sprouting", "dormant", "composted", "transplanted"],
+        dormant: ["seed", "sprouting", "ready"],
+        composted: ["seed"],
+        transplanted: [],
+      },
+      gate: (from, to) => (from === "ready" && to === "transplanted" ? "wizard" : null),
+    },
+    tasks: {
+      title: "Tasks", path: "/tasks",
+      columns: [
+        { key: "backlog", label: "Backlog" },
+        { key: "ready", label: "Ready" },
+        { key: "in_progress", label: "In progress" },
+        { key: "blocked", label: "Blocked" },
+        { key: "done", label: "Done" },
+        { key: "cancelled", label: "Cancelled", folded: true },
+      ],
+      allowed: null,
+      gate: () => null,
+    },
+    projects: {
+      title: "Projects", path: "/projects",
+      columns: [
+        { key: "proposed", label: "Proposed" },
+        { key: "active", label: "Active" },
+        { key: "on_hold", label: "On hold" },
+        { key: "completed", label: "Completed" },
+        { key: "archived", label: "Archived", folded: true },
+      ],
+      allowed: null,
+      gate: (from, to) => (from === "active" && (to === "completed" || to === "archived") ? "approve" : null),
+    },
+    decisions: {
+      title: "Decisions", path: "/decisions",
+      columns: [
+        { key: "DRAFT", label: "DRAFT", hint: "Being written" },
+        { key: "PROPOSED", label: "PROPOSED", hint: "Ready for advice and review" },
+        { key: "ACCEPTED", label: "ACCEPTED", hint: "Decided" },
+        { key: "ADOPTED", label: "ADOPTED", hint: "In effect" },
+        { key: "SUPERSEDED", label: "SUPERSEDED", folded: true },
+        { key: "EXPIRED", label: "EXPIRED", folded: true },
+      ],
+      allowed: {
+        DRAFT: ["PROPOSED"],
+        PROPOSED: ["DRAFT", "ACCEPTED"],
+        ACCEPTED: ["ADOPTED", "SUPERSEDED", "EXPIRED"],
+        ADOPTED: ["SUPERSEDED", "EXPIRED"],
+        SUPERSEDED: [],
+        EXPIRED: [],
+      },
+      gate: (from, to, rec) =>
+        to === "SUPERSEDED" ? (supersededBy(rec) ? "approve" : "supersede") : to === "ACCEPTED" || to === "EXPIRED" ? "approve" : null,
+    },
+  };
+
+  const P = { "OS-P-0XZ4K": "Garden digest", "OS-P-7RW2N": "Board UI" };
+  const R = (id, title, status, days, extra = {}) => ({ id, title, status, updated: days, tags: [], links: [], ...extra });
+  const DATA = {
+    ideas: [
+      R("OS-I-M9S34", "Voice memo capture from the Watch", "seed", 1, { tags: ["capture"] }),
+      R("OS-I-3QH7B", "Tag suggestions from past captures", "seed", 4),
+      R("OS-I-5VT4F", "Weekly garden digest", "sprouting", 2, { tags: ["weekly"], links: ["2 captures"] }),
+      R("OS-I-K2D8R", "Read-later queue for shared links", "sprouting", 6, { links: ["1 research"] }),
+      R("OS-I-6Q3D2", "Offline capture on the iPhone", "ready", 3, { tags: ["capture", "ios"] }),
+      R("OS-I-W4N1E", "Public library of expert profiles", "dormant", 14),
+      R("OS-I-9TJ5Z", "Sync with Apple Reminders", "composted", 30),
+    ],
+    tasks: [
+      R("OS-T-QF81M", "Render board columns from §7", "in_progress", 0, { project: "OS-P-7RW2N" }),
+      R("OS-T-2B7KC", "set_status route with base_blob", "ready", 1, { project: "OS-P-7RW2N" }),
+      R("OS-T-H4V9X", "409 dialog for moves", "blocked", 1, { project: "OS-P-7RW2N", blockedBy: ["OS-T-2B7KC"] }),
+      R("OS-T-5NM3A", "Pointer drag on iPhone Safari", "backlog", 2, { project: "OS-P-7RW2N", blockedBy: ["OS-T-QF81M"] }),
+      R("OS-T-XE6R1", "Board change check (ETag)", "blocked", 2, { project: "OS-P-7RW2N", blockedBy: ["OS-T-G8B2M"] }),
+      R("OS-T-7YC0P", "Digest email template", "blocked", 5, { project: "OS-P-0XZ4K", note: "waiting for a mail provider" }),
+      R("OS-T-AK4WD", "Pick digest send day", "ready", 6, { project: "OS-P-0XZ4K" }),
+      R("OS-T-J1S8V", "Inbox view", "done", 9, { project: "OS-P-7RW2N" }),
+      R("OS-T-Q3TP6", "Capture form", "done", 10, { project: "OS-P-7RW2N" }),
+      R("OS-T-G8B2M", "RSS export", "cancelled", 20),
+    ],
+    projects: [
+      R("OS-P-0XZ4K", "Garden digest", "proposed", 2, { tags: ["weekly"], counts: "0 of 2 tasks done" }),
+      R("OS-P-7RW2N", "Board UI", "active", 0, { counts: "2 of 7 tasks done" }),
+    ],
+    decisions: [
+      R("OS-D-Z3M5W", "Send the digest by email", "DRAFT", 1, { project: "OS-P-0XZ4K" }),
+      R("OS-D-W8C4Y", "Server-sent events for board refresh", "DRAFT", 0, { project: "OS-P-7RW2N", supersedes: "OS-D-R7T3K" }),
+      R("OS-D-8K2QF", "Thin custom board UI", "PROPOSED", 0, { project: "OS-P-7RW2N" }),
+      R("OS-D-R7T3K", "Poll every 60 s for board changes", "ACCEPTED", 3, { project: "OS-P-7RW2N" }),
+      R("OS-D-1HX7C", "Passkeys only, no passwords", "ACCEPTED", 12),
+      R("OS-D-4M9TZ", "Fastify and server-rendered pages", "ADOPTED", 20),
+      R("OS-D-N5V2A", "Random session IDs", "ADOPTED", 15, { supersedes: "OS-D-6PJ0R" }),
+      R("OS-D-6PJ0R", "Signed session cookies", "SUPERSEDED", 15),
+    ],
+  };
+
+  // Derived from links by the index; never written.
+  const TASK = (id) => DATA.tasks.find((t) => t.id === id);
+  const openBlockers = (rec) => (rec.blockedBy || []).filter((id) => !["done", "cancelled"].includes(TASK(id).status));
+  const blocksOf = (rec) => DATA.tasks.filter((t) => (t.blockedBy || []).includes(rec.id)).map((t) => t.id);
+  const supersededBy = (rec) => DATA.decisions.find((d) => d.supersedes === rec.id);
+  // Tasks a move to done takes along to ready: blocked, and this was their last open blocker.
+  const unblockedBy = (rec) =>
+    DATA.tasks.filter((t) => t.status === "blocked" && (t.blockedBy || []).includes(rec.id) && t.blockedBy.every((id) => id === rec.id || TASK(id).status === "done"));
+
+  const state = { board: "ideas", width: "wide", result: "committed", unfolded: new Set(), pending: 0, conflicts: 0 };
+  const $ = (sel) => document.querySelector(sel);
+  const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const sha = () => Math.random().toString(16).slice(2, 9);
+  const ago = (d) => (d === 0 ? "today" : d === 1 ? "yesterday" : d + " d ago");
+  const B = () => BOARDS[state.board];
+  const label = (key) => B().columns.find((c) => c.key === key).label;
+  const targets = (rec) => {
+    const all = B().columns.map((c) => c.key).filter((k) => k !== rec.status);
+    return B().allowed ? B().allowed[rec.status] : all;
+  };
+
+  let toastTimer;
+  function toast(text) {
+    const t = $("#toast");
+    t.textContent = text;
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (t.hidden = true), 2600);
+  }
+
+  function card(rec) {
+    const chips = [];
+    for (const t of rec.tags) chips.push(`<span class="chip">#${esc(t)}</span>`);
+    for (const l of rec.links) chips.push(`<span class="chip link">${esc(l)}</span>`);
+    if (rec.project) chips.push(`<span class="chip link">↳ ${esc(P[rec.project])}</span>`);
+    if (state.board === "tasks") {
+      const open = openBlockers(rec);
+      if (open.length) chips.push(`<span class="chip block">blocked by ${esc(open.join(", "))}</span>`);
+      else if (rec.status === "blocked" && rec.blockedBy) chips.push(`<button type="button" class="chip ready" data-unblock>unblocked · move to Ready</button>`);
+      if (rec.note) chips.push(`<span class="chip">${esc(rec.note)}</span>`);
+      for (const id of blocksOf(rec)) chips.push(`<span class="chip">blocks ${esc(id)}</span>`);
+    }
+    if (rec.supersedes) chips.push(`<span class="chip link">supersedes ${esc(rec.supersedes)}</span>`);
+    if (state.board === "decisions" && supersededBy(rec) && rec.status !== "SUPERSEDED") chips.push(`<span class="chip">superseded by ${esc(supersededBy(rec).id)} (draft)</span>`);
+    if (rec.counts) chips.push(`<span class="chip">${esc(rec.counts)}</span>`);
+    const opts = targets(rec)
+      .map((k) => {
+        const g = B().gate(rec.status, k, rec);
+        const n = state.board === "tasks" && k === "done" ? unblockedBy(rec).length : 0;
+        return `<option value="${k}">${esc(label(k))}${g === "wizard" ? " (promote…)" : g === "supersede" ? " (draft new…)" : g ? " (approve…)" : n ? ` (+${n} unblocked)` : ""}</option>`;
+      })
+      .join("");
+    const sync = rec.sync
+      ? `<span class="sync ${rec.sync}">${rec.sync === "saving" ? "Saving…" : rec.sync === "pending" ? "● pending push" : "✓ " + rec.sha}</span>`
+      : `<span class="sync">${ago(rec.updated)}</span>`;
+    return `<article class="bcard${rec.flash ? " flash" : ""}" data-id="${rec.id}">
+<div class="bcard-top"><button type="button" class="grip" aria-label="Drag ${esc(rec.title)}" title="Drag to move">⠿</button><a class="btitle" href="#" data-detail>${esc(rec.title)}</a></div>
+<div class="bmeta"><span class="mono">${rec.id}</span></div>
+${chips.length ? `<div class="chips">${chips.join("")}</div>` : ""}
+<div class="bfoot">${opts ? `<label class="move"><select data-move aria-label="Move ${esc(rec.title)} to"><option value="">Move to…</option>${opts}</select></label>` : `<span class="small">No moves</span>`}${sync}</div>
+</article>`;
+  }
+
+  function render() {
+    const board = B();
+    const recs = DATA[state.board];
+    $("#board-title").textContent = board.title;
+    $("#addr").textContent = "app.octosprout.de" + board.path;
+    $("#board-meta").textContent = recs.length + " records";
+    $("#board-filter").textContent = state.board === "tasks" || state.board === "decisions" ? "Project: all ▾" : "";
+    for (const a of document.querySelectorAll("[data-nav]")) {
+      if (a.dataset.nav === state.board) a.setAttribute("aria-current", "page");
+      else a.removeAttribute("aria-current");
+    }
+    $("#jump").innerHTML = board.columns
+      .map((c) => `<button type="button" data-jump="${c.key}">${esc(c.label)}<b>${recs.filter((r) => r.status === c.key).length}</b></button>`)
+      .join("");
+    $("#board").innerHTML = board.columns
+      .map((c) => {
+        const inCol = recs.filter((r) => r.status === c.key).sort((a, b) => a.updated - b.updated);
+        const folded = c.folded && !state.unfolded.has(state.board + c.key);
+        const noun = state.board === "decisions" ? "decisions" : state.board;
+        return `<section class="col${folded ? " folded" : ""}" data-col="${c.key}" aria-label="${esc(c.label)}"${folded ? ' title="Show column"' : ""}>
+<div class="colhead"><span>${esc(c.label)}</span><span class="count">${inCol.length}</span></div>
+${c.hint ? `<div class="colhint">${esc(c.hint)}</div>` : ""}
+<div class="cards">${inCol.length ? inCol.map(card).join("") : `<div class="empty">No ${esc(c.label.toLowerCase())} ${noun}</div>`}</div>
+</section>`;
+      })
+      .join("");
+    for (const r of recs) r.flash = false;
+    renderGlobal();
+  }
+
+  function renderGlobal() {
+    const g = $("#sync-global");
+    const saving = Object.values(DATA).flat().some((r) => r.sync === "saving");
+    if (state.conflicts) g.innerHTML = `<span class="dot conflict"></span>1 conflict`;
+    else if (saving) g.innerHTML = `<span class="dot pending"></span>Saving…`;
+    else if (state.pending) g.innerHTML = `<span class="dot pending"></span>${state.pending} waiting to push`;
+    else g.innerHTML = `<span class="dot"></span>Up to date`;
+    $("#banners").innerHTML = state.pending
+      ? `<p class="banner" role="status">${state.pending} change${state.pending === 1 ? "" : "s"} not yet pushed to GitHub. They are safe on the server and sync automatically.</p>`
+      : "";
+  }
+
+  const find = (id) => DATA[state.board].find((r) => r.id === id);
+
+  function requestMove(rec, to, checked) {
+    if (!to || to === rec.status) return;
+    if (!targets(rec).includes(to)) {
+      toast(`${label(rec.status)} → ${label(to)} is not an allowed move.`);
+      return;
+    }
+    if (!checked && state.board === "tasks" && (to === "in_progress" || to === "done") && openBlockers(rec).length) {
+      $("#blk-text").textContent = `${rec.id} is still blocked by ${openBlockers(rec).join(", ")}, which is not done yet. Move it to ${label(to)} anyway? The link stays.`;
+      const d = $("#dlg-blocked");
+      d.onclose = () => d.returnValue === "ok" && requestMove(rec, to, true);
+      d.showModal();
+      return;
+    }
+    const gate = B().gate(rec.status, to, rec);
+    if (gate === "supersede") {
+      $("#sup-id").textContent = rec.id;
+      $("#sup-id2").textContent = rec.id;
+      const d = $("#dlg-supersede");
+      d.onclose = () => d.returnValue === "ok" && toast("Opens a new decision from the template (not part of this mockup).");
+      d.showModal();
+      return;
+    }
+    if (gate === "wizard") {
+      $("#wiz-id").textContent = rec.id;
+      const d = $("#dlg-wizard");
+      d.onclose = () => d.returnValue === "ok" && toast("Opens the promotion wizard (not part of this mockup).");
+      d.showModal();
+      return;
+    }
+    if (gate === "approve") {
+      const slug = rec.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const dir = state.board === "decisions" ? "decisions" : "projects";
+      const verb = { completed: "Complete project?", archived: "Archive project?", ACCEPTED: "Accept decision?", SUPERSEDED: "Mark as superseded?", EXPIRED: "Mark as expired?" }[to];
+      $("#approve-title").textContent = verb;
+      $("#approve-text").innerHTML = `Moving ${esc(rec.id)} from <b>${esc(label(rec.status))}</b> to <b>${esc(label(to))}</b> is a consequential change (§9.2). It is committed together with a signed approval.`;
+      let diff = `records/${dir}/${rec.id}--${slug}.md\n<span class="del">-status: ${esc(rec.status)}</span>\n<span class="add">+status: ${esc(to)}</span>\n<span class="del">-updated: 2026-10-24T08:12:40Z</span>\n<span class="add">+updated: 2026-10-26T09:41:05Z</span>\n<span class="add">+approval: OS-PROP-8V3KD</span>`;
+      if (state.board === "decisions") diff += `\n  …\n<span class="del">-* Status: ${esc(rec.status)}</span>\n<span class="add">+* Status: ${esc(to)}</span>`;
+      $("#approve-diff").innerHTML = diff;
+      const d = $("#dlg-approve");
+      d.onclose = () => d.returnValue === "ok" && save(rec, to, "Approved with passkey. ");
+      d.showModal();
+      return;
+    }
+    save(rec, to, "");
+  }
+
+  function save(rec, to, prefix) {
+    if (state.result === "conflict") return conflict(rec, to);
+    const from = rec.status;
+    const along = state.board === "tasks" && to === "done" ? unblockedBy(rec) : [];
+    if (along.length) prefix += `${along.map((t) => t.id).join(", ")} unblocked and moved to Ready in the same commit. `;
+    for (const t of along) { t.status = "ready"; t.updated = 0; t.flash = true; }
+    rec.status = to;
+    rec.updated = 0;
+    rec.sync = "saving";
+    render();
+    setTimeout(() => {
+      if (state.result === "pending") {
+        rec.sync = "pending";
+        state.pending++;
+        render();
+        toast(`${prefix}Saved on the server. Push pending.`);
+        setTimeout(() => {
+          rec.sync = "committed";
+          rec.sha = sha();
+          state.pending = Math.max(0, state.pending - 1);
+          render();
+          setTimeout(() => { rec.sync = null; render(); }, 2500);
+        }, 7000);
+      } else {
+        rec.sync = "committed";
+        rec.sha = sha();
+        render();
+        toast(`${prefix}${label(from)} → ${label(to)} committed.`);
+        setTimeout(() => { rec.sync = null; render(); }, 3500);
+      }
+    }, 700);
+  }
+
+  function conflict(rec, to) {
+    state.result = "committed";
+    pressed("#ctl-result", "committed");
+    state.conflicts = 1;
+    renderGlobal();
+    const others = B().columns.map((c) => c.key).filter((k) => k !== rec.status && k !== to && !B().columns.find((c) => c.key === k).folded);
+    const remote = others[0];
+    $("#cf-id").textContent = rec.id;
+    $("#cf-rows").innerHTML = `
+<tr><td><code>status</code></td><td>${esc(label(rec.status))}</td><td class="changed">${esc(label(remote))}</td><td>${esc(label(to))}</td></tr>
+<tr><td><code>updated</code></td><td>Oct 24, 09:00</td><td class="changed">Oct 26, 09:38</td><td>now</td></tr>
+<tr><td><code>title</code></td><td colspan="3" class="small">unchanged</td></tr>`;
+    const allowedNow = B().allowed ? B().allowed[remote].includes(to) : true;
+    $("#cf-mine").disabled = !allowedNow;
+    $("#cf-note").textContent = allowedNow
+      ? `"Move anyway" saves your move on top of GitHub's version, with the new base_blob.`
+      : `${label(remote)} → ${label(to)} is not an allowed move, so only GitHub's version can be kept.`;
+    const d = $("#dlg-conflict");
+    d.onclose = () => {
+      state.conflicts = 0;
+      rec.status = remote;
+      rec.flash = true;
+      if (d.returnValue === "mine" && allowedNow) save(rec, to, "Moved on top of GitHub's version. ");
+      else if (d.returnValue === "detail") { render(); toast("Opens Record detail with the three-way view (§12.2)."); }
+      else { render(); toast("Kept GitHub's version."); }
+    };
+    d.showModal();
+  }
+
+  function fromMac() {
+    const recs = DATA[state.board];
+    const free = (r, k) => !B().gate(r.status, k, r) && !B().columns.find((c) => c.key === k).folded;
+    const movable = recs.filter((r) => !r.sync && targets(r).some((k) => free(r, k)));
+    const rec = movable[Math.floor(Math.random() * movable.length)];
+    const to = targets(rec).find((k) => free(rec, k));
+    rec.status = to;
+    rec.updated = 0;
+    rec.flash = true;
+    render();
+    $("#banners").insertAdjacentHTML("afterbegin", `<p class="banner info" role="status">Updated from GitHub: ${esc(rec.id)} is now ${esc(label(to))}.</p>`);
+  }
+
+  // Drag by the grip with Pointer Events. Works for mouse, pen and touch.
+  let drag = null;
+  function columnAt(x, y) {
+    const el = document.elementFromPoint(x, y);
+    return el && el.closest(".col");
+  }
+  function endDrag(drop) {
+    if (!drag) return;
+    const { rec, ghost, target, el } = drag;
+    ghost && ghost.remove();
+    el.classList.remove("lifted");
+    $("#window").classList.remove("dragging");
+    for (const c of document.querySelectorAll(".col")) c.classList.remove("drop-ok", "drop-no", "drop-gate", "over");
+    const moved = drag.started;
+    drag = null;
+    if (drop && moved && target && target.dataset.col !== rec.status) requestMove(rec, target.dataset.col);
+    else if (!moved) el.querySelector("[data-move]")?.focus();
+  }
+  document.addEventListener("pointerdown", (e) => {
+    const grip = e.target.closest(".grip");
+    if (!grip) return;
+    e.preventDefault();
+    const el = grip.closest(".bcard");
+    grip.setPointerCapture(e.pointerId);
+    drag = { rec: find(el.dataset.id), el, grip, x: e.clientX, y: e.clientY, started: false, ghost: null, target: null };
+  });
+  document.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    if (!drag.started) {
+      if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5) return;
+      drag.started = true;
+      const r = drag.el.getBoundingClientRect();
+      drag.dx = e.clientX - r.left;
+      drag.dy = e.clientY - r.top;
+      drag.ghost = drag.el.cloneNode(true);
+      drag.ghost.classList.add("ghost");
+      drag.ghost.style.width = r.width + "px";
+      document.body.appendChild(drag.ghost);
+      drag.el.classList.add("lifted");
+      $("#window").classList.add("dragging");
+      const ok = targets(drag.rec);
+      for (const c of document.querySelectorAll(".col")) {
+        const k = c.dataset.col;
+        if (k === drag.rec.status) continue;
+        c.classList.add(!ok.includes(k) ? "drop-no" : B().gate(drag.rec.status, k, drag.rec) ? "drop-gate" : "drop-ok");
+      }
+    }
+    drag.ghost.style.left = e.clientX - drag.dx + "px";
+    drag.ghost.style.top = e.clientY - drag.dy + "px";
+    const col = columnAt(e.clientX, e.clientY);
+    if (drag.target !== col) {
+      drag.target && drag.target.classList.remove("over");
+      drag.target = col;
+      col && col.classList.add("over");
+    }
+    // Scroll the board sideways near its edges, so a phone can reach the next column.
+    const board = $("#board").getBoundingClientRect();
+    if (e.clientX > board.right - 32) $("#board").scrollLeft += 12;
+    else if (e.clientX < board.left + 32) $("#board").scrollLeft -= 12;
+  });
+  document.addEventListener("pointerup", () => endDrag(true));
+  document.addEventListener("pointercancel", () => endDrag(false));
+  document.addEventListener("keydown", (e) => e.key === "Escape" && drag && endDrag(false));
+
+  document.addEventListener("change", (e) => {
+    if (!e.target.matches("[data-move]")) return;
+    const rec = find(e.target.closest(".bcard").dataset.id);
+    const to = e.target.value;
+    e.target.value = "";
+    requestMove(rec, to);
+  });
+  document.addEventListener("click", (e) => {
+    const col = e.target.closest(".col.folded");
+    if (col) { state.unfolded.add(state.board + col.dataset.col); render(); return; }
+    const jump = e.target.closest("[data-jump]");
+    if (jump) { document.querySelector(`.col[data-col="${jump.dataset.jump}"]`).scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" }); return; }
+    if (e.target.closest("[data-unblock]")) { requestMove(find(e.target.closest(".bcard").dataset.id), "ready"); return; }
+    if (e.target.closest("[data-detail]")) { e.preventDefault(); toast("Opens Record detail (§12.2), not part of this mockup."); return; }
+    const nav = e.target.closest("[data-nav]");
+    if (nav) { e.preventDefault(); if (nav.dataset.nav) setBoard(nav.dataset.nav); else toast("Not part of this mockup."); }
+  });
+
+  function pressed(sel, v) {
+    for (const b of document.querySelectorAll(sel + " button")) b.setAttribute("aria-pressed", String(b.dataset.v === v));
+  }
+  function setBoard(v) { state.board = v; pressed("#ctl-board", v); render(); }
+  $("#ctl-board").addEventListener("click", (e) => e.target.dataset.v && setBoard(e.target.dataset.v));
+  $("#ctl-width").addEventListener("click", (e) => {
+    const v = e.target.dataset.v;
+    if (!v) return;
+    state.width = v;
+    pressed("#ctl-width", v);
+    $("#window").className = "window " + v;
+  });
+  $("#ctl-result").addEventListener("click", (e) => {
+    const v = e.target.dataset.v;
+    if (!v) return;
+    state.result = v;
+    pressed("#ctl-result", v);
+  });
+  $("#ctl-mac").addEventListener("click", fromMac);
+
+  render();
+})();
+</script>
