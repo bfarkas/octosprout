@@ -36,6 +36,9 @@ declare module "fastify" {
 
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{8,128}$/;
 
+/** Sources the browser form may report; anything else is recorded as `web`. */
+const SHARE_SOURCES = new Set(["web", "shortcut", "chatgpt", "claude", "apple-notes"]);
+
 function statusBody(status: CaptureStatus): Record<string, string> {
   return status.status === "committed"
     ? { id: status.id, status: "committed", commit: status.commit, path: status.path }
@@ -117,9 +120,10 @@ export function buildApp(options: AppOptions): FastifyInstance {
     // The browser capture form uses the same pipeline as the inbox API (spec §12.2).
     app.post("/api/v1/capture", { preHandler: requireSession }, async (request, reply) => {
       const body = typeof request.body === "object" && request.body !== null ? (request.body as Record<string, unknown>) : request.body;
-      const parsed = parseInboxRequest(
-        typeof body === "object" && body !== null && !Array.isArray(body) ? { ...body, source: "web" } : body,
-      );
+      // The page says where shared text came from (the iOS share link can name it); anything else is "web".
+      const fields = typeof body === "object" && body !== null && !Array.isArray(body) ? (body as Record<string, unknown>) : undefined;
+      const source = typeof fields?.source === "string" && SHARE_SOURCES.has(fields.source) ? fields.source : "web";
+      const parsed = parseInboxRequest(fields ? { ...fields, source } : body);
       const outcome = await inbox.submit(parsed, "web-session");
       if (outcome.kind === "created") {
         request.log.info({ id: outcome.id, size: Buffer.byteLength(parsed.text), source: parsed.source, token: "web-session" }, "capture stored");

@@ -57,6 +57,7 @@ textarea { min-height: 12rem; resize: vertical; }
   border: 1px solid var(--accent); background: var(--accent); color: var(--accent-text);
   text-decoration: none; display: inline-block;
 }
+button.secondary { background: none; color: var(--accent); }
 button.link { background: none; border: none; color: var(--accent); padding: 0.25rem 0; text-decoration: underline; }
 button:disabled { opacity: 0.6; cursor: progress; }
 .actions { margin-top: 1rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
@@ -71,6 +72,23 @@ ul.plain { list-style: none; padding: 0; margin: 0; }
 h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
 [hidden] { display: none !important; }
 .banner { border: 1px solid var(--warn); color: var(--warn); border-radius: 8px; padding: 0.5rem 0.75rem; margin: 0.75rem 0; }
+`;
+
+const RETURN_KEY = "octosprout.return";
+
+/**
+ * On the "sign in required" page: remember the page the user wanted, including its
+ * fragment (which is where shared text travels), so sign-in can go back there.
+ */
+export const RETURN_JS = `
+(() => {
+  const pages = ["/", "/capture", "/settings"];
+  try {
+    if (pages.includes(location.pathname)) {
+      sessionStorage.setItem("${RETURN_KEY}", location.pathname + location.search + location.hash);
+    }
+  } catch (_) {}
+})();
 `;
 
 /** Sign-in and passkey registration (spec §18.2). Runs on /login and /setup. */
@@ -116,6 +134,17 @@ export const AUTH_JS = `
     return;
   }
 
+  // Back to the page that asked for sign-in, if any. Only same-origin paths are accepted.
+  const afterSignIn = () => {
+    let target = "/";
+    try {
+      const saved = sessionStorage.getItem("${RETURN_KEY}");
+      sessionStorage.removeItem("${RETURN_KEY}");
+      if (saved && saved.startsWith("/") && !saved.startsWith("//")) target = saved;
+    } catch (_) {}
+    window.location.assign(target);
+  };
+
   const page = document.body.dataset.page;
 
   if (page === "login") {
@@ -143,7 +172,7 @@ export const AUTH_JS = `
             },
           },
         });
-        window.location.assign("/");
+        afterSignIn();
       } catch (error) {
         fail(error);
         button.disabled = false;
@@ -180,7 +209,7 @@ export const AUTH_JS = `
             },
           },
         });
-        window.location.assign("/");
+        afterSignIn();
       } catch (error) {
         fail(error);
         button.disabled = false;
@@ -202,7 +231,7 @@ export const APP_JS = `
   const form = document.getElementById("capture-form");
   if (form) {
     const status = document.getElementById("status");
-    const button = form.querySelector("button");
+    const button = form.querySelector("button[type=submit]");
     const DRAFT = "octosprout.capture.draft";
     const show = (text, kind) => {
       status.textContent = text;
@@ -220,11 +249,67 @@ export const APP_JS = `
       form.elements.text.value = localStorage.getItem(DRAFT) || "";
     } catch (_) {}
 
-    // One idempotency key per attempt: a retry of the same text can never create a duplicate.
+    // Text shared from the iOS share sheet arrives in the fragment: /capture#source=chatgpt&text=…
+    // The fragment never reaches the server, so the text is not written to any access log.
+    // "text" must be the last parameter; everything after "text=" is the text, even "&" or "#".
+    let source = "web";
     let key = null;
+    const takeShared = () => {
+      const fragment = location.hash.slice(1);
+      const at = fragment.startsWith("text=") ? 0 : fragment.indexOf("&text=") + 1;
+      if (at === 0 && !fragment.startsWith("text=")) return;
+      const encoded = fragment.slice(at + "text=".length);
+      let shared;
+      try {
+        shared = decodeURIComponent(encoded);
+      } catch (_) {
+        shared = encoded;
+      }
+      source = "web";
+      for (const part of fragment.slice(0, at).split("&")) {
+        const [name, value] = part.split("=");
+        if (name === "source" && value) source = value;
+      }
+      if (shared.trim()) {
+        form.elements.text.value = shared;
+        form.elements.source_url.value = /^https:\\/\\/\\S+$/.test(shared.trim()) ? shared.trim() : "";
+        key = null;
+        remember(shared);
+        show("Shared text is ready. Check it and tap Save.");
+      }
+      // Drop the fragment so a reload after saving does not bring the text back.
+      history.replaceState(null, "", location.pathname + location.search);
+    };
+    takeShared();
+    // Safari may reuse a tab that is already on /capture; then only the fragment changes.
+    window.addEventListener("hashchange", takeShared);
+
+    // One idempotency key per attempt: a retry of the same text can never create a duplicate.
     form.elements.text.addEventListener("input", () => {
       key = null;
+      source = "web";
       remember(form.elements.text.value);
+    });
+
+    const paste = document.getElementById("paste-save");
+    paste.addEventListener("click", async () => {
+      if (!navigator.clipboard || !navigator.clipboard.readText) {
+        show("This browser cannot read the clipboard. Paste into the field and tap Save.", "error");
+        return;
+      }
+      let pasted;
+      try {
+        pasted = await navigator.clipboard.readText();
+      } catch (_) {
+        show("Clipboard access was not allowed. Paste into the field and tap Save.", "error");
+        return;
+      }
+      if (!pasted.trim()) return show("The clipboard is empty.", "error");
+      form.elements.text.value = pasted;
+      key = null;
+      source = "web";
+      remember(pasted);
+      form.requestSubmit();
     });
 
     form.addEventListener("submit", async (event) => {
@@ -234,7 +319,7 @@ export const APP_JS = `
       button.disabled = true;
       show("Saving…");
       key = key || "web-" + crypto.randomUUID();
-      const payload = { text, idempotency_key: key };
+      const payload = { text, idempotency_key: key, source };
       if (form.elements.source_url.value.trim()) payload.source_url = form.elements.source_url.value.trim();
       try {
         const csrf = await csrfToken();
@@ -250,6 +335,7 @@ export const APP_JS = `
         form.elements.source_url.value = "";
         remember("");
         key = null;
+        source = "web";
         if (data.status === "pending") show("Saved " + data.id + " (sync pending)", "pending");
         else show("Saved " + data.id + " ✓", "ok");
       } catch (error) {
@@ -318,3 +404,25 @@ export const APP_JS = `
   }
 })();
 `;
+
+/** Lets iOS and others install the app on the home screen, opening straight into Capture. */
+export const MANIFEST = JSON.stringify(
+  {
+    id: "/",
+    name: "OctoSprout",
+    short_name: "OctoSprout",
+    description: "Capture ideas into your OctoSprout workspace.",
+    start_url: "/capture",
+    scope: "/",
+    display: "standalone",
+    background_color: "#f4f1ff",
+    theme_color: "#1f6b4f",
+    icons: [
+      { src: "/static/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/static/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/static/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+    ],
+  },
+  null,
+  2,
+);

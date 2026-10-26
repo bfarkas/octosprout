@@ -100,7 +100,7 @@ ${more}`,
 <textarea id="text" name="text" required autofocus placeholder="An idea, a link, a pasted brief…"></textarea>
 <label for="source_url">Link <span class="hint">(optional)</span></label>
 <input type="url" id="source_url" name="source_url" placeholder="https://" inputmode="url" autocomplete="off">
-<div class="actions"><button type="submit">Save capture</button></div>
+<div class="actions"><button type="submit">Save capture</button><button type="button" id="paste-save" class="secondary">Paste &amp; save</button></div>
 </form>
 <p id="status" class="status" role="status" aria-live="polite"></p>`,
       }),
@@ -133,11 +133,11 @@ export function registerSettings(app: FastifyInstance, options: UiOptions): void
         scripts: ["app.js"],
         body: `<h1>Settings</h1>
 <h2>Inbox tokens</h2>
-<p class="hint">A token lets the iOS Shortcut add captures, and nothing else. It is shown once.</p>
+<p class="hint">A token lets a script or another client add captures through the inbox API, and nothing else. It is shown once. The share link and the home screen app need no token.</p>
 <ul class="plain" id="token-list">${rows}</ul>
 <form id="token-form" autocomplete="off">
 <label for="token-name">New token name</label>
-<input type="text" id="token-name" name="name" placeholder="iphone-shortcut" maxlength="64" pattern="[A-Za-z0-9._-]+" required>
+<input type="text" id="token-name" name="name" placeholder="laptop-script" maxlength="64" pattern="[A-Za-z0-9._-]+" required>
 <div class="actions"><button type="submit">Create token</button></div>
 </form>
 <div id="new-token" class="card" hidden>

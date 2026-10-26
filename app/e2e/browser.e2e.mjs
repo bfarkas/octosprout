@@ -148,6 +148,50 @@ try {
   assert.ok(await page.isVisible(`article#${id}`));
   step("signed back in with the passkey");
 
+  // The share-sheet link, opened while signed out: sign in, come back, and the text is still there.
+  // iOS Shortcuts' "URL Encode" leaves characters such as & + = # unencoded, so do the same.
+  const sharedText = "Brief from ChatGPT: a+b & c=d #tag\n100% ready";
+  const shortcutEncoded = encodeURIComponent(sharedText).replace(/%26/g, "&").replace(/%2B/g, "+").replace(/%3D/g, "=").replace(/%23/g, "#");
+  await page.click("text=Sign out");
+  await page.waitForURL(`${origin}/login`);
+  assert.equal((await page.goto(`${origin}/capture#source=chatgpt&text=${shortcutEncoded}`)).status(), 401);
+  await page.getByRole("link", { name: "Sign in with a passkey" }).click();
+  await page.waitForURL(`${origin}/login`);
+  await page.click("#sign-in");
+  await page.waitForURL((url) => url.pathname === "/capture");
+  await page.waitForFunction(() => document.getElementById("text").value !== "");
+  assert.equal(await page.inputValue("#text"), sharedText, "shared text survives sign-in exactly");
+  assert.equal(new URL(page.url()).hash, "", "the fragment is cleared once read");
+  await page.click("button[type=submit]");
+  await page.waitForFunction(() => /Saved OS-C-/.test(document.getElementById("status").textContent));
+  const sharedId = /OS-C-[0-9A-HJKMNP-TV-Z]{5}/.exec(await page.textContent("#status"))[0];
+  assert.equal(git(remote, "log", "-1", "--format=%s", "main"), `capture: ${sharedId} (chatgpt)`);
+  const sharedFile = git(remote, "ls-tree", "-r", "--name-only", "main").split("\n").find((path) => path.endsWith(`${sharedId}.md`));
+  assert.ok(execFileSync("git", ["show", `main:${sharedFile}`], { cwd: remote, encoding: "utf8" }).endsWith(`---\n${sharedText}`));
+  step("share link opened while signed out: sign-in returns to it and saves the text exactly, as chatgpt");
+
+  // A shared bare link also fills the link field.
+  await page.goto(`${origin}/capture#text=${encodeURIComponent("https://example.com/article")}`);
+  assert.equal(await page.inputValue("#source_url"), "https://example.com/article");
+  await page.fill("#text", "");
+  await page.fill("#source_url", "");
+  step("a shared link also fills the link field");
+
+  // Paste & save, as from the home screen app.
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin });
+  await page.evaluate(() => navigator.clipboard.writeText("Pasted from the clipboard"));
+  await page.click("#paste-save");
+  await page.waitForFunction(() => /Saved OS-C-/.test(document.getElementById("status").textContent));
+  assert.match(git(remote, "log", "-1", "--format=%s", "main"), /^capture: OS-C-[0-9A-Z]{5} \(web\)$/);
+  assert.equal(await page.inputValue("#text"), "");
+  step("Paste & save stores the clipboard in one tap");
+
+  // Installable: the manifest and its icons load.
+  const manifest = await page.evaluate(async () => (await fetch("/manifest.webmanifest")).json());
+  assert.equal(manifest.start_url, "/capture");
+  for (const icon of manifest.icons) assert.equal((await page.request.get(`${origin}${icon.src}`)).status(), 200);
+  step("web app manifest and icons are served");
+
   // Create an inbox token in the UI, use it as the Shortcut would, then revoke it.
   page.on("dialog", (dialog) => dialog.accept());
   await page.click("nav >> text=Settings");

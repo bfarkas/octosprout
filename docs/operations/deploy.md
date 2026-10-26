@@ -83,12 +83,15 @@ of unpushed commits.
 The passkeys are bound to `octosprout.de` and `https://app.octosprout.de`. If
 you change either setting, every passkey stops working and you register again.
 
-## 6. Create an inbox token
+## 6. Set up capturing on the iPhone
 
-In the app, open **Settings**, create a token named `iphone-shortcut` and copy
-it. It is shown once; only its hash is stored (in the state volume). Put it into
-the iOS Shortcut ([`deploy/shortcut/`](../../deploy/shortcut/README.md)).
-Revoke it in Settings when needed.
+Follow [`deploy/shortcut/README.md`](../../deploy/shortcut/README.md): a
+three-action Shortcut for the share sheet, and the capture page on the home
+screen with *Paste & save*. Both use your passkey session; no token is needed.
+
+Inbox tokens are only for other clients of the inbox API, such as scripts. In
+the app, open **Settings** to create one. It is shown once; only its hash is
+stored (in the state volume). Revoke it in Settings when needed.
 
 Without a browser, the CLI does the same:
 

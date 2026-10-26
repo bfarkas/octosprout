@@ -8,6 +8,7 @@
  *  - Login and setup attempts are rate-limited per IP.
  */
 import { createHash, timingSafeEqual } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 import {
   generateAuthenticationOptions,
@@ -21,7 +22,7 @@ import {
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import { RateLimiter } from "../http/rate-limit.js";
-import { AUTH_JS, APP_CSS, APP_JS } from "../ui/assets.js";
+import { AUTH_JS, APP_CSS, APP_JS, MANIFEST, RETURN_JS } from "../ui/assets.js";
 import { page, signInRequiredPage } from "../ui/html.js";
 import { ChallengeStore } from "./challenges.js";
 import type { PasskeyStore } from "./passkeys.js";
@@ -47,6 +48,10 @@ declare module "fastify" {
   }
 }
 
+/** `packages/server/static/`, resolved from `src/auth/` or `dist/auth/`. */
+const STATIC_DIR = new URL("../../static/", import.meta.url);
+const ICONS = ["icon-180.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"];
+
 const sha256 = (value: string): Buffer => createHash("sha256").update(value, "utf8").digest();
 const safeEqual = (a: string, b: string): boolean => timingSafeEqual(sha256(a), sha256(b));
 const STATE_CHANGING = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -70,7 +75,7 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): Guards
   const { passkeys, sessions, rpId, origin } = options;
   const rpName = options.rpName ?? "OctoSprout";
   const challenges = new ChallengeStore(options.now);
-  const attempts = new RateLimiter({ capacity: 5, perMinute: 10, ...(options.now ? { now: options.now } : {}) });
+  const attempts = new RateLimiter({ capacity: 10, perMinute: 20, ...(options.now ? { now: options.now } : {}) });
 
   app.decorateRequest("session", null);
   app.decorateRequest("sessionId", null);
@@ -92,12 +97,15 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): Guards
 
   // --- Public pages and assets -------------------------------------------
 
-  const asset = (path: string, type: string, body: string): void => {
+  const asset = (path: string, type: string, body: string | Buffer): void => {
     app.get(path, async (_request, reply) => reply.type(type).header("Cache-Control", "no-cache").send(body));
   };
   asset("/static/app.css", "text/css; charset=utf-8", APP_CSS);
   asset("/static/auth.js", "text/javascript; charset=utf-8", AUTH_JS);
   asset("/static/app.js", "text/javascript; charset=utf-8", APP_JS);
+  asset("/static/return.js", "text/javascript; charset=utf-8", RETURN_JS);
+  asset("/manifest.webmanifest", "application/manifest+json; charset=utf-8", MANIFEST);
+  for (const icon of ICONS) asset(`/static/${icon}`, "image/png", readFileSync(new URL(icon, STATIC_DIR)));
 
   app.get("/login", async (_request, reply) =>
     reply.type("text/html; charset=utf-8").send(

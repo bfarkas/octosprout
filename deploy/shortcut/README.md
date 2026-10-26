@@ -1,107 +1,81 @@
-# iOS Shortcut: "OctoSprout Capture"
+# Capturing from the iPhone (and Mac)
 
-Share text or a link from any app (ChatGPT, Apple Notes, Safari, …) to
-OctoSprout in two taps. This is spec §15.4. A `.shortcut` file cannot be built
-or signed outside the Shortcuts app, so the shortcut is built by hand from the
-steps below; the API it calls is documented in spec §15.2 and tested in
-`app/packages/server`.
+Two ways in, both through the web app at `https://app.octosprout.de`. You sign
+in with your passkey; there is no token to copy into anything.
 
-You need an inbox token: sign in at `https://app.octosprout.de`, open
-**Settings**, create a token named `iphone-shortcut` and copy it. It is shown
-once. The token can add captures and nothing else; revoke it in Settings if the
-phone is lost.
-
-## What the shortcut must do
-
-1. **Accept** Text, URLs and Safari web pages from the share sheet
-   (Shortcut Settings → Show in Share Sheet). When run directly, ask for text.
-2. **Generate one idempotency key per capture**, and reuse it on every retry
-   of that capture. This is what makes retries safe: the server answers a
-   repeated key with the same capture and never creates a duplicate.
-3. **POST** `https://app.octosprout.de/api/v1/inbox` and show what happened.
-
-## Build steps
-
-Create a new shortcut named **OctoSprout Capture** and add these actions.
-
-### A. Pick up an unfinished capture (the outbox)
-
-A network error aborts a shortcut before it can ask to retry, so the shortcut
-keeps the capture in a file until the server has confirmed it.
-
-1. **Get File** `Shortcuts/OctoSprout/outbox.json`, with *Error If Not Found* off.
-2. **If** *File* has any value:
-   1. **Get Dictionary from** *File*.
-   2. **Choose from Menu** "An earlier capture was not confirmed":
-      - **Retry it**: **Get Dictionary Value** `text` into variable `Text`, and
-        `idempotency_key` into `Key`. Continue at step C.
-      - **Discard it**: **Delete Files** *File*, then continue with step B.
-3. **End If**.
-
-### B. Start a new capture
-
-1. **If** *Shortcut Input* has any value: **Text** = *Shortcut Input*.
-   **Otherwise**: **Ask for Input** (Text) into `Text`.
-   For a web page, use its URL as the text.
-2. **Format Date** (Current Date, custom format `yyyyMMdd'T'HHmmss`) and
-   **Random Number** (10000 to 99999). **Text**: `<date>-<number>`.
-   **Set Variable** `Key`. This runs once per capture, outside any loop.
-3. **Dictionary** `{ "text": Text, "idempotency_key": Key, "source": "shortcut" }`.
-   **Save File** it to `Shortcuts/OctoSprout/outbox.json`, *Overwrite If File
-   Exists* on.
-
-### C. Send
-
-1. **Dictionary** (if you came from the retry path, rebuild it from `Text`,
-   `Key` and `"source": "shortcut"`).
-2. **Get Contents of URL**
-   - URL: `https://app.octosprout.de/api/v1/inbox`
-   - Method: **POST**
-   - Headers: `Authorization` = `Bearer <your token>`;
-     `Content-Type` = `application/json; charset=utf-8`
-   - Request Body: **JSON**, the dictionary above.
-3. **Get Dictionary from** *Contents of URL*.
-
-### D. Report the result
-
-Read `status` and `id` from the response dictionary.
-
-| Response | Meaning | Do |
+| Way | Steps per capture | Set up |
 |---|---|---|
-| `status` = `committed` | On GitHub | **Delete Files** the outbox file. Show "Saved *id* ✓". |
-| `status` = `pending` | Stored on the server; GitHub sync pending | **Delete Files** the outbox file. Show "Saved *id* (sync pending)". Nothing is lost; the server keeps retrying. |
-| `error` = `idempotency_conflict` | This key was already used for different text | Delete the outbox file. Show the error. |
-| `error` = `invalid_request` or `payload_too_large` | The server rejected the text; retrying will not help | Delete the outbox file. Show `message`. |
-| `error` = `unauthorized` | Token missing, wrong or revoked | **Keep** the outbox file. Show "Check the token", fix it, run the shortcut again and choose *Retry it*. |
-| `error` = `rate_limited` or `unavailable` | Try again shortly | **Keep** the outbox file. Show the error; run again and choose *Retry it*. |
-| (no response at all) | Network error | Shortcuts stops with an error. The outbox file is still there, so run the shortcut again and choose *Retry it*: the same key is sent. |
+| **Share sheet** via a three-action Shortcut | Share → **OctoSprout** → **Save** | about a minute, once |
+| **Home screen app** with *Paste & save* | Copy → tap the icon → **Paste & save** | add to Home Screen, once |
 
-Use **If** actions on the `status` and `error` values, and **Show Notification**
-or **Show Result** for the messages.
+Both end in the same capture page, which does the careful parts: one
+idempotency key per attempt (a retry never creates a duplicate), the unsent
+text kept on the device until the server confirms it, and a clear
+"Saved OS-C-… ✓" or "Saved OS-C-… (sync pending)".
 
-## The ChatGPT variant: "OctoSprout from ChatGPT"
+## Share sheet: the OctoSprout shortcut
 
-A shortcut cannot tell which app shared something. Duplicate the shortcut,
-rename it **OctoSprout from ChatGPT** and change `"source": "shortcut"` to
-`"source": "chatgpt"` in both places. The server stores which one you used, so
-captures from ChatGPT can be recognised later.
+iOS does not let web apps appear in the share sheet, so a tiny Shortcut hands
+the shared text to the capture page. It has no logic and no secrets.
 
-Workflow for UC3 (spec §15.1):
+In the Shortcuts app (iPhone or Mac), create a shortcut named **OctoSprout**:
+
+1. Open the shortcut's details (ⓘ) and turn on **Show in Share Sheet**
+   (on the Mac: **Use as Quick Action → Share Menu**). Set the input types to
+   **Text**, **URLs** and **Safari web pages**. Set *If there's no input* to
+   **Ask For Text**.
+2. Add **URL Encode** with *Shortcut Input*.
+3. Add **Text**: `https://app.octosprout.de/capture#text=` followed by the
+   *URL Encoded Text* variable.
+4. Add **Open URLs** with that *Text*.
+
+Sharing now opens the capture page with the text filled in. Check it and tap
+**Save**. If the text is a single link, it is also put in the link field.
+
+The first time, Safari asks you to sign in with your passkey; afterwards the
+session lasts 30 days from the last use. A share made while signed out is kept
+through sign-in.
+
+### ChatGPT briefs
+
+For UC3 (spec §15.1), duplicate the shortcut, name it **OctoSprout from
+ChatGPT**, and change the text in step 3 to
+`https://app.octosprout.de/capture#source=chatgpt&text=` (keep `text=` last).
+Captures made with it are recorded with `source: chatgpt`.
 
 1. Explore the idea in the ChatGPT app.
 2. Paste the handoff prompt from
    [`templates/prompts/chatgpt-handoff.md`](../../templates/prompts/chatgpt-handoff.md).
-3. Share ChatGPT's brief to **OctoSprout from ChatGPT**.
-4. The capture appears in the Inbox. Triage it into an Idea later.
+3. Share ChatGPT's brief to **OctoSprout from ChatGPT** and tap **Save**.
 
-## Check it from a computer first
+### Why the text goes after `#`
+
+Everything after `#` stays in the browser: it is never sent to the server, so
+capture text never appears in Caddy's or the app's access logs. The page reads
+it, then removes it from the address bar. `text=` must be the last parameter:
+everything after it is taken as the text, including `&`, `=` and `#`, because
+Shortcuts' URL Encode leaves those characters as they are.
+
+## Home screen app: Paste & save
+
+1. Open `https://app.octosprout.de/capture` in Safari.
+2. Share → **Add to Home Screen**. The icon opens straight into Capture, full
+   screen.
+3. Sign in once with your passkey inside the app (home screen apps keep their
+   own sign-in, separate from Safari).
+
+To capture: copy text anywhere, tap the icon, tap **Paste & save**. iOS shows a
+small *Paste* button the first time; tap it to allow reading the clipboard.
+
+## Inbox tokens
+
+The share link and the home screen app use your passkey session, so they need
+no token. Inbox tokens (Settings → Inbox tokens) remain for other clients of
+the inbox API, such as scripts:
 
 ```sh
 curl -sS -X POST https://app.octosprout.de/api/v1/inbox \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json; charset=utf-8' \
-  -d '{"text":"shortcut check","idempotency_key":"check-20261025-0001","source":"shortcut"}'
+  -d '{"text":"from a script","idempotency_key":"script-20261026-0001","source":"cli"}'
 ```
-
-Expect `{"id":"OS-C-…","status":"committed",…}` with HTTP 201. Running it again
-returns the same `id` with HTTP 200.

@@ -44,6 +44,10 @@ export function page(options: PageOptions): string {
 <meta name="referrer" content="no-referrer">
 <title>${esc(options.title)} · OctoSprout</title>
 <link rel="stylesheet" href="/static/app.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/icon-180.png">
+<meta name="apple-mobile-web-app-title" content="OctoSprout">
+<meta name="theme-color" content="#1f6b4f">
 </head>
 <body data-page="${esc(options.page)}">
 ${nav}<main>
@@ -59,6 +63,8 @@ export function signInRequiredPage(): string {
   return page({
     title: "Sign in required",
     page: "denied",
+    // Remembers where you were going (including shared text in the URL fragment) for after sign-in.
+    scripts: ["return.js"],
     body: `<h1>Sign in required</h1>
 <p><a class="button" href="/login">Sign in with a passkey</a></p>`,
   });

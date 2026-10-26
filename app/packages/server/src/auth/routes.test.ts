@@ -265,8 +265,8 @@ describe("sessions, CSRF and origin checks", () => {
   it("rate-limits sign-in attempts per IP", async () => {
     advanceClock = false;
     const codes: number[] = [];
-    for (let i = 0; i < 7; i++) codes.push((await publicPost("/api/v1/auth/register/options", { setup_token: "wrong" })).statusCode);
-    expect(codes).toEqual([401, 401, 401, 401, 401, 429, 429]);
+    for (let i = 0; i < 12; i++) codes.push((await publicPost("/api/v1/auth/register/options", { setup_token: "wrong" })).statusCode);
+    expect(codes).toEqual([...Array(10).fill(401), 429, 429]);
     expect((await publicPost("/api/v1/auth/register/options", { setup_token: "wrong" }, {})).headers["retry-after"]).toBeDefined();
   });
 });

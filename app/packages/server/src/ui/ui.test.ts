@@ -13,7 +13,7 @@ import { GitWriteService } from "../git/write-service.js";
 import { buildApp } from "../http/app.js";
 import { TokenStore } from "../http/tokens.js";
 import { InboxService } from "../inbox/service.js";
-import { APP_JS, AUTH_JS } from "./assets.js";
+import { APP_JS, AUTH_JS, RETURN_JS } from "./assets.js";
 import { esc } from "./html.js";
 import { formatTime } from "./routes.js";
 
@@ -179,7 +179,7 @@ describe("the capture form", () => {
   });
 
   it("stores a capture from the browser as source 'web' through the web session", async () => {
-    const response = await capture({ text: "from the browser", idempotency_key: "web-0000-0001", source: "claude", source_url: "https://example.com/a" });
+    const response = await capture({ text: "from the browser", idempotency_key: "web-0000-0001", source: "telegram", source_url: "https://example.com/a" });
     expect(response.statusCode).toBe(201);
     const body = response.json() as { id: string; status: string; path: string };
     expect(body.status).toBe("committed");
@@ -187,10 +187,22 @@ describe("the capture form", () => {
     expect(await git(sandbox.remote, "log", "-1", "--format=%s")).toBe(`capture: ${body.id} (web)`);
     expect(await git(sandbox.remote, "log", "-1", "--format=%B")).toContain("OctoSprout-Actor: user:web");
     const file = await git(sandbox.remote, "show", `main:${body.path}`);
-    expect(file).toContain("source: web"); // the client's own 'source' is ignored
+    expect(file).toContain("source: web"); // an unknown source from the page becomes "web"
     expect(file).toContain("received_via: web-session");
     expect(file).toContain("source_url: https://example.com/a");
     expect((await page("/")).body).toContain("from the browser");
+  });
+
+  it("keeps the source named by a share link", async () => {
+    const response = await capture({ text: "brief from ChatGPT", idempotency_key: "web-0000-0009", source: "chatgpt" });
+    expect(response.statusCode).toBe(201);
+    const { path, id } = response.json() as { path: string; id: string };
+    expect(await git(sandbox.remote, "show", `main:${path}`)).toContain("source: chatgpt");
+    expect(await git(sandbox.remote, "log", "-1", "--format=%s")).toBe(`capture: ${id} (chatgpt)`);
+  });
+
+  it("offers Paste & save", async () => {
+    expect((await page("/capture")).body).toContain('id="paste-save"');
   });
 
   it("is idempotent, so a retried submission never duplicates", async () => {
@@ -292,10 +304,43 @@ describe("token management", () => {
   });
 });
 
+describe("home screen install", () => {
+  it("serves a web app manifest that opens on Capture", async () => {
+    const response = await app.inject({ method: "GET", url: "/manifest.webmanifest" });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("application/manifest+json");
+    const manifest = response.json() as { start_url: string; display: string; icons: Array<{ src: string }> };
+    expect(manifest).toMatchObject({ start_url: "/capture", display: "standalone" });
+    for (const icon of manifest.icons) {
+      const image = await app.inject({ method: "GET", url: icon.src });
+      expect(image.statusCode, icon.src).toBe(200);
+      expect(image.headers["content-type"]).toBe("image/png");
+      expect(image.rawPayload.subarray(1, 4).toString()).toBe("PNG");
+    }
+  });
+
+  it("links the manifest and the Apple touch icon from every page", async () => {
+    for (const url of ["/login", "/capture"]) {
+      const html = (await page(url)).body;
+      expect(html, url).toContain('<link rel="manifest" href="/manifest.webmanifest">');
+      expect(html, url).toContain('<link rel="apple-touch-icon" href="/static/icon-180.png">');
+    }
+    expect((await app.inject({ method: "GET", url: "/static/icon-180.png" })).statusCode).toBe(200);
+  });
+
+  it("remembers where a signed-out visitor was going", async () => {
+    const denied = await app.inject({ method: "GET", url: "/capture", headers: { accept: "text/html" } });
+    expect(denied.statusCode).toBe(401);
+    expect(denied.body).toContain('<script src="/static/return.js" defer></script>');
+    expect((await app.inject({ method: "GET", url: "/static/return.js" })).statusCode).toBe(200);
+  });
+});
+
 describe("client scripts", () => {
   it.each([
     ["auth.js", AUTH_JS],
     ["app.js", APP_JS],
+    ["return.js", RETURN_JS],
   ])("%s is syntactically valid JavaScript", (_name, source) => {
     expect(() => new Function(source)).not.toThrow();
   });
