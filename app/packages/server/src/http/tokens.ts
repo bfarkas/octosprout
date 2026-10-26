@@ -5,7 +5,7 @@
  * their SHA-256 hashes are stored, in the state directory (never in Git).
  */
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 export const TOKEN_PREFIX = "ost_";
@@ -30,13 +30,37 @@ export interface VerifiedToken {
 
 const hash = (token: string): string => createHash("sha256").update(token, "utf8").digest("hex");
 
+/**
+ * The token file is shared with `octosprout-server token …`, which runs as a separate
+ * process, so a store never trusts its in-memory copy: it re-reads the file whenever the
+ * file has changed on disk. Writes are atomic renames, so every write is a new inode.
+ */
 export class TokenStore {
   readonly #file: string;
-  #tokens: TokenRecord[];
+  #tokens: TokenRecord[] = [];
+  #seen = "";
 
   constructor(stateDir: string) {
     this.#file = join(stateDir, "tokens.json");
+    this.#refresh();
+  }
+
+  /** Identifies the file's current version; changes with every atomic write. */
+  #signature(): string {
+    try {
+      const stat = statSync(this.#file);
+      return `${stat.ino}:${stat.size}:${stat.mtimeMs}`;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return "missing";
+      throw error;
+    }
+  }
+
+  #refresh(): void {
+    const signature = this.#signature();
+    if (signature === this.#seen) return;
     this.#tokens = this.#load();
+    this.#seen = signature;
   }
 
   #load(): TokenRecord[] {
@@ -55,11 +79,13 @@ export class TokenStore {
     writeFileSync(temp, `${JSON.stringify({ tokens: this.#tokens }, null, 2)}\n`, { mode: 0o600 });
     chmodSync(temp, 0o600);
     renameSync(temp, this.#file);
+    this.#seen = this.#signature();
   }
 
   /** Creates a token. The returned secret is the only copy; it cannot be recovered. */
   create(name: string, now: Date = new Date()): string {
     if (!NAME.test(name)) throw new Error("Token names use 1-64 characters from A-Z a-z 0-9 . _ -");
+    this.#refresh();
     if (this.#tokens.some((t) => t.name === name && t.revoked === undefined)) {
       throw new Error(`A token named '${name}' already exists.`);
     }
@@ -71,6 +97,7 @@ export class TokenStore {
 
   /** Revokes the active token with this name. Returns false if there is none. */
   revoke(name: string, now: Date = new Date()): boolean {
+    this.#refresh();
     const record = this.#tokens.find((t) => t.name === name && t.revoked === undefined);
     if (!record) return false;
     record.revoked = now.toISOString();
@@ -79,12 +106,14 @@ export class TokenStore {
   }
 
   list(): readonly Omit<TokenRecord, "sha256">[] {
+    this.#refresh();
     return this.#tokens.map(({ sha256: _sha256, ...rest }) => rest);
   }
 
   /** Returns the token's identity if it is valid and not revoked. */
   verify(token: string): VerifiedToken | undefined {
     if (!token.startsWith(TOKEN_PREFIX)) return undefined;
+    this.#refresh();
     const presented = Buffer.from(hash(token), "hex");
     let match: TokenRecord | undefined;
     // Compare against every token so the time taken does not reveal which one matched.

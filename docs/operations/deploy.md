@@ -99,9 +99,9 @@ docker compose -f /srv/octosprout/compose.yaml exec octosprout \
 
 (`token revoke <name>` and `token list` are also available.)
 
-The running server loads `tokens.json` once at start-up, so a token created or
-revoked with the CLI only takes effect after `docker compose ... restart
-octosprout`. Tokens managed in the Settings page apply immediately.
+Tokens created or revoked with the CLI take effect on the running server
+immediately, like tokens managed in the Settings page: the server re-reads
+`tokens.json` whenever it changes, so no restart is needed.
 
 ## 7. Check it end to end
 

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -62,6 +62,63 @@ describe("TokenStore", () => {
     store.create("one");
     expect(JSON.stringify(store.list())).not.toContain("sha256");
     expect(store.list()).toEqual([expect.objectContaining({ name: "one", scope: "inbox:write" })]);
+  });
+});
+
+describe("TokenStore shared with another process", () => {
+  // `server` is the running service; `cli` is `octosprout-server token …` run in the same container.
+  it("accepts a token the CLI created, without a restart", () => {
+    const server = new TokenStore(dir);
+    const cli = new TokenStore(dir);
+    const token = cli.create("from-cli");
+    expect(server.verify(token)?.name).toBe("from-cli");
+  });
+
+  it("stops accepting a token the CLI revoked, without a restart", () => {
+    const server = new TokenStore(dir);
+    const token = server.create("shortcut");
+    expect(server.verify(token)).toBeDefined();
+
+    expect(new TokenStore(dir).revoke("shortcut")).toBe(true);
+    expect(server.verify(token)).toBeUndefined();
+  });
+
+  it("does not lose a token the CLI created when the server next saves", () => {
+    const server = new TokenStore(dir);
+    const first = server.create("one");
+    const second = new TokenStore(dir).create("two"); // CLI
+    const third = server.create("three"); // Settings page
+
+    const reopened = new TokenStore(dir);
+    expect(reopened.list().map((t) => t.name)).toEqual(["one", "two", "three"]);
+    for (const token of [first, second, third]) expect(reopened.verify(token)).toBeDefined();
+  });
+
+  it("sees a name the CLI took before creating its own", () => {
+    const server = new TokenStore(dir);
+    new TokenStore(dir).create("taken");
+    expect(() => server.create("taken")).toThrow(/already exists/);
+  });
+
+  it("shows tokens the CLI created in the list", () => {
+    const server = new TokenStore(dir);
+    new TokenStore(dir).create("from-cli");
+    expect(server.list().map((t) => t.name)).toEqual(["from-cli"]);
+  });
+
+  it("treats a deleted token file as having no tokens", () => {
+    const server = new TokenStore(dir);
+    const token = server.create("shortcut");
+    unlinkSync(join(dir, "tokens.json"));
+    expect(server.verify(token)).toBeUndefined();
+    expect(server.list()).toEqual([]);
+    expect(server.verify(server.create("again"))).toBeDefined();
+  });
+
+  it("does not re-read an unchanged file", () => {
+    const server = new TokenStore(dir);
+    const token = server.create("shortcut");
+    for (let i = 0; i < 100; i++) expect(server.verify(token)).toBeDefined();
   });
 });
 
