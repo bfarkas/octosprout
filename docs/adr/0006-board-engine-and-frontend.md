@@ -64,6 +64,7 @@ and unsaved input.
 
 ## Supporting Material
  * [Board design details](../design/boards.md) and [clickable mockup](../design/boards-mockup.html)
+ * [UI design brief](../design/ui-brief.md)
  * [Spike results](../handoffs/board-engine-spike-results.md)
  * [Spike brief](../handoffs/board-engine-spike.md)
  * [Spec §12.1](../spec/implementation-spec-v0.4-draft.md)

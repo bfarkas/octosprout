@@ -4,6 +4,8 @@ Status: design for ADR006, which is accepted. Nothing here is built yet;
 it is Phase 2 work. The owner's answers of 26 Oct 2026 are worked in
 (§9); none are open. Companion mockup: [`boards-mockup.html`](boards-mockup.html)
 (open it in a browser; sample data, saves are simulated).
+The visual direction (palette, navigation, phone layout) is in
+[`ui-brief.md`](ui-brief.md).
 
 ADR006 proposes a thin custom UI: server-rendered board pages from the
 existing Fastify server, small hand-written scripts, no build step. This note
