@@ -1,7 +1,8 @@
 # Boards: design details for ADR006
 
 Status: sketch for review, written so ADR006 can be accepted or rejected.
-Nothing here is built. Companion mockup: [`boards-mockup.html`](boards-mockup.html)
+Nothing here is built. The owner's answers of 26 Oct 2026 are worked in
+(§9). Companion mockup: [`boards-mockup.html`](boards-mockup.html)
 (open it in a browser; sample data, saves are simulated).
 
 ADR006 proposes a thin custom UI: server-rendered board pages from the
@@ -19,8 +20,9 @@ browser keeps, and what is still open.
 | `GET /ideas` | Ideas board |
 | `GET /tasks` | Tasks board, with a project filter (`?project=OS-P-…`) |
 | `GET /projects` | Projects board |
+| `GET /decisions` | Decisions board, with the same project filter |
 
-The navigation gains Ideas, Tasks, Projects (and later Decisions). The board
+The navigation gains Ideas, Tasks, Projects and Decisions. The board
 pages lift the `main { max-width: 42rem }` limit of the Phase 1 pages; every
 other style is shared through `/static/app.css`.
 
@@ -34,11 +36,14 @@ start folded to a narrow strip with a count, and open on click.
 | Ideas | Seed, Sprouting, Ready, Dormant, *Transplanted*, *Composted* |
 | Tasks | Backlog, Ready, In progress, Blocked, Done, *Cancelled* |
 | Projects | Proposed, Active, On hold, Completed, *Archived* |
+| Decisions | DRAFT, PROPOSED, ACCEPTED, ADOPTED, *SUPERSEDED*, *EXPIRED* |
 
+Decisions are a board like the others, not only a list: they have states, so
+they get columns (owner, 26 Oct 2026). This changes §12.2, which lists them
+as a list.
 Within a column cards sort by `updated`, newest first. There is **no manual
-ordering** in the first version: a stored position would have to be an `x-`
-key written into every file on every reorder, which makes noisy commits and
-conflicts for no gain on a personal board.
+ordering** (owner, 26 Oct 2026): a stored position would have to be an `x-`
+key written into every file on every reorder.
 
 ### Card
 
@@ -51,12 +56,36 @@ conflicts for no gain on a personal board.
 
 Link chips come from the index: `belongs_to` project (Tasks), `blocks` and
 "blocked by" (Tasks, from backlinks), linked captures and research (Ideas),
-task counts (Projects). Nothing on the card is stored anywhere but in the
-record files.
+task counts (Projects), project and `supersedes` (Decisions). Nothing on the
+card is stored anywhere but in the record files.
+
+### Blocked tasks
+
+*Blocked* is both a status and something the index works out (owner,
+26 Oct 2026):
+
+- **The status** is set by hand, like any other: move the card to Blocked.
+  Use it for anything that holds a task up, including things outside the
+  workspace.
+- **The derived state** comes from `blocks` links: a task is *blocked by* every
+  task that `blocks` it and is not `done` or `cancelled`. The card shows a red
+  "blocked by OS-T-…" chip in whatever column it is in. The index computes
+  this; nothing is written.
+
+The two meet in the UI, never in an automatic commit:
+
+| Situation | The board shows |
+|---|---|
+| Task has open blockers, status is not `blocked` | Red "blocked by" chip. Moving it to In progress or Done asks "Still blocked by OS-T-…. Move anyway?" |
+| Task is `blocked`, its last blocker becomes `done` or `cancelled` | Green "unblocked" chip with a one-tap **Move to Ready** |
+| Task is `blocked`, no blocking links | Normal card in Blocked: blocked for a reason outside the workspace |
+
+The status never changes by itself, so every status change stays one commit
+the user made.
 
 ### Moving a card
 
-Three ways, all ending in the same request:
+Two ways, both ending in the same request:
 
 1. **Drag by the grip (⠿).** Pointer Events, so mouse, pen and touch share one
    code path. Only the grip has `touch-action: none`, so on the iPhone the
@@ -66,10 +95,9 @@ Three ways, all ending in the same request:
 2. **Move to…** A native `<select>` on every card, listing only the allowed
    targets. On iPhone this is the system picker. It is also the keyboard and
    screen-reader path.
-3. **Without JavaScript** (optional). The same `<select>` inside a
-   `<form method="post">` with a submit button would work as a plain form post
-   if the server accepted the CSRF token as a hidden field. Not planned for
-   the first version; listed because it costs little if wanted.
+
+The boards need JavaScript to move cards; there is no form-post fallback
+(owner, 26 Oct 2026). Without JavaScript they still render and can be read.
 
 ### Phone (375 px)
 
@@ -93,8 +121,17 @@ so the script holds no rules of its own.
 | | dormant | seed, sprouting, ready |
 | | composted | seed |
 | | transplanted | none |
-| Tasks | any | any other (**assumption**: §7.3 lists no transitions) |
-| Projects | any | any other (**assumption**: §7.4 lists no transitions) |
+| Tasks | any | any other (owner, 26 Oct 2026) |
+| Projects | any | any other (owner, 26 Oct 2026) |
+| Decisions | DRAFT | PROPOSED |
+| | PROPOSED | DRAFT, ACCEPTED |
+| | ACCEPTED | ADOPTED, SUPERSEDED, EXPIRED |
+| | ADOPTED | SUPERSEDED, EXPIRED |
+| | SUPERSEDED, EXPIRED | none |
+
+The Decisions moves are an **assumption**: §7.6 lists the states but no
+transitions. They follow its rule that an accepted decision is not reopened;
+a reversal is a new decision that supersedes it.
 
 Consequential moves (§9.2) never commit straight from the board:
 
@@ -102,7 +139,9 @@ Consequential moves (§9.2) never commit straight from the board:
 |---|---|
 | Idea `ready → transplanted` | Opens the promotion wizard at `/ideas/<id>/promote` (§10). The card stays in Ready until the promotion commit lands. |
 | Project `active → completed` | Confirmation dialog with the diff, then passkey re-verification; the move is committed with its signed `approval` in the same commit. |
-| Decisions to `ACCEPTED`, `SUPERSEDED`, `EXPIRED` | Same dialog, on the Decisions list (not a board). |
+| Project `active → archived` | The same dialog (owner, 26 Oct 2026; adds to §9.2 item 3). |
+| Decision `→ ACCEPTED`, `→ EXPIRED` | The same dialog. The move rewrites the frontmatter `status` and the body's `* Status:` line together, since §7.6 requires them to match. |
+| Decision `→ SUPERSEDED` | Only possible when a newer decision already `supersedes` it. Otherwise the drop opens "Create a superseding decision", which drafts the new one from the template. With one, the same approval dialog. |
 
 ## 3. The request
 
@@ -119,7 +158,7 @@ content-type: application/json
   in the card's HTML as `data-blob`.
 - The handler reads the file, checks the transition, sets `status` and
   `updated` (nothing else; key order, unknown `x-` keys and the body are
-  kept), and calls:
+  kept; for a decision also the body's `* Status:` line), and calls:
 
 ```ts
 writeService.submit({
@@ -204,7 +243,7 @@ All in `app/packages/server`, next to the Phase 1 UI:
 
 | File | Content | Rough size |
 |---|---|---|
-| `ui/boards.ts` | `GET /ideas`, `/tasks`, `/projects`; column and card HTML through `esc()` | 250 lines |
+| `ui/boards.ts` | `GET /ideas`, `/tasks`, `/projects`, `/decisions`; column and card HTML through `esc()` | 300 lines |
 | `records/status.ts` | Transition table, `set_status` handler, `POST /api/v1/records/:id/status`, version route | 200 lines |
 | `ui/assets.ts` | `BOARD_JS` (drag, move, dialogs, refresh) and board CSS | 300 lines JS, 120 lines CSS |
 | tests | Route tests like `ui.test.ts`; write-service conflict test; one Playwright e2e for drag and Move to… | |
@@ -216,8 +255,8 @@ Two prerequisites exist only in part today, and are Phase 2 work whichever
 UI is chosen:
 
 - **The record index (§4.2).** The server indexes captures only
-  (`inbox/service.ts`). Boards need the general index of ideas, tasks and
-  projects with links and backlinks.
+  (`inbox/service.ts`). Boards need the general index of ideas, tasks,
+  projects and decisions with links and backlinks.
 - **The transition table.** `@octosprout/core` has the status vocabularies
   (`STATUSES` in `types.ts`) but not the allowed transitions. They belong
   there so the validator, the server and the CLI share them.
@@ -232,16 +271,32 @@ UI is chosen:
   Move to…, conflict dialog after a change pushed from a second clone.
 - Manual: drag on a real iPhone in Safari and in the home screen app.
 
-## 9. Open questions for the owner
+## 9. Owner's answers (26 Oct 2026)
 
-1. Tasks and Projects have no transition rules in §7. Allow every move
-   (assumed here) or write rules into the spec?
-2. Is `active → completed` the only consequential project move, or should
-   `→ archived` from `active` also need approval?
-3. Should *Blocked* be a column that is set by hand (assumed), or derived from
-   open `blocks` links? Derived would mean the column is not a status, which
-   contradicts §7.
-4. Is manual ordering inside a column needed at all? If yes, it needs an `x-`
-   key (for example `x-rank`) and every reorder becomes a commit.
-5. Is the no-JavaScript form fallback for Move to… worth the hidden CSRF field?
-6. Decisions are a list, not a board (§12.2). Confirm.
+| Question | Answer | Where it went |
+|---|---|---|
+| Tasks and Projects: allow every move? | Yes | §2 |
+| Does `active → archived` need approval too? | Yes | §2; spec §9.2 item 3 |
+| Blocked set by hand, or derived from `blocks`? | Both | §1, Blocked tasks |
+| Manual ordering inside a column? | No | §1, Columns |
+| No-JavaScript fallback for Move to…? | No | §1, Moving a card |
+| Decisions only a list? | No, they have states, so they get columns | §1, §2 |
+
+### Spec changes when ADR006 is accepted
+
+- §7.3, §7.4: every move between task statuses and between project statuses
+  is allowed.
+- §7.6: the Decision transitions in §2, once confirmed.
+- §9.2 item 3: moving an `active` project to `archived` is consequential.
+- §12.2: Decisions become a board with columns by status, filterable by
+  project; the row "Ideas, Tasks and Projects boards" includes Decisions.
+- §22 criterion 7: Decisions get a board.
+- §7.3: a note that `blocked` is a status set by hand, and that `blocks`
+  links are shown on the card but never change the status.
+
+### Still open
+
+1. The Decision transitions in §2 are an assumption. Correct?
+2. Blocked: the board flags a task with open blockers but never changes its
+   status by itself. Alternatively, moving a blocker to Done could move the
+   tasks it unblocks from Blocked to Ready in the same commit. Keep it manual?

@@ -132,6 +132,7 @@ button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid
 .chip.link { color: var(--accent); }
 .chip.block { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
 .chip.ready { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+button.chip { font: inherit; font-size: 0.72rem; cursor: pointer; }
 .bfoot { display: flex; align-items: center; gap: 0.5rem; justify-content: space-between; }
 .move select { font: inherit; font-size: 0.78rem; color: var(--accent); background: none; border: 1px solid var(--border); border-radius: 6px; padding: 0.1rem 0.3rem; max-width: 9.5rem; }
 .sync { font-size: 0.72rem; display: inline-flex; align-items: center; gap: 0.3rem; color: var(--muted); }
@@ -173,8 +174,8 @@ dialog::backdrop { background: var(--shade); }
   <header class="intro">
     <div class="eyebrow">ADR006 · proposed</div>
     <h1>Boards mockup: thin custom UI</h1>
-    <p>A clickable sketch of the Ideas, Tasks and Projects boards as ADR006 proposes them: server-rendered columns of status, with a small script for dragging and moving. The data is sample data. Saving, syncing and conflicts are simulated.</p>
-    <p>Try dragging a card by its <b>⠿</b> grip, or use <b>Move to…</b>. Move a <i>ready</i> idea to Transplanted, or an <i>active</i> project to Completed, to see the consequential paths. Switch to <b>iPhone</b> to see the 375 px layout.</p>
+    <p>A clickable sketch of the Ideas, Tasks, Projects and Decisions boards as ADR006 proposes them: server-rendered columns of status, with a small script for dragging and moving. The data is sample data. Saving, syncing and conflicts are simulated.</p>
+    <p>Try dragging a card by its <b>⠿</b> grip, or use <b>Move to…</b>. Move a <i>ready</i> idea to Transplanted, an <i>active</i> project to Completed or Archived, or a decision to ACCEPTED or SUPERSEDED, to see the consequential paths. On Tasks, look for the red <i>blocked by</i> and green <i>unblocked</i> chips. Switch to <b>iPhone</b> to see the 375 px layout.</p>
   </header>
 
   <div class="controls" role="group" aria-label="Mockup controls">
@@ -183,6 +184,7 @@ dialog::backdrop { background: var(--shade); }
         <button type="button" data-v="ideas" aria-pressed="true">Ideas</button>
         <button type="button" data-v="tasks" aria-pressed="false">Tasks</button>
         <button type="button" data-v="projects" aria-pressed="false">Projects</button>
+        <button type="button" data-v="decisions" aria-pressed="false">Decisions</button>
       </div>
     </label>
     <label class="control"><span>Width</span>
@@ -211,7 +213,7 @@ dialog::backdrop { background: var(--shade); }
         <a href="#" data-nav="ideas">Ideas</a>
         <a href="#" data-nav="tasks">Tasks</a>
         <a href="#" data-nav="projects">Projects</a>
-        <a href="#" data-nav>Decisions</a>
+        <a href="#" data-nav="decisions">Decisions</a>
         <a href="#" data-nav>Capture</a>
         <span class="sync-global" id="sync-global" role="status" aria-live="polite"><span class="dot"></span>Up to date</span>
       </nav>
@@ -233,21 +235,35 @@ dialog::backdrop { background: var(--shade); }
     <div class="note"><h3>Columns are statuses</h3><p>Each column is one status from spec §7, in lifecycle order. Nothing else decides where a card sits, so a card moved on the Mac lands in the right column after the next fetch.</p><p>Terminal columns (Composted, Transplanted, Cancelled, Archived) start folded. Click the strip to open one.</p></div>
     <div class="note"><h3>Only allowed moves</h3><p>While you drag, columns the lifecycle forbids are dimmed and refuse the drop. <b>Move to…</b> lists only allowed targets. The write service rejects anything else anyway; the UI just doesn't offer it.</p></div>
     <div class="note"><h3>Drag by the grip</h3><p>Cards drag only by the ⠿ grip, which has <code>touch-action: none</code>. The rest of the card scrolls the board normally on a phone, and tapping the title opens Record detail.</p></div>
-    <div class="note"><h3>Move to… works everywhere</h3><p>A native <code>&lt;select&gt;</code> on every card. On iPhone it opens the system picker. It is also the keyboard and screen-reader path, and could work as a plain form post with no script at all.</p></div>
+    <div class="note"><h3>Move to… works everywhere</h3><p>A native <code>&lt;select&gt;</code> on every card. On iPhone it opens the system picker. It is also the keyboard and screen-reader path. Without JavaScript the boards can be read but not changed.</p></div>
     <div class="note"><h3>Sync indicator</h3><p>Every move shows <i>Saving…</i>, then <i>committed</i> with the short commit SHA, or <i>pending</i> when GitHub can't be reached. The top bar sums it up for the whole page (§12.2).</p></div>
     <div class="note"><h3>409 conflict</h3><p>If the file changed since the page was rendered, the server rejects the move. The dialog shows base, current and yours for the fields that differ, and offers to move anyway on the current version or keep it (§8.4).</p></div>
-    <div class="note"><h3>Consequential moves</h3><p><i>Ready → Transplanted</i> starts the promotion wizard instead of moving the card (§10). <i>Active → Completed</i> opens the confirmation with the diff and a passkey check (§9.2).</p></div>
+    <div class="note"><h3>Consequential moves</h3><p><i>Ready → Transplanted</i> starts the promotion wizard instead of moving the card (§10). A project from <i>Active</i> to <i>Completed</i> or <i>Archived</i>, and a decision to ACCEPTED, SUPERSEDED or EXPIRED, open the confirmation with the diff and a passkey check (§9.2).</p></div>
+    <div class="note"><h3>Blocked, two ways</h3><p>The Blocked column is the status, set by hand. Separately, a red <i>blocked by</i> chip shows open <code>blocks</code> links in any column, and moving such a task to In progress or Done asks first.</p><p>When the last blocker of a Blocked task is done, a green <i>unblocked</i> chip offers a one-tap move to Ready. The status never changes by itself.</p></div>
+    <div class="note"><h3>Decisions board</h3><p>Columns are the upper-case ADR states. A move rewrites both the frontmatter <code>status</code> and the body's <code>* Status:</code> line. SUPERSEDED is only allowed once a newer decision <code>supersedes</code> this one; otherwise the drop offers to draft that decision.</p></div>
     <div class="note"><h3>Changes from the Mac</h3><p>The server fetches every 60 s. The page asks whether the board changed when it becomes visible and every 60 s, and offers a refresh, or swaps the board in place if no move is in flight.</p></div>
     <div class="note"><h3>No order within a column</h3><p>Cards sort by <code>updated</code>, newest first. Manual ordering would need a stored position, which would mean an <code>x-</code> key in every file. Left out of the first version.</p></div>
   </div>
 </div>
 
 <dialog id="dlg-approve"><form method="dialog" class="dlg">
-  <h3>Complete project?</h3>
-  <p class="small">Moving an <b>active</b> project to <b>completed</b> is a consequential change (§9.2). It is committed together with a signed approval.</p>
+  <h3 id="approve-title">Complete project?</h3>
+  <p class="small" id="approve-text"></p>
   <pre class="diff" id="approve-diff"></pre>
   <p class="small">Your passkey is asked for again before the commit.</p>
   <div class="actions"><button class="btn secondary" value="cancel">Cancel</button><button class="btn" value="ok" id="approve-ok">Approve with passkey</button></div>
+</form></dialog>
+
+<dialog id="dlg-blocked"><form method="dialog" class="dlg">
+  <h3>Still blocked</h3>
+  <p class="small" id="blk-text"></p>
+  <div class="actions"><button class="btn secondary" value="cancel">Cancel</button><button class="btn" value="ok" id="blk-ok">Move anyway</button></div>
+</form></dialog>
+
+<dialog id="dlg-supersede"><form method="dialog" class="dlg">
+  <h3>Nothing supersedes this decision yet</h3>
+  <p class="small"><span class="mono" id="sup-id"></span> can only become SUPERSEDED when a newer decision has <code>supersedes: <span id="sup-id2"></span></code> (§7.6). Draft that decision now? It starts in DRAFT with the link filled in; this one stays where it is.</p>
+  <div class="actions"><button class="btn secondary" value="cancel">Cancel</button><button class="btn" value="ok">Draft superseding decision</button></div>
 </form></dialog>
 
 <dialog id="dlg-wizard"><form method="dialog" class="dlg">
@@ -320,7 +336,28 @@ dialog::backdrop { background: var(--shade); }
         { key: "archived", label: "Archived", folded: true },
       ],
       allowed: null,
-      gate: (from, to) => (from === "active" && to === "completed" ? "approve" : null),
+      gate: (from, to) => (from === "active" && (to === "completed" || to === "archived") ? "approve" : null),
+    },
+    decisions: {
+      title: "Decisions", path: "/decisions",
+      columns: [
+        { key: "DRAFT", label: "DRAFT", hint: "Being written" },
+        { key: "PROPOSED", label: "PROPOSED", hint: "Ready for advice and review" },
+        { key: "ACCEPTED", label: "ACCEPTED", hint: "Decided" },
+        { key: "ADOPTED", label: "ADOPTED", hint: "In effect" },
+        { key: "SUPERSEDED", label: "SUPERSEDED", folded: true },
+        { key: "EXPIRED", label: "EXPIRED", folded: true },
+      ],
+      allowed: {
+        DRAFT: ["PROPOSED"],
+        PROPOSED: ["DRAFT", "ACCEPTED"],
+        ACCEPTED: ["ADOPTED", "SUPERSEDED", "EXPIRED"],
+        ADOPTED: ["SUPERSEDED", "EXPIRED"],
+        SUPERSEDED: [],
+        EXPIRED: [],
+      },
+      gate: (from, to, rec) =>
+        to === "SUPERSEDED" ? (supersededBy(rec) ? "approve" : "supersede") : to === "ACCEPTED" || to === "EXPIRED" ? "approve" : null,
     },
   };
 
@@ -338,11 +375,11 @@ dialog::backdrop { background: var(--shade); }
     ],
     tasks: [
       R("OS-T-QF81M", "Render board columns from §7", "in_progress", 0, { project: "OS-P-7RW2N" }),
-      R("OS-T-2B7KC", "set_status route with base_blob", "ready", 1, { project: "OS-P-7RW2N", blocks: "OS-T-H4V9X" }),
-      R("OS-T-H4V9X", "409 dialog for moves", "blocked", 1, { project: "OS-P-7RW2N", blockedBy: "OS-T-2B7KC" }),
-      R("OS-T-5NM3A", "Pointer drag on iPhone Safari", "backlog", 2, { project: "OS-P-7RW2N" }),
-      R("OS-T-XE6R1", "Board change check (ETag)", "backlog", 2, { project: "OS-P-7RW2N" }),
-      R("OS-T-7YC0P", "Digest email template", "backlog", 5, { project: "OS-P-0XZ4K" }),
+      R("OS-T-2B7KC", "set_status route with base_blob", "ready", 1, { project: "OS-P-7RW2N" }),
+      R("OS-T-H4V9X", "409 dialog for moves", "blocked", 1, { project: "OS-P-7RW2N", blockedBy: ["OS-T-2B7KC"] }),
+      R("OS-T-5NM3A", "Pointer drag on iPhone Safari", "backlog", 2, { project: "OS-P-7RW2N", blockedBy: ["OS-T-QF81M"] }),
+      R("OS-T-XE6R1", "Board change check (ETag)", "blocked", 2, { project: "OS-P-7RW2N", blockedBy: ["OS-T-J1S8V"] }),
+      R("OS-T-7YC0P", "Digest email template", "blocked", 5, { project: "OS-P-0XZ4K", note: "waiting for a mail provider" }),
       R("OS-T-AK4WD", "Pick digest send day", "ready", 6, { project: "OS-P-0XZ4K" }),
       R("OS-T-J1S8V", "Inbox view", "done", 9, { project: "OS-P-7RW2N" }),
       R("OS-T-Q3TP6", "Capture form", "done", 10, { project: "OS-P-7RW2N" }),
@@ -352,7 +389,23 @@ dialog::backdrop { background: var(--shade); }
       R("OS-P-0XZ4K", "Garden digest", "proposed", 2, { tags: ["weekly"], counts: "0 of 2 tasks done" }),
       R("OS-P-7RW2N", "Board UI", "active", 0, { counts: "2 of 7 tasks done" }),
     ],
+    decisions: [
+      R("OS-D-Z3M5W", "Send the digest by email", "DRAFT", 1, { project: "OS-P-0XZ4K" }),
+      R("OS-D-W8C4Y", "Server-sent events for board refresh", "DRAFT", 0, { project: "OS-P-7RW2N", supersedes: "OS-D-R7T3K" }),
+      R("OS-D-8K2QF", "Thin custom board UI", "PROPOSED", 0, { project: "OS-P-7RW2N" }),
+      R("OS-D-R7T3K", "Poll every 60 s for board changes", "ACCEPTED", 3, { project: "OS-P-7RW2N" }),
+      R("OS-D-1HX7C", "Passkeys only, no passwords", "ACCEPTED", 12),
+      R("OS-D-4M9TZ", "Fastify and server-rendered pages", "ADOPTED", 20),
+      R("OS-D-N5V2A", "Random session IDs", "ADOPTED", 15, { supersedes: "OS-D-6PJ0R" }),
+      R("OS-D-6PJ0R", "Signed session cookies", "SUPERSEDED", 15),
+    ],
   };
+
+  // Derived from links by the index; never written.
+  const TASK = (id) => DATA.tasks.find((t) => t.id === id);
+  const openBlockers = (rec) => (rec.blockedBy || []).filter((id) => !["done", "cancelled"].includes(TASK(id).status));
+  const blocksOf = (rec) => DATA.tasks.filter((t) => (t.blockedBy || []).includes(rec.id)).map((t) => t.id);
+  const supersededBy = (rec) => DATA.decisions.find((d) => d.supersedes === rec.id);
 
   const state = { board: "ideas", width: "wide", result: "committed", unfolded: new Set(), pending: 0, conflicts: 0 };
   const $ = (sel) => document.querySelector(sel);
@@ -380,11 +433,21 @@ dialog::backdrop { background: var(--shade); }
     for (const t of rec.tags) chips.push(`<span class="chip">#${esc(t)}</span>`);
     for (const l of rec.links) chips.push(`<span class="chip link">${esc(l)}</span>`);
     if (rec.project) chips.push(`<span class="chip link">↳ ${esc(P[rec.project])}</span>`);
-    if (rec.blockedBy) chips.push(`<span class="chip block">blocked by ${esc(rec.blockedBy)}</span>`);
-    if (rec.blocks) chips.push(`<span class="chip">blocks ${esc(rec.blocks)}</span>`);
+    if (state.board === "tasks") {
+      const open = openBlockers(rec);
+      if (open.length) chips.push(`<span class="chip block">blocked by ${esc(open.join(", "))}</span>`);
+      else if (rec.status === "blocked" && rec.blockedBy) chips.push(`<button type="button" class="chip ready" data-unblock>unblocked · move to Ready</button>`);
+      if (rec.note) chips.push(`<span class="chip">${esc(rec.note)}</span>`);
+      for (const id of blocksOf(rec)) chips.push(`<span class="chip">blocks ${esc(id)}</span>`);
+    }
+    if (rec.supersedes) chips.push(`<span class="chip link">supersedes ${esc(rec.supersedes)}</span>`);
+    if (state.board === "decisions" && supersededBy(rec) && rec.status !== "SUPERSEDED") chips.push(`<span class="chip">superseded by ${esc(supersededBy(rec).id)} (draft)</span>`);
     if (rec.counts) chips.push(`<span class="chip">${esc(rec.counts)}</span>`);
     const opts = targets(rec)
-      .map((k) => `<option value="${k}">${esc(label(k))}${B().gate(rec.status, k) === "wizard" ? " (promote…)" : B().gate(rec.status, k) ? " (approve…)" : ""}</option>`)
+      .map((k) => {
+        const g = B().gate(rec.status, k, rec);
+        return `<option value="${k}">${esc(label(k))}${g === "wizard" ? " (promote…)" : g === "supersede" ? " (draft new…)" : g ? " (approve…)" : ""}</option>`;
+      })
       .join("");
     const sync = rec.sync
       ? `<span class="sync ${rec.sync}">${rec.sync === "saving" ? "Saving…" : rec.sync === "pending" ? "● pending push" : "✓ " + rec.sha}</span>`
@@ -403,7 +466,7 @@ ${chips.length ? `<div class="chips">${chips.join("")}</div>` : ""}
     $("#board-title").textContent = board.title;
     $("#addr").textContent = "app.octosprout.de" + board.path;
     $("#board-meta").textContent = recs.length + " records";
-    $("#board-filter").textContent = state.board === "tasks" ? "Project: all ▾" : "";
+    $("#board-filter").textContent = state.board === "tasks" || state.board === "decisions" ? "Project: all ▾" : "";
     for (const a of document.querySelectorAll("[data-nav]")) {
       if (a.dataset.nav === state.board) a.setAttribute("aria-current", "page");
       else a.removeAttribute("aria-current");
@@ -415,10 +478,11 @@ ${chips.length ? `<div class="chips">${chips.join("")}</div>` : ""}
       .map((c) => {
         const inCol = recs.filter((r) => r.status === c.key).sort((a, b) => a.updated - b.updated);
         const folded = c.folded && !state.unfolded.has(state.board + c.key);
+        const noun = state.board === "decisions" ? "decisions" : state.board;
         return `<section class="col${folded ? " folded" : ""}" data-col="${c.key}" aria-label="${esc(c.label)}"${folded ? ' title="Show column"' : ""}>
 <div class="colhead"><span>${esc(c.label)}</span><span class="count">${inCol.length}</span></div>
 ${c.hint ? `<div class="colhint">${esc(c.hint)}</div>` : ""}
-<div class="cards">${inCol.length ? inCol.map(card).join("") : `<div class="empty">No ${esc(c.label.toLowerCase())} ${state.board}</div>`}</div>
+<div class="cards">${inCol.length ? inCol.map(card).join("") : `<div class="empty">No ${esc(c.label.toLowerCase())} ${noun}</div>`}</div>
 </section>`;
       })
       .join("");
@@ -440,13 +504,28 @@ ${c.hint ? `<div class="colhint">${esc(c.hint)}</div>` : ""}
 
   const find = (id) => DATA[state.board].find((r) => r.id === id);
 
-  function requestMove(rec, to) {
+  function requestMove(rec, to, checked) {
     if (!to || to === rec.status) return;
     if (!targets(rec).includes(to)) {
       toast(`${label(rec.status)} → ${label(to)} is not an allowed move.`);
       return;
     }
-    const gate = B().gate(rec.status, to);
+    if (!checked && state.board === "tasks" && (to === "in_progress" || to === "done") && openBlockers(rec).length) {
+      $("#blk-text").textContent = `${rec.id} is still blocked by ${openBlockers(rec).join(", ")}, which is not done yet. Move it to ${label(to)} anyway? The link stays.`;
+      const d = $("#dlg-blocked");
+      d.onclose = () => d.returnValue === "ok" && requestMove(rec, to, true);
+      d.showModal();
+      return;
+    }
+    const gate = B().gate(rec.status, to, rec);
+    if (gate === "supersede") {
+      $("#sup-id").textContent = rec.id;
+      $("#sup-id2").textContent = rec.id;
+      const d = $("#dlg-supersede");
+      d.onclose = () => d.returnValue === "ok" && toast("Opens a new decision from the template (not part of this mockup).");
+      d.showModal();
+      return;
+    }
     if (gate === "wizard") {
       $("#wiz-id").textContent = rec.id;
       const d = $("#dlg-wizard");
@@ -455,7 +534,14 @@ ${c.hint ? `<div class="colhint">${esc(c.hint)}</div>` : ""}
       return;
     }
     if (gate === "approve") {
-      $("#approve-diff").innerHTML = `records/projects/${rec.id}--board-ui.md\n<span class="del">-status: active</span>\n<span class="add">+status: completed</span>\n<span class="del">-updated: 2026-10-26T08:12:40Z</span>\n<span class="add">+updated: 2026-10-26T09:41:05Z</span>\n<span class="add">+approval: OS-PROP-8V3KD</span>`;
+      const slug = rec.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const dir = state.board === "decisions" ? "decisions" : "projects";
+      const verb = { completed: "Complete project?", archived: "Archive project?", ACCEPTED: "Accept decision?", SUPERSEDED: "Mark as superseded?", EXPIRED: "Mark as expired?" }[to];
+      $("#approve-title").textContent = verb;
+      $("#approve-text").innerHTML = `Moving ${esc(rec.id)} from <b>${esc(label(rec.status))}</b> to <b>${esc(label(to))}</b> is a consequential change (§9.2). It is committed together with a signed approval.`;
+      let diff = `records/${dir}/${rec.id}--${slug}.md\n<span class="del">-status: ${esc(rec.status)}</span>\n<span class="add">+status: ${esc(to)}</span>\n<span class="del">-updated: 2026-10-24T08:12:40Z</span>\n<span class="add">+updated: 2026-10-26T09:41:05Z</span>\n<span class="add">+approval: OS-PROP-8V3KD</span>`;
+      if (state.board === "decisions") diff += `\n  …\n<span class="del">-* Status: ${esc(rec.status)}</span>\n<span class="add">+* Status: ${esc(to)}</span>`;
+      $("#approve-diff").innerHTML = diff;
       const d = $("#dlg-approve");
       d.onclose = () => d.returnValue === "ok" && save(rec, to, "Approved with passkey. ");
       d.showModal();
@@ -525,9 +611,10 @@ ${c.hint ? `<div class="colhint">${esc(c.hint)}</div>` : ""}
 
   function fromMac() {
     const recs = DATA[state.board];
-    const movable = recs.filter((r) => !r.sync && targets(r).some((k) => !B().gate(r.status, k)));
+    const free = (r, k) => !B().gate(r.status, k, r) && !B().columns.find((c) => c.key === k).folded;
+    const movable = recs.filter((r) => !r.sync && targets(r).some((k) => free(r, k)));
     const rec = movable[Math.floor(Math.random() * movable.length)];
-    const to = targets(rec).find((k) => !B().gate(rec.status, k) && !B().columns.find((c) => c.key === k).folded) || targets(rec)[0];
+    const to = targets(rec).find((k) => free(rec, k));
     rec.status = to;
     rec.updated = 0;
     rec.flash = true;
@@ -579,7 +666,7 @@ ${c.hint ? `<div class="colhint">${esc(c.hint)}</div>` : ""}
       for (const c of document.querySelectorAll(".col")) {
         const k = c.dataset.col;
         if (k === drag.rec.status) continue;
-        c.classList.add(!ok.includes(k) ? "drop-no" : B().gate(drag.rec.status, k) ? "drop-gate" : "drop-ok");
+        c.classList.add(!ok.includes(k) ? "drop-no" : B().gate(drag.rec.status, k, drag.rec) ? "drop-gate" : "drop-ok");
       }
     }
     drag.ghost.style.left = e.clientX - drag.dx + "px";
@@ -611,6 +698,7 @@ ${c.hint ? `<div class="colhint">${esc(c.hint)}</div>` : ""}
     if (col) { state.unfolded.add(state.board + col.dataset.col); render(); return; }
     const jump = e.target.closest("[data-jump]");
     if (jump) { document.querySelector(`.col[data-col="${jump.dataset.jump}"]`).scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" }); return; }
+    if (e.target.closest("[data-unblock]")) { requestMove(find(e.target.closest(".bcard").dataset.id), "ready"); return; }
     if (e.target.closest("[data-detail]")) { e.preventDefault(); toast("Opens Record detail (§12.2), not part of this mockup."); return; }
     const nav = e.target.closest("[data-nav]");
     if (nav) { e.preventDefault(); if (nav.dataset.nav) setBoard(nav.dataset.nav); else toast("Not part of this mockup."); }

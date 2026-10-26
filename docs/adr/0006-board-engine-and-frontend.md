@@ -1,4 +1,4 @@
-# ADR006 - Board engine and frontend for the Ideas, Tasks and Projects boards
+# ADR006 - Board engine and frontend for the Ideas, Tasks, Projects and Decisions boards
 * Date: Oct 26, 2026
 * Status: PROPOSED
 * Author: Claude Code (spike for bfarkas)
@@ -10,6 +10,8 @@ server-rendered pages with small hand-written scripts and no build step, the
 approach ADR002 set for Phase 1. A move is a `set_status` write through
 `GitWriteService.submit()` with the `base_blob` the page was rendered from.
 Touch devices get a "Move to…" control as well as drag and drop.
+Decisions get a board as well, since they have states (owner, 26 Oct 2026).
+The details are in [`docs/design/boards.md`](../design/boards.md).
 
 ## Context
 Spec D5 asked Phase 0 to choose between Kanban Lite and a thin custom UI
