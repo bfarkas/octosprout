@@ -36,6 +36,8 @@ export interface IndexedRecord {
   approval?: string;
   frontmatter: Frontmatter;
   body: string;
+  /** The whole file. */
+  text: string;
 }
 
 export interface Backlink {
@@ -178,5 +180,6 @@ function toIndexed(file: SourceFile): IndexedRecord | undefined {
     ...(approval !== undefined ? { approval } : {}),
     frontmatter: fm,
     body: parsed.record.body,
+    text,
   };
 }

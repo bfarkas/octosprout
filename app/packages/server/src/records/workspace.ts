@@ -8,7 +8,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { readWorkspaceFiles, RecordIndex } from "@octosprout/core";
+import { CONFIG_PATH, DEFAULT_CONFIG, parseWorkspaceConfig, readWorkspaceFiles, RecordIndex, type WorkspaceConfig } from "@octosprout/core";
 
 import type { WriteOperation, WriteResult } from "../git/write-service.js";
 
@@ -28,6 +28,15 @@ export class WorkspaceRecords {
 
   get index(): RecordIndex {
     return this.#index;
+  }
+
+  /** The workspace's `octosprout.yaml`, read on demand; defaults if it is missing or unreadable. */
+  config(): WorkspaceConfig {
+    try {
+      return parseWorkspaceConfig(readFileSync(join(this.#repoDir, CONFIG_PATH), "utf8")).config;
+    } catch {
+      return DEFAULT_CONFIG;
+    }
   }
 
   /** Rebuilds the whole index from the working tree. */

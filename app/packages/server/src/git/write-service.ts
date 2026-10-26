@@ -197,6 +197,14 @@ export class GitWriteService {
     return commit === "" ? undefined : { commit, onRemote: false };
   }
 
+  /** The content of a blob by SHA, or `null` if the clone does not have it. Reads objects only. */
+  async readBlob(sha: string): Promise<Buffer | null> {
+    if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha)) return null;
+    const type = await this.#git(["cat-file", "-t", sha], { allowFail: true });
+    if (type.code !== 0 || type.stdout.trim() !== "blob") return null;
+    return (await this.#git(["cat-file", "blob", sha])).stdoutBuffer;
+  }
+
   status(): Promise<WriteStatus> {
     return this.#enqueue(async () => {
       const head = (await this.#git(["rev-parse", "HEAD"])).stdout.trim();

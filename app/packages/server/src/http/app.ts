@@ -10,6 +10,8 @@ import { denyUnauthenticated, registerAuth, type AuthOptions } from "../auth/rou
 import { ValidationRejectedError, type WriteStatus } from "../git/write-service.js";
 import { InvalidRequestError, parseInboxRequest, parseJsonBody } from "../inbox/request.js";
 import type { CaptureStatus, InboxOutcome, InboxService } from "../inbox/service.js";
+import { registerRecordRoutes } from "../records/routes.js";
+import type { StatusMoveDeps } from "../records/status.js";
 import { registerSettings, registerUi } from "../ui/routes.js";
 import { RateLimiter } from "./rate-limit.js";
 import type { TokenStore } from "./tokens.js";
@@ -22,6 +24,8 @@ export interface AppOptions {
   tokens: TokenStore;
   /** Browser sign-in. Without it, only the token-protected inbox API is served. */
   auth?: AuthOptions & { status: () => Promise<WriteStatus> };
+  /** The record index and writer behind the boards. Needs `auth`. */
+  records?: StatusMoveDeps;
   rateLimiter?: RateLimiter;
   logger?: FastifyServerOptions["logger"];
   /** Trust `X-Forwarded-For` from these proxies only (Caddy). */
@@ -149,6 +153,8 @@ export function buildApp(options: AppOptions): FastifyInstance {
       request.log.info({ name: request.params.name }, "inbox token revoked");
       return { ok: true };
     });
+
+    if (options.records) registerRecordRoutes(app, { ...options.records, requireSession });
 
     const ui = { requireSession, inbox, tokens, passkeys: options.auth.passkeys, status };
     registerUi(app, ui);
