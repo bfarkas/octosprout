@@ -12,8 +12,9 @@ supersedes it.
 | [ADR003](0003-flock-for-the-write-lock.md) | flock(1) for the write service's advisory lock | ADOPTED |
 | [ADR004](0004-random-session-ids-without-a-session-secret.md) | Random session IDs, without a session secret | ADOPTED |
 | [ADR005](0005-chatgpt-handoff-as-a-custom-instructions-command.md) | ChatGPT handoff brief as an `/octosprout` Custom Instructions command | ADOPTED |
-| [ADR006](0006-board-engine-and-frontend.md) | Thin custom board UI, server-rendered, instead of Kanban Lite | PROPOSED |
+| [ADR006](0006-board-engine-and-frontend.md) | Thin custom board UI, server-rendered, instead of Kanban Lite | ACCEPTED |
 
-The board engine and frontend (D5) are proposed in ADR006 and wait for the
-owner to accept them. The spike that produced it is
+The board engine and frontend (D5) are decided in ADR006. It is ACCEPTED
+rather than ADOPTED until the boards are built in Phase 2. The design is in
+[`docs/design/boards.md`](../design/boards.md); the spike that produced it is
 [`docs/handoffs/board-engine-spike.md`](../handoffs/board-engine-spike.md).

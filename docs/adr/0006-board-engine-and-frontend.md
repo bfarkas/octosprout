@@ -1,6 +1,6 @@
 # ADR006 - Board engine and frontend for the Ideas, Tasks, Projects and Decisions boards
 * Date: Oct 26, 2026
-* Status: PROPOSED
+* Status: ACCEPTED
 * Author: Claude Code (spike for bfarkas)
 
 ## Decision

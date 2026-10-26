@@ -1,7 +1,7 @@
 # Boards: design details for ADR006
 
-Status: sketch for review, written so ADR006 can be accepted or rejected.
-Nothing here is built. The owner's answers of 26 Oct 2026 are worked in
+Status: design for ADR006, which is accepted. Nothing here is built yet;
+it is Phase 2 work. The owner's answers of 26 Oct 2026 are worked in
 (§9); none are open. Companion mockup: [`boards-mockup.html`](boards-mockup.html)
 (open it in a browser; sample data, saves are simulated).
 
@@ -302,7 +302,7 @@ UI is chosen:
 | No-JavaScript fallback for Move to…? | No | §1, Moving a card |
 | Decisions only a list? | No, they have states, so they get columns | §1, §2 |
 
-### Spec changes when ADR006 is accepted
+### Spec changes made with ADR006
 
 - §7.3, §7.4: every move between task statuses and between project statuses
   is allowed.
@@ -322,5 +322,5 @@ Follow-up answers:
 | Decision transitions as in §2? | Yes | §2 |
 | Moving a blocker to Done also moves the tasks it unblocks to Ready, in the same commit? | Yes | §1, Blocked tasks; §3 |
 
-No questions are open. ADR006 can be accepted as it stands, and the spec
-changes above made with it.
+No questions are open. ADR006 is accepted and the spec changes above are
+made in `implementation-spec-v0.4-draft.md`.
