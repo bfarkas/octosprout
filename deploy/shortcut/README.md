@@ -83,9 +83,11 @@ ChatGPT's share button shares only a link to the conversation, not the text of
 an answer. To capture a brief (UC3, spec §15.1):
 
 1. Explore the idea in the ChatGPT app.
-2. Paste the handoff prompt from
-   [`templates/prompts/chatgpt-handoff.md`](../../templates/prompts/chatgpt-handoff.md).
-3. Tap **Copy** under ChatGPT's answer.
+2. Send `/octosprout`. ChatGPT replies with the handoff brief. This needs a
+   one-time addition to your ChatGPT Custom Instructions; see
+   [`templates/prompts/chatgpt-handoff.md`](../../templates/prompts/chatgpt-handoff.md),
+   which also has a one-off prompt to paste instead.
+3. Tap **Copy** under the brief.
 4. Either:
    - **Quickest:** tap the OctoSprout home screen icon, then **Paste & save**.
    - **With the chat link and `source: chatgpt`:** share the chat to
