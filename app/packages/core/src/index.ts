@@ -5,6 +5,7 @@ export * from "./findings.js";
 export * from "./ids.js";
 export * from "./lifecycle.js";
 export * from "./links.js";
+export * from "./record-index.js";
 export * from "./record.js";
 export * from "./schemas.js";
 export * from "./secrets.js";
