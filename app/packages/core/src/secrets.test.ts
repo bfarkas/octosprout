@@ -19,7 +19,7 @@ describe("scanForSecrets", () => {
 
   it.each([
     ["commit and content hashes", "base_blob: 4f1c2e9a0b7d3c5e6f8091a2b3c4d5e6f7a8b9c0 9b1f0c4f1c2e9a0b7d3c5e6f8091a2b3c4d5e6f7a8b9c04f1c2e9a0b7d3c5e"],
-    ["signatures", "signature: \"ed25519:Q8vT2mLp9XrK4wNz7bYc3HdF6jGs1aEuQ8vT2mLp9XrK4wNz7bYc3HdF6jGs1aEu\""],
+    ["signatures", "signature: \"ed25519:Q8vT2mLp9XrK4wNz7bYc3HdF6jGs1aEu/Q8vT2mLp9XrK4wNz7bYc3HdF6jGs1aEu+Q8vT2mLp9XrK4wNz7bYc3HdF6jGs1aEu==\""],
     ["share links and UUIDs", "https://chatgpt.com/share/6720f3a1-8b2c-8000-9d4e-0f1a2b3c4d5e"],
     ["ordinary prose", "OctoSprout_is_a_personal_markdown_first_workspace_for_ideas"],
     ["record IDs", "OS-C-7K3QX OS-PROP-8V3KD"],

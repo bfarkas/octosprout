@@ -11,9 +11,11 @@ export const VALIDATION_CODES = [
   "OSV005",
   "OSV006",
   "OSV007",
+  "OSV008",
   "OSV009",
   "OSV010",
   "OSV011",
+  "OSV012",
   "OSV013",
 ] as const;
 

@@ -1,4 +1,7 @@
 /** Builders for validator tests. */
+import { generateKeyPairSync, type KeyObject } from "node:crypto";
+
+import { formatPublicKey, signApproval, type ApprovalDecision } from "./approvals.js";
 import { renderRecord, sha256Hex, type Frontmatter } from "./record.js";
 import { ADR_TEMPLATE_PIN } from "./types.js";
 import type { SourceFile } from "./validate.js";
@@ -123,4 +126,40 @@ export function proposal(id = "OS-PROP-8V3KD", overrides: Frontmatter = {}, body
       body,
     ),
   };
+}
+
+/** A test signing key, as the server holds it. */
+export interface TestKey {
+  id: string;
+  privateKey: KeyObject;
+}
+
+export function testKey(id = "rei3-2026-10"): TestKey {
+  return { id, privateKey: generateKeyPairSync("ed25519").privateKey };
+}
+
+/** `octosprout.yaml` trusting the given keys. */
+export function configFile(...keys: TestKey[]): SourceFile {
+  const list = keys.map((k) => `  - id: ${k.id}\n    key: "${formatPublicKey(k.privateKey)}"\n`).join("");
+  return {
+    path: "octosprout.yaml",
+    content: `workspace_schema_version: 1\nid_prefix: OS\napproval_public_keys:${keys.length ? `\n${list}` : " []\n"}`,
+  };
+}
+
+/** A proposal applied (or rejected) by the server, with a signed approval. */
+export function signedProposal(
+  key: TestKey,
+  operations: object[],
+  { id = "OS-PROP-8V3KD", decision = "approved" as ApprovalDecision, overrides = {} as Frontmatter } = {},
+): SourceFile {
+  const at = "2026-10-25T15:07:42Z";
+  return proposal(id, {
+    status: decision === "approved" ? "applied" : "rejected",
+    consequential: true,
+    updated: at,
+    operations,
+    approval: { ...signApproval(id, operations, decision, at, key) },
+    ...overrides,
+  });
 }

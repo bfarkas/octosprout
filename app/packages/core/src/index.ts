@@ -1,4 +1,6 @@
 export * from "./adr.js";
+export * from "./approvals.js";
+export * from "./config.js";
 export * from "./findings.js";
 export * from "./ids.js";
 export * from "./links.js";

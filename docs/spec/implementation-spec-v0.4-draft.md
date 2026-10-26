@@ -228,12 +228,13 @@ workspace_schema_version: 1
 id_prefix: OS
 approval_public_keys:          # Ed25519 public keys trusted for approval signatures
   - id: rei3-2026-10
-    key: "ed25519:BASE64..."
+    key: "ed25519:BASE64..."     # base64 of the raw 32-byte public key
+    status: active             # active (default) | retired
 consequential:                 # optional overrides; defaults in §9.2
   bulk_threshold: 10
 ```
 
-Changes to `octosprout.yaml`, `schemas/` (if a workspace ever vendors schemas) or lifecycle rules are consequential (§9.2).
+The file is checked against `schemas/workspace.v1.schema.json`. Changes to `octosprout.yaml`, `schemas/` (if a workspace ever vendors schemas) or lifecycle rules are consequential (§9.2).
 
 ## 6. Record model
 
@@ -343,7 +344,8 @@ The canonical JSON Schemas live in `octosprout/schemas/<type>.v<N>.schema.json`.
 **Task**
 - `readiness`, derived and not stored. A task in `backlog` needs only a title.
 - Moving a task to `ready` or beyond requires these body sections: `## Objective`, `## Acceptance criteria` and `## Verification`.
-- A task that changes code also needs a `refs` entry of kind `repo`.
+- A task that changes code also needs a `refs` entry of kind `repo`, on the task or its project. Validation cannot tell whether a task changes code, so a missing one is a warning.
+- A required section counts as filled in when it has content other than whitespace, HTML comments or an empty template checkbox (`- [ ]`). The same holds for the project sections below.
 - See §11.2 for the full task contract.
 
 **Project**
@@ -579,11 +581,13 @@ approval:                  # written by the server when applied or rejected
   at: 2026-10-25T15:07:42Z
   key_id: rei3-2026-10
   ops_sha256: …            # hash of canonical JSON of `operations`
-  signature: "ed25519:…"   # over {proposal id, ops_sha256, decision, at}
+  signature: "ed25519:…"   # over canonical JSON of {proposal, ops_sha256, decision, at}
 ---
 ## Rationale
 Why this change is proposed, assumptions, and open questions.
 ```
+
+Canonical JSON sorts object keys and has no whitespace (RFC 8785 for the strings, integers and booleans proposals contain). `update` and `delete` name a record `id` or a workspace `path`, for files that are not records such as `AGENTS.md`. Paths are workspace-relative and cannot leave the workspace or touch `.git`. A `set_status` that moves a decision to `ACCEPTED`, `SUPERSEDED` or `EXPIRED` records `body_sha256` (§19, OSV007).
 
 **Applying a proposal:**
 1. The UI shows the rationale and a rendered diff of every operation.
@@ -1042,14 +1046,14 @@ app.octosprout.de {
 | `OSV005` | Link targets exist; allowed source/target types; no duplicates or self-links; no `blocks` or `supersedes` cycles |
 | `OSV006` | Capture `content_sha256` matches the body (immutability) |
 | `OSV007` | ADR template compliance (§13.2) and frozen body for `ACCEPTED`+. The approving proposal's `set_status` operation records `body_sha256` of the decision body (excluding the `* Status:` line), and validation compares against it. |
-| `OSV008` | Consequential states carry valid signed approvals (§9.4) |
+| `OSV008` | Consequential states carry valid signed approvals (§9.4). `ADOPTED` decisions are covered by the approval that accepted them. A `completed` or `archived` project is checked only when it has an `approval`, because validation cannot see that it was `active` before. |
 | `OSV009` | Task readiness contract (§11.2) and project-activation sections (§6.5) |
 | `OSV010` | `refs` syntax and allowed kinds |
 | `OSV011` | `updated ≥ created`; timestamps are UTC RFC 3339 |
-| `OSV012` | Proposal integrity (`ops_sha256`, status consistent with `approval`) |
+| `OSV012` | Proposal integrity (`ops_sha256`, status consistent with `approval`, signature by a key in `approval_public_keys`) |
 | `OSV013` | Possible secrets in records (warning) |
 
-Every finding reports the code, severity, file path, line where possible, the record ID, a message and a fix hint. The same validator code runs in the CLI, the server and CI.
+Problems in `octosprout.yaml` are reported as `OSV003`. Every finding reports the code, severity, file path, line where possible, the record ID, a message and a fix hint. The same validator code runs in the CLI, the server and CI.
 
 ## 20. Testing
 

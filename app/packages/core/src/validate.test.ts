@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { decisionBodySha256 } from "./adr.js";
-import { adrBody, capture, decision, expert, idea, project, proposal, record, research, SHA1, task } from "./fixtures.js";
+import { adrBody, capture, configFile, decision, expert, idea, project, proposal, record, research, SHA1, signedProposal, task, testKey } from "./fixtures.js";
 import { hasErrors, type Finding } from "./findings.js";
 import { renderRecord, sha256Hex } from "./record.js";
 import { SchemaRegistry } from "./schemas.js";
@@ -304,6 +304,91 @@ describe("OSV007 ADR template", () => {
     it("requires the approval to record the body hash", () => {
       expect(osv007(run(accepted(), approving()))).toEqual([expect.objectContaining({ message: expect.stringContaining("body_sha256") })]);
     });
+  });
+});
+
+describe("OSV008 approvals and OSV012 proposal integrity", () => {
+  const key = testKey();
+  const config = configFile(key);
+  const promotion = [
+    { op: "set_status", id: "OS-I-2HD9W", base_blob: SHA1, status: "transplanted" },
+    { op: "add_link", id: "OS-I-2HD9W", base_blob: SHA1, link: { rel: "promoted_to", id: "OS-P-0XZ4K" } },
+  ];
+  const transplanted = (overrides = {}) =>
+    idea("OS-I-2HD9W", { status: "transplanted", approval: "OS-PROP-8V3KD", links: [{ rel: "promoted_to", id: "OS-P-0XZ4K" }], ...overrides });
+  const of = (...wanted: string[]) => (findings: Finding[]) => findings.filter((f) => wanted.includes(f.code));
+  const approvals = of("OSV008", "OSV012");
+
+  it("accepts a consequential state with a valid signed approval", () => {
+    expect(run(config, transplanted(), project("OS-P-0XZ4K"), signedProposal(key, promotion))).toEqual([]);
+  });
+
+  it("accepts approvals signed with a retired key that is still listed", () => {
+    const retired = testKey("rei3-2025-01");
+    expect(approvals(run(configFile(key, retired), transplanted(), project("OS-P-0XZ4K"), signedProposal(retired, promotion)))).toEqual([]);
+  });
+
+  it("requires an approval for a consequential state", () => {
+    expect(approvals(run(config, transplanted({ approval: undefined }), project("OS-P-0XZ4K")))).toEqual([
+      expect.objectContaining({ code: "OSV008", message: expect.stringContaining("needs an approval") }),
+    ]);
+  });
+
+  it("rejects a missing, pending or unsigned approving proposal", () => {
+    expect(approvals(run(config, transplanted(), project("OS-P-0XZ4K")))[0]?.message).toContain("does not exist");
+    expect(codes(approvals(run(config, transplanted(), project("OS-P-0XZ4K"), proposal("OS-PROP-8V3KD", { operations: promotion }))))).toEqual(["OSV008"]);
+  });
+
+  it("rejects an approval that does not produce the current state", () => {
+    const other = [{ op: "set_status", id: "OS-I-2HD9W", base_blob: SHA1, status: "ready" }];
+    expect(approvals(run(config, transplanted(), project("OS-P-0XZ4K"), signedProposal(key, other)))).toEqual([
+      expect.objectContaining({ code: "OSV008", message: expect.stringContaining("does not set") }),
+    ]);
+  });
+
+  it("detects operations changed after approval", () => {
+    const tampered = signedProposal(key, promotion, { overrides: { operations: [{ ...promotion[0], id: "OS-I-ZZZZZ" }] } });
+    const findings = approvals(run(config, transplanted(), project("OS-P-0XZ4K"), tampered));
+    expect(codes(findings).sort()).toEqual(["OSV008", "OSV012"]);
+    expect(findings.find((f) => f.code === "OSV012")?.message).toContain("changed after approval");
+  });
+
+  it("detects a forged approval and one by an unknown key", () => {
+    const forger = testKey();
+    expect(approvals(run(config, transplanted(), project("OS-P-0XZ4K"), signedProposal(forger, promotion))).find((f) => f.code === "OSV012")?.message).toContain("does not verify");
+    expect(approvals(run(configFile(), transplanted(), project("OS-P-0XZ4K"), signedProposal(key, promotion))).find((f) => f.code === "OSV012")?.message).toContain("not in approval_public_keys");
+  });
+
+  it("checks that status and approval agree", () => {
+    const pendingWithApproval = signedProposal(key, promotion, { overrides: { status: "pending" } });
+    expect(approvals(run(config, pendingWithApproval))[0]?.message).toContain("must not carry");
+    expect(approvals(run(config, proposal("OS-PROP-8V3KD", { status: "applied" })))[0]?.message).toContain("needs an approval block");
+    const mismatch = signedProposal(key, promotion, { decision: "rejected", overrides: { status: "applied" } });
+    expect(approvals(run(config, mismatch))[0]?.message).toContain("does not match status");
+    expect(approvals(run(config, signedProposal(key, promotion, { decision: "rejected" })))).toEqual([]);
+  });
+
+  it("requires ACCEPTED for ADOPTED decisions and the exact status for SUPERSEDED and EXPIRED", () => {
+    const id = "OS-D-4M9TZ";
+    const body = adrBody(id, "ADOPTED");
+    const accept = [{ op: "set_status", id, base_blob: SHA1, status: "ACCEPTED", body_sha256: decisionBodySha256(body) }];
+    const adopted = decision(id, { status: "ADOPTED", approval: "OS-PROP-8V3KD" }, body);
+    expect(of("OSV007", "OSV008", "OSV012")(run(config, adopted, signedProposal(key, accept)))).toEqual([]);
+    const expired = decision(id, { status: "EXPIRED", approval: "OS-PROP-8V3KD" }, adrBody(id, "EXPIRED"));
+    expect(codes(of("OSV008")(run(config, expired, signedProposal(key, accept))))).toEqual(["OSV008"]);
+  });
+
+  it("checks a project's approval only when it has one", () => {
+    expect(approvals(run(config, project("OS-P-0XZ4K", { status: "archived" })))).toEqual([]);
+    expect(codes(approvals(run(config, project("OS-P-0XZ4K", { status: "archived", approval: "OS-PROP-8V3KD" }))))).toEqual(["OSV008"]);
+    const archive = [{ op: "set_status", id: "OS-P-0XZ4K", base_blob: SHA1, status: "archived" }];
+    expect(approvals(run(config, project("OS-P-0XZ4K", { status: "archived", approval: "OS-PROP-8V3KD" }), signedProposal(key, archive)))).toEqual([]);
+  });
+
+  it("reports octosprout.yaml problems", () => {
+    expect(run({ path: "octosprout.yaml", content: "workspace_schema_version: 2\nid_prefix: OS\n" })).toEqual([
+      expect.objectContaining({ code: "OSV003", path: "octosprout.yaml" }),
+    ]);
   });
 });
 

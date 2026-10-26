@@ -1,5 +1,5 @@
 /**
- * Workspace validation (spec §19): OSV001–OSV007, OSV009–OSV011 and OSV013.
+ * Workspace validation (spec §19): OSV001–OSV013.
  *
  * The validator is pure: it takes the workspace's files and returns findings.
  * The CLI, the server and CI all call it.
@@ -7,6 +7,8 @@
 import type { ErrorObject } from "ajv";
 
 import { ADR_FIELDS, ADR_SECTIONS, decisionBodySha256, parseAdr } from "./adr.js";
+import { verifyApproval, type Approval, type TrustedKey } from "./approvals.js";
+import { CONFIG_PATH, DEFAULT_CONFIG, parseWorkspaceConfig, type WorkspaceConfig } from "./config.js";
 import { type Finding, type Severity, type ValidationCode } from "./findings.js";
 import { parseId } from "./ids.js";
 import { isLinkAllowed, isLinkRel, type LinkRel } from "./links.js";
@@ -17,7 +19,7 @@ import { findSection, hasContent } from "./sections.js";
 import { RECORD_TYPES, STATUSES, type RecordType } from "./types.js";
 
 export interface SourceFile {
-  /** Workspace-relative path with `/` separators. */
+  /** Workspace-relative path with `/` separators. `octosprout.yaml` is read for the approval keys. */
   path: string;
   content: string | Uint8Array;
 }
@@ -65,6 +67,7 @@ export function validateWorkspace(files: readonly SourceFile[], options: Validat
   const schemas = options.schemas ?? new SchemaRegistry();
   const findings: Finding[] = [];
 
+  const config = loadConfig(files, schemas, findings);
   const loaded: LoadedRecord[] = [];
   for (const file of [...files].sort((a, b) => a.path.localeCompare(b.path))) {
     if (!isRecordPath(file.path)) continue;
@@ -89,6 +92,8 @@ export function validateWorkspace(files: readonly SourceFile[], options: Validat
   checkLifecycleLinks(loaded, index, findings);
   checkDecisions(loaded, index, findings);
   checkContracts(loaded, index, findings);
+  const validProposals = checkProposals(loaded, config.approvalKeys, findings);
+  checkApprovals(loaded, index, validProposals, findings);
 
   return findings.sort(compareFindings);
 }
@@ -108,6 +113,17 @@ function compareFindings(a: Finding, b: Finding): number {
 
 // ---------------------------------------------------------------------------
 // Loading
+
+function loadConfig(files: readonly SourceFile[], schemas: SchemaRegistry, findings: Finding[]): WorkspaceConfig {
+  const file = files.find((f) => f.path === CONFIG_PATH);
+  if (!file) return DEFAULT_CONFIG;
+  const text = typeof file.content === "string" ? file.content : new TextDecoder().decode(file.content);
+  const { config, problems } = parseWorkspaceConfig(text, schemas);
+  for (const problem of problems) {
+    findings.push(finding("OSV003", "error", CONFIG_PATH, undefined, problem.message, "See spec §5.3 and schemas/workspace.v1.schema.json.", problem.line));
+  }
+  return config;
+}
 
 function load(file: SourceFile, findings: Finding[]): LoadedRecord | undefined {
   let text: string;
@@ -791,5 +807,105 @@ function checkRefs(entry: LoadedRecord, findings: Finding[]): void {
 function checkSecrets(entry: LoadedRecord, findings: Finding[]): void {
   for (const hit of scanForSecrets(entry.text)) {
     reportAt(entry, findings, "OSV013", "warning", hit.index + 1, `Possible ${hit.kind} (${hit.preview}).`, "Never store tokens or keys in records. If it is a secret, remove it, rewrite history if it was pushed, and rotate it (spec §18.3).");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// OSV012: proposal integrity
+
+const OUTCOME: Record<string, Approval["decision"] | undefined> = { applied: "approved", rejected: "rejected" };
+
+/** Returns the IDs of applied proposals whose approval verifies. */
+function checkProposals(loaded: readonly LoadedRecord[], keys: readonly TrustedKey[], findings: Finding[]): Set<string> {
+  const valid = new Set<string>();
+  for (const entry of loaded) {
+    if (entry.effectiveType !== "proposal" || entry.id === undefined) continue;
+    const fm = entry.record.frontmatter;
+    const status = fm.status;
+    const approval = fm.approval as Partial<Approval> | undefined;
+    const emit = (message: string, hint: string) => report(entry, findings, "OSV012", "error", "approval", message, hint);
+    if (typeof status !== "string") continue;
+
+    const expected = OUTCOME[status];
+    if (expected === undefined) {
+      if (approval !== undefined) emit(`A ${status} proposal must not carry an approval block.`, "Only the server writes approvals, when it applies or rejects a proposal (spec §9.3).");
+      continue;
+    }
+    if (typeof approval !== "object" || approval === null) {
+      report(entry, findings, "OSV012", "error", "status", `A ${status} proposal needs an approval block with decision '${expected}'.`, "Only the server writes approvals, when it applies or rejects a proposal (spec §9.3).");
+      continue;
+    }
+    if (approval.decision !== expected) {
+      emit(`The approval decision '${String(approval.decision)}' does not match status '${status}'.`, `An ${status} proposal carries decision '${expected}'.`);
+      continue;
+    }
+    if (typeof approval.ops_sha256 !== "string" || typeof approval.signature !== "string" || typeof approval.key_id !== "string" || typeof approval.at !== "string") continue;
+
+    const check = verifyApproval(entry.id, fm.operations, approval as Approval, keys);
+    if (check.ok) {
+      if (status === "applied") valid.add(entry.id);
+    } else if (check.reason === "ops_mismatch") {
+      emit("'operations' do not match the approved ops_sha256; the proposal was changed after approval.", "Restore the approved operations. Approved proposals are never edited.");
+    } else if (check.reason === "unknown_key") {
+      emit(`The approval is signed with key '${approval.key_id}', which is not in approval_public_keys.`, "Trusted keys are listed in octosprout.yaml; adding one is consequential (spec §9.4).");
+    } else {
+      emit("The approval signature does not verify.", "Approvals are signed by the server's key and cannot be written by hand (spec §9.4).");
+    }
+  }
+  return valid;
+}
+
+// ---------------------------------------------------------------------------
+// OSV008: consequential states carry valid signed approvals
+
+/** The status an approving `set_status` operation must set for the record's current state, if it needs one. */
+function requiredApproval(entry: LoadedRecord): string | undefined {
+  const status = entry.record.frontmatter.status;
+  switch (entry.effectiveType) {
+    case "idea":
+      return status === "transplanted" ? "transplanted" : undefined;
+    case "decision":
+      if (status === "ACCEPTED" || status === "ADOPTED") return "ACCEPTED";
+      return status === "SUPERSEDED" || status === "EXPIRED" ? status : undefined;
+    case "project":
+      // Only a move from `active` is consequential, and validation cannot see
+      // history: an approval is checked when present, never demanded.
+      return (status === "completed" || status === "archived") && entry.record.frontmatter.approval !== undefined ? status : undefined;
+    default:
+      return undefined;
+  }
+}
+
+function checkApprovals(loaded: readonly LoadedRecord[], index: RecordIndex, validProposals: ReadonlySet<string>, findings: Finding[]): void {
+  for (const entry of loaded) {
+    if (entry.id === undefined || entry.effectiveType === "proposal") continue;
+    const reference = entry.record.frontmatter.approval;
+    const required = requiredApproval(entry);
+    if (reference === undefined && required === undefined) continue;
+    const emit = (message: string, hint: string) => report(entry, findings, "OSV008", "error", "approval", message, hint);
+    const status = String(entry.record.frontmatter.status);
+
+    if (typeof reference !== "string") {
+      report(entry, findings, "OSV008", "error", "status", `'${status}' needs an approval, but the record has none.`, "Consequential changes are approved in the browser UI, which writes the approval (spec §9.1).");
+      continue;
+    }
+    const proposalId = parseId(reference)?.id ?? reference;
+    const proposal = index.byId.get(proposalId);
+    if (proposal?.effectiveType !== "proposal") {
+      emit(`Approval ${reference} does not exist.`, "The approval must reference an applied proposal.");
+      continue;
+    }
+    if (!validProposals.has(proposalId)) {
+      emit(`Approval ${proposalId} is not an applied proposal with a valid signature.`, "See the OSV012 findings for that proposal.");
+      continue;
+    }
+    if (required === undefined) continue;
+    const operations = proposal.record.frontmatter.operations;
+    const authorizes = Array.isArray(operations) && (operations as Array<Record<string, unknown>>).some(
+      (op) => op?.op === "set_status" && typeof op.id === "string" && parseId(op.id)?.id === entry.id && op.status === required,
+    );
+    if (!authorizes) {
+      emit(`Approval ${proposalId} does not set ${entry.id} to '${required}'.`, "The approving proposal must contain the operation that produced this state (spec §9.4).");
+    }
   }
 }

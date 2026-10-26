@@ -33,8 +33,8 @@ export class SchemaRegistry {
     }
   }
 
-  /** Returns the frontmatter validator for a type and schema version, if supported. */
-  get(type: RecordType, schemaVersion: number): ValidateFunction | undefined {
+  /** Returns the validator for a record type (or `workspace`, for `octosprout.yaml`) and schema version, if supported. */
+  get(type: RecordType | "workspace", schemaVersion: number): ValidateFunction | undefined {
     return this.#validators.get(`${type}@${schemaVersion}`);
   }
 }

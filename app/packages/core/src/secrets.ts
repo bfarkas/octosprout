@@ -27,6 +27,8 @@ const KNOWN: ReadonlyArray<[string, RegExp]> = [
 /** Runs of base64-ish characters. Hyphens and slashes split runs, so IDs, UUIDs and URL paths stay short. */
 const CANDIDATE = /[A-Za-z0-9+_=]{32,}/g;
 
+const SIGNED = /ed25519:[A-Za-z0-9+/=]+/g;
+
 export function scanForSecrets(text: string): SecretHit[] {
   const hits: SecretHit[] = [];
   text.split(/\r?\n/).forEach((line, index) => {
@@ -37,11 +39,9 @@ export function scanForSecrets(text: string): SecretHit[] {
         return;
       }
     }
-    for (const match of line.matchAll(CANDIDATE)) {
+    // Signatures and public keys carry their algorithm prefix and are public.
+    for (const match of line.replace(SIGNED, "").matchAll(CANDIDATE)) {
       const value = match[0];
-      const before = line.slice(0, match.index);
-      // Signatures and public keys carry their algorithm prefix.
-      if (/ed25519:$/.test(before)) continue;
       if (looksRandom(value)) {
         hits.push({ index, kind: "high-entropy string", preview: preview(value) });
         return;
