@@ -18,19 +18,60 @@ text kept on the device until the server confirms it, and a clear
 iOS does not let web apps appear in the share sheet, so a tiny Shortcut hands
 the shared text to the capture page. It has no logic and no secrets.
 
-In the Shortcuts app (iPhone or Mac), create a shortcut named **OctoSprout**:
+### 1. Create the shortcut and configure sharing
 
-1. Open the shortcut's details (ⓘ) and turn on **Show in Share Sheet**
-   (on the Mac: **Use as Quick Action → Share Menu**). Set the input types to
-   **Text**, **URLs** and **Safari web pages**. Set *If there's no input* to
-   **Ask For Text**.
-2. Add **URL Encode** with *Shortcut Input*.
-3. Add **Text**: `https://app.octosprout.de/capture#text=` followed by the
-   *URL Encoded Text* variable.
-4. Add **Open URLs** with that *Text*.
+1. Open the Shortcuts app.
+2. Click **+** to create a new shortcut.
+3. Name it `OctoSprout`.
+4. Open the shortcut's details.
+5. On macOS, enable **Use as Quick Action**, then select **Share Menu**. On
+   iPhone, enable **Show in Share Sheet**.
+6. Configure the accepted input types:
+   - Text
+   - URLs
+   - Safari web pages
+7. Set **If there's no input** to **Ask For Text**.
 
-Sharing now opens the capture page with the text filled in. Check it and tap
-**Save**. If the text is a single link, it is also put in the link field.
+### 2. Add the three actions
+
+Add these actions in the following order. Use the action search field to find
+each one.
+
+**Action 1: URL Encode.** Search for `URL Encode`. Set its input to the
+**Shortcut Input** variable. This converts the supplied text or URL into
+URL-safe encoded text.
+
+**Action 2: Text.** Add a **Text** action containing this exact prefix:
+
+```text
+https://app.octosprout.de/capture#text=
+```
+
+Immediately after the `=` character, insert the **URL Encoded Text** magic
+variable from Action 1. Do not type the variable name as ordinary text.
+
+**Action 3: Open URLs.** Search for `Open URLs`. Set its URL input to the
+**Text** result from Action 2. Insert the variable rather than manually
+retyping the address.
+
+### 3. Check the finished shortcut
+
+Your action list should look like this:
+
+1. **URL Encode**: Shortcut Input
+2. **Text**: capture URL + URL Encoded Text
+3. **Open URLs**: Text result
+
+### 4. Test it
+
+1. Select some text in Safari or another app.
+2. Open the Share Sheet.
+3. Choose **OctoSprout**.
+4. Verify that the OctoSprout capture page opens and receives the selected
+   text, then tap **Save**.
+
+If you run the shortcut without selecting anything, it should ask you to enter
+text. If the text is a single link, it is also put in the link field.
 
 The first time, Safari asks you to sign in with your passkey; afterwards the
 session lasts 30 days from the last use. A share made while signed out is kept
@@ -39,8 +80,9 @@ through sign-in.
 ### ChatGPT briefs
 
 For UC3 (spec §15.1), duplicate the shortcut, name it **OctoSprout from
-ChatGPT**, and change the text in step 3 to
-`https://app.octosprout.de/capture#source=chatgpt&text=` (keep `text=` last).
+ChatGPT**, and change the prefix to
+`https://app.octosprout.de/capture#source=chatgpt&text=` in Action 2 (keep
+`text=` last, with the variable right after it).
 Captures made with it are recorded with `source: chatgpt`.
 
 1. Explore the idea in the ChatGPT app.
