@@ -546,7 +546,7 @@ Agent-originated changes always go through proposals, including routine ones, be
 3. Moving an `active` project to `completed` or `archived`, or editing the Goals, Non-goals, Scope or Success criteria sections of an `active` project.
 4. Deleting any file. Records are normally composted or archived rather than deleted.
 5. Any operation touching more than `bulk_threshold` records (default 10).
-6. Changes to `octosprout.yaml`, lifecycle rules, schemas, `AGENTS.md`, `CLAUDE.md` or `skills/`.
+6. Changes to `octosprout.yaml`, lifecycle rules, schemas, `AGENTS.md`, `CLAUDE.md` or `skills/`, and (as built) `.claude/`, `.mcp.json` and `.github/`.
 
 ### 9.3 Proposal format
 
@@ -929,6 +929,14 @@ Each skill states its inputs, outputs, the tools it uses, its permitted side eff
 | `review-backlog` | Find stale, blocked, unlinked or invalid records and propose fixes |
 
 Starter versions ship in `octosprout/templates/skills/` and are copied by `octosprout init`. The skills use portable Markdown, so any agent that can read files and run the CLI can follow them. MCP is an accelerator, not a requirement.
+
+> **As built (Phase 3):**
+> - **Skills.** `capture`, `triage`, `explore`, `relate`, `promote` and `review-backlog` ship now. `advise` arrives with expert profiles; `handoff` and `report` with the handoff step.
+> - **Shared rules.** `AGENTS.md` holds the rules the skills share: proposals, operations, approval boundaries and simulated advice. It also has a table mapping each MCP tool to its CLI command, and an index of the skills. Each skill names MCP tools and ends on a "Done when" criterion.
+> - **CLI.** The CLI gained `triage`, `promote` and `new --draft` for parity with MCP. `new --draft` and the MCP tool `draft_record` return a record with a fresh ID, which an agent can put into a larger proposal.
+> - **Decisions.** A decision created with a body keeps it. Its `# ADR … - …` heading is rewritten to name the new ID and title.
+> - **`init`.** It also writes `.claude/settings.json` with `OCTOSPROUT_ACTOR=agent:claude-code`, so Claude Code's CLI calls are proposals too.
+> - **Guarded paths.** `.claude/`, `.mcp.json` and `.github/` are guarded like `skills/` (§9.2): they decide what agents may do and what CI checks.
 
 ### 16.3 Local MCP server (`octosprout mcp`, stdio)
 

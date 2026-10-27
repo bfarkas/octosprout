@@ -25,7 +25,6 @@ const RECORD_DIRS = [
   "records/research",
   "experts",
   "proposals",
-  "skills",
 ];
 
 export interface InitOptions {
@@ -87,10 +86,14 @@ export function runInit(args: readonly string[], cwd: string, io: Io, options: I
     put("AGENTS.md", readFileSync(join(templates, "agents/AGENTS.md")));
     put("CLAUDE.md", readFileSync(join(templates, "agents/CLAUDE.md")));
     put("prompts/chatgpt-handoff.md", readFileSync(join(templates, "prompts/chatgpt-handoff.md")));
+    const skillsDir = join(templates, "skills");
+    for (const file of listFiles(skillsDir).filter((f) => f.includes("/"))) put(`skills/${file}`, readFileSync(join(skillsDir, file)));
     for (const dir of RECORD_DIRS) put(`${dir}/.gitkeep`, "");
 
     const cliPath = resolve(options.cliPath ?? process.argv[1] ?? "octosprout");
     put(".mcp.json", mcpConfig(cliPath));
+    // Claude Code's shell commands act as the same agent, so its CLI writes become proposals too.
+    put(".claude/settings.json", `${JSON.stringify({ env: { OCTOSPROUT_ACTOR: "agent:claude-code" } }, null, 2)}\n`);
     installPrePushHook(target, cliPath, created, skipped, io);
   } catch (error) {
     io.err(`octosprout init: ${(error as Error).message}`);

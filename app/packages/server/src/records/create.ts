@@ -17,7 +17,7 @@ export const PROJECT_MEMBERS = PROJECT_MEMBER_TYPES;
 export interface CreateRequest {
   type: CreatableType;
   title: string;
-  /** Replaces the template's body. Not for decisions, which start from the ADR template. */
+  /** Replaces the template's body. A decision's must keep the ADR template's structure. */
   body?: string;
   project?: string;
   supersedes?: string;

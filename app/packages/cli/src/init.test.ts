@@ -35,7 +35,7 @@ describe("octosprout init", () => {
       "records/decisions/.gitkeep",
       "experts/.gitkeep",
       "proposals/.gitkeep",
-      "skills/.gitkeep",
+      "skills/triage/SKILL.md",
     ]) {
       expect(existsSync(join(root, path)), path).toBe(true);
     }
@@ -43,6 +43,7 @@ describe("octosprout init", () => {
     expect(JSON.parse(readFileSync(join(root, ".mcp.json"), "utf8"))).toEqual({
       mcpServers: { octosprout: { command: "node", args: [resolve(cliPath), "mcp"], env: { OCTOSPROUT_ACTOR: "agent:claude-code" } } },
     });
+    expect(JSON.parse(readFileSync(join(root, ".claude/settings.json"), "utf8"))).toEqual({ env: { OCTOSPROUT_ACTOR: "agent:claude-code" } });
     expect(runValidate([], root, io)).toBe(0);
   });
 

@@ -103,6 +103,9 @@ describe("classifyOperations", () => {
   it("finds deletes, guarded files, active briefs and bulk changes consequential", () => {
     expect(classify([idea("OS-I-2HD9W")], (b) => [{ op: "delete", id: "OS-I-2HD9W", base_blob: b("OS-I-2HD9W") }]).reasons).toEqual(["It deletes OS-I-2HD9W."]);
     expect(classify([idea("OS-I-2HD9W")], () => [{ op: "create", path: "skills/x/SKILL.md", content: "x" }]).reasons).toEqual(["It changes skills/x/SKILL.md."]);
+    for (const path of [".mcp.json", ".claude/settings.json", ".github/workflows/validate.yml"]) {
+      expect(classify([idea("OS-I-2HD9W")], () => [{ op: "create", path, content: "x" }]).reasons).toEqual([`It changes ${path}.`]);
+    }
     const active = record("project", "records/projects", "OS-P-0XZ4K", { status: "active" }, undefined, BRIEF);
     expect(classify([active], (b) => [{ op: "update", id: "OS-P-0XZ4K", base_blob: b("OS-P-0XZ4K"), content: (active.content as string).replace("C\n", "C2\n") }]).reasons[0]).toContain("Scope");
     const ideas = ["OS-I-11111", "OS-I-22222"].map((id) => idea(id));

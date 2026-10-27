@@ -68,6 +68,9 @@ octosprout show OS-T-QF81M --json     # with base_blob, links and backlinks
 octosprout search digest --type idea
 octosprout move OS-T-QF81M done       # routine moves commit; consequential ones become proposals
 octosprout link OS-I-2HD9W relates_to OS-P-0XZ4K
+octosprout triage OS-C-7K3QX create idea   # or: attach OS-I-2HD9W | compost
+octosprout promote OS-I-2HD9W Weekly digest --tasks-file tasks.txt
+octosprout new research "Prior art" --draft --json   # a record for a larger proposal
 octosprout propose - < proposal.json  # { title, rationale, operations }
 octosprout sync                       # fetch, rebase, validate, push
 octosprout mcp                        # the stdio MCP server for Claude Code
@@ -79,9 +82,12 @@ installs a `pre-push` hook that runs `validate`. With
 creates a proposal instead of changing records; you approve it in the
 browser (spec §9.1).
 
-`init` also writes `.mcp.json`, which registers `octosprout mcp` with Claude
-Code as `agent:claude-code`. Its read tools (`search_records`, `get_record`,
-`get_related`, `list_inbox`, `list_proposals`, `validate`) read the checkout.
+`init` also copies the starter skills into `skills/`. It writes `.mcp.json`,
+which registers `octosprout mcp` with Claude Code, and `.claude/settings.json`,
+which sets `OCTOSPROUT_ACTOR=agent:claude-code` so that Claude Code's CLI
+calls also become proposals. Its read tools (`search_records`, `get_record`,
+`get_related`, `list_inbox`, `list_proposals`, `validate`, `draft_record`) read
+the checkout.
 Its write tools (`propose`, `propose_triage`, `propose_adr`,
 `propose_promotion`) commit one proposal file, then push it. Nothing changes
 until you approve the proposal in the browser. A proposal that could not

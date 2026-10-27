@@ -54,7 +54,11 @@ export type ApplyResult =
 
 /** Paths whose change is consequential (§9.2 item 6). */
 export function isGuardedPath(path: string): boolean {
-  return path === "octosprout.yaml" || path === "AGENTS.md" || path === "CLAUDE.md" || path.startsWith("skills/") || path.startsWith("schemas/");
+  return (
+    ["octosprout.yaml", "AGENTS.md", "CLAUDE.md", ".mcp.json"].includes(path) ||
+    // What agents are told and allowed (skills, Claude Code settings) and what CI checks.
+    ["skills/", "schemas/", ".claude/", ".github/"].some((dir) => path.startsWith(dir))
+  );
 }
 
 /**

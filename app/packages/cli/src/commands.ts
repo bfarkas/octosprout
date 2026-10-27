@@ -11,7 +11,6 @@ import { readFileSync } from "node:fs";
 
 import {
   allowedTargets,
-  buildNewRecord,
   CREATABLE_TYPES,
   isLinkRel,
   moveKind,
@@ -27,6 +26,7 @@ import {
 } from "@octosprout/core";
 
 import type { Io } from "./io.js";
+import { draftRecord, promotionPlan, triagePlan, type TriageInput } from "./plans.js";
 import { actorFrom, Workspace, WorkspaceError, type WriteOutcome } from "./workspace.js";
 
 export interface Parsed {
@@ -96,31 +96,70 @@ export function summary(record: IndexedRecord): Record<string, unknown> {
 // ---------------------------------------------------------------------------
 
 const newCommand: Command = (args, context, ws) => {
-  const parsed = parseArgs(args);
+  const parsed = parseArgs(args, ["json", "draft"]);
   const [type, ...words] = parsed.positional;
-  if (!type || !(CREATABLE_TYPES as readonly string[]).includes(type)) throw new UsageError(`usage: octosprout new <${CREATABLE_TYPES.join("|")}> <title…> [--project ID] [--supersedes ID] [--body-file FILE]`);
+  if (!type || !(CREATABLE_TYPES as readonly string[]).includes(type)) throw new UsageError(`usage: octosprout new <${CREATABLE_TYPES.join("|")}> <title…> [--project ID] [--supersedes ID] [--body-file FILE] [--draft]`);
   const title = words.join(" ").trim();
   if (!title) throw new UsageError("a title is required");
-  const project = flag(parsed, "project");
-  const supersedes = flag(parsed, "supersedes");
-  if (project && ws.index.get(project)?.type !== "project") throw new WorkspaceError(`${project} is not a project.`);
-  if (supersedes && ws.index.get(supersedes)?.type !== "decision") throw new WorkspaceError(`${supersedes} is not a decision.`);
-  const bodyFile = flag(parsed, "body-file");
-  const id = ws.newId(type as CreatableType);
-  const author = ws.config().author;
-  const { path, content } = buildNewRecord({
+  const { id, path, content } = draftRecord(ws, {
     type: type as CreatableType,
-    id,
     title,
-    now: ws.now(),
-    ...(bodyFile ? { body: bodyFile === "-" ? context.stdin!() : readFileSync(bodyFile, "utf8") } : {}),
-    ...(project ? { project: ws.index.get(project)!.id } : {}),
-    ...(supersedes ? { supersedes: ws.index.get(supersedes)!.id } : {}),
-    ...(author ? { author } : {}),
+    body: fileFlag(parsed, "body-file", context),
+    project: flag(parsed, "project"),
+    supersedes: flag(parsed, "supersedes"),
   });
+  if (parsed.flags.has("draft")) {
+    // Nothing is written: the record goes into a larger proposal as a `create` operation.
+    print(context, parsed.flags.has("json"), { id, path, content }, () => content);
+    return 0;
+  }
   const actor = actorFrom(context.env);
   const outcome = ws.write({ operations: [{ op: "create", path, content }], title: `Create ${type} ${title}`, rationale: `New ${type}: ${title}`, actor, operation: "create", subject: `create: ${id} ${title}` });
   print(context, parsed.flags.has("json"), { id, path, ...outcome }, () => `${id} ${title}\n${describeWrite(outcome)}`);
+  return 0;
+};
+
+/** Reads a text option given as a file path, or `-` for stdin. */
+const fileFlag = (parsed: Parsed, name: string, context: CommandContext): string | undefined => {
+  const value = flag(parsed, name);
+  return value === undefined ? undefined : value === "-" ? context.stdin!() : readFileSync(value, "utf8");
+};
+
+const TRIAGE_USAGE = "usage: octosprout triage <capture> create <idea|task|research> [title…] [--body-file FILE|-] | attach <ID> | compost [--rationale TEXT]";
+
+const triageCommand: Command = (args, context, ws) => {
+  const parsed = parseArgs(args);
+  const [capture, action, ...rest] = parsed.positional;
+  if (!capture) throw new UsageError(TRIAGE_USAGE);
+  let input: TriageInput;
+  if (action === "create") {
+    const [type, ...words] = rest;
+    if (type !== "idea" && type !== "task" && type !== "research") throw new UsageError(TRIAGE_USAGE);
+    input = { capture, action, type, title: words.join(" "), body: fileFlag(parsed, "body-file", context) };
+  } else if (action === "attach" && rest.length === 1) {
+    input = { capture, action, target: rest[0]! };
+  } else if (action === "compost" && rest.length === 0) {
+    input = { capture, action };
+  } else throw new UsageError(TRIAGE_USAGE);
+  const plan = triagePlan(ws, input);
+  const outcome = ws.write({ operations: plan.operations, title: plan.title, rationale: flag(parsed, "rationale") ?? plan.title, actor: actorFrom(context.env), operation: "triage", subject: `triage: ${plan.title.replace(/^Triage /, "")}` });
+  print(context, parsed.flags.has("json"), { ...(plan.created ? { id: plan.created } : {}), ...outcome }, () => describeWrite(outcome));
+  return 0;
+};
+
+const PROMOTE_USAGE = "usage: octosprout promote <idea> <project title…> [--brief-file FILE|-] [--tasks-file FILE|-] [--active] [--rationale TEXT]";
+
+const promoteCommand: Command = (args, context, ws) => {
+  const parsed = parseArgs(args, ["json", "active"]);
+  const [idea, ...words] = parsed.positional;
+  const projectTitle = words.join(" ").trim();
+  if (!idea || !projectTitle) throw new UsageError(PROMOTE_USAGE);
+  if (flag(parsed, "brief-file") === "-" && flag(parsed, "tasks-file") === "-") throw new UsageError("only one of --brief-file and --tasks-file can read stdin");
+  const tasks = fileFlag(parsed, "tasks-file", context)?.split("\n").map((line) => line.replace(/^\s*(?:[-*]|\d+\.)?\s*/, "").trim()).filter(Boolean);
+  const plan = promotionPlan(ws, { idea, projectTitle, projectStatus: parsed.flags.has("active") ? "active" : "proposed", brief: fileFlag(parsed, "brief-file", context), tasks });
+  // A promotion is consequential, so this always becomes a proposal (§10).
+  const outcome = ws.write({ operations: plan.operations, title: plan.title, rationale: flag(parsed, "rationale") ?? plan.title, actor: actorFrom(context.env), operation: "promote", subject: plan.title });
+  print(context, parsed.flags.has("json"), { project: plan.project, ...outcome }, () => `${plan.project} ${projectTitle}\n${describeWrite(outcome)}`);
   return 0;
 };
 
@@ -296,6 +335,8 @@ export const COMMANDS: Record<string, Command> = {
   move: moveCommand,
   link: linkCommand(false),
   unlink: linkCommand(true),
+  triage: triageCommand,
+  promote: promoteCommand,
   propose: proposeCommand,
   proposals: proposalsCommand,
   sync: syncCommand,

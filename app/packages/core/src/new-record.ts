@@ -20,7 +20,11 @@ export interface NewRecordInput {
   id: string;
   title: string;
   now: string;
-  /** Replaces the template's body. Ignored for decisions, which start from the ADR template. */
+  /**
+   * Replaces the template's body. A decision's must keep the ADR template's
+   * structure (§13); its `# ADR … - …` heading is rewritten to name this ID
+   * and title, so a body can be written before the ID is known.
+   */
   body?: string;
   project?: string;
   supersedes?: string;
@@ -33,6 +37,7 @@ export function buildNewRecord(input: NewRecordInput): { path: string; content: 
   let content: string;
   if (type === "decision") {
     content = newDecision({ id, title, now, ...(input.author ? { author: input.author } : {}), ...(input.project ? { project: input.project } : {}), ...(input.supersedes ? { supersedes: input.supersedes } : {}) });
+    if (input.body !== undefined) content = content.slice(0, content.indexOf("\n---\n") + 5) + input.body.replace(/^# ADR .*$/m, `# ADR ${id} - ${title}`);
   } else {
     content = newRecord(type as TemplatedType, { id, title, now, ...(input.body !== undefined ? { body: input.body } : {}) });
     if (input.project) content = addLink(content, { rel: "belongs_to", id: input.project }, now);

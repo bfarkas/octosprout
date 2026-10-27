@@ -10,12 +10,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
-  buildNewRecord,
-  generateId,
-  planPromotion,
-  planTriage,
-  prefillFromCapture,
-  promotionBrief,
+  CREATABLE_TYPES,
   readWorkspaceFiles,
   RECORD_TYPES,
   validateWorkspace,
@@ -26,6 +21,7 @@ import {
 import { z } from "zod";
 
 import { summary } from "./commands.js";
+import { draftRecord, findRecord, promotionPlan, triagePlan, type TriageInput } from "./plans.js";
 import { Workspace, WorkspaceError, type WriteOutcome } from "./workspace.js";
 
 const VERSION = "0.0.0";
@@ -82,12 +78,6 @@ export function createMcpServer(cwd: string, options: McpOptions = {}): McpServe
       }
     }
     return ok({ ...outcome, synced, next: "The owner reviews and approves it in the browser under Proposals." });
-  };
-
-  const findRecord = (ws: Workspace, id: string): IndexedRecord => {
-    const record = ws.index.get(id);
-    if (!record) throw new WorkspaceError(`There is no record ${id}.`);
-    return record;
   };
 
   // --- Read tools ------------------------------------------------------------
@@ -175,6 +165,22 @@ export function createMcpServer(cwd: string, options: McpOptions = {}): McpServe
     }),
   );
 
+  server.registerTool(
+    "draft_record",
+    {
+      description: "A new record with a fresh ID, from its template, without writing it. Put it in a propose call as { op: 'create', path, content }, together with the operations that link to it.",
+      inputSchema: {
+        type: z.enum(CREATABLE_TYPES),
+        title: z.string().min(1).max(200),
+        body: z.string().optional().describe("Markdown body; keep the template's headings. Defaults to the template."),
+        project: z.string().optional().describe("For a task, decision or research record: the project it belongs_to."),
+        supersedes: z.string().optional().describe("For a decision: the decision it supersedes."),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    guarded((input) => ok(draftRecord(open(), input))),
+  );
+
   // --- Write tools: proposals only -------------------------------------------
 
   server.registerTool(
@@ -202,19 +208,16 @@ export function createMcpServer(cwd: string, options: McpOptions = {}): McpServe
     },
     guarded(({ capture, action, type, title, body, target, rationale }) => {
       const ws = open();
-      const source = findRecord(ws, capture);
-      let operations: Operation[];
+      let input: TriageInput;
       if (action === "create") {
         if (!type) throw new WorkspaceError("create needs a type.");
-        const prefill = prefillFromCapture(type, source.body);
-        operations = planTriage(source, { action, type, id: ws.newId(type), title: title || prefill.title, body: body ?? prefill.body, now: ws.now() });
+        input = { capture, action, type, title, body };
       } else if (action === "attach") {
         if (!target) throw new WorkspaceError("attach needs a target.");
-        operations = planTriage(source, { action, target: findRecord(ws, target) });
-      } else {
-        operations = planTriage(source, { action });
-      }
-      return proposeAndSync(ws, { title: `Triage ${source.id}: ${action}${title ? ` ${title}` : target ? ` to ${target}` : ""}`, rationale, operations });
+        input = { capture, action, target };
+      } else input = { capture, action };
+      const plan = triagePlan(ws, input);
+      return proposeAndSync(ws, { title: plan.title, rationale, operations: plan.operations });
     }),
   );
 
@@ -226,13 +229,8 @@ export function createMcpServer(cwd: string, options: McpOptions = {}): McpServe
     },
     guarded(({ title, project, supersedes, body, rationale }) => {
       const ws = open();
-      if (project && ws.index.get(project)?.type !== "project") throw new WorkspaceError(`${project} is not a project.`);
-      if (supersedes && ws.index.get(supersedes)?.type !== "decision") throw new WorkspaceError(`${supersedes} is not a decision.`);
-      const id = ws.newId("decision");
-      const author = ws.config().author;
-      const built = buildNewRecord({ type: "decision", id, title, now: ws.now(), ...(project ? { project: ws.index.get(project)!.id } : {}), ...(supersedes ? { supersedes: ws.index.get(supersedes)!.id } : {}), ...(author ? { author } : {}) });
-      const content = body ? built.content.slice(0, built.content.indexOf("\n---\n") + 5) + body : built.content;
-      return proposeAndSync(ws, { title: `Draft ADR ${id}: ${title}`, rationale, operations: [{ op: "create", path: built.path, content }] });
+      const draft = draftRecord(ws, { type: "decision", title, body, project, supersedes });
+      return proposeAndSync(ws, { title: `Draft ADR ${draft.id}: ${title}`, rationale, operations: [{ op: "create", path: draft.path, content: draft.content }] });
     }),
   );
 
@@ -251,22 +249,8 @@ export function createMcpServer(cwd: string, options: McpOptions = {}): McpServe
     },
     guarded(({ idea, project_title, project_status, brief, tasks, rationale }) => {
       const ws = open();
-      const source = findRecord(ws, idea);
-      if (source.type !== "idea" || source.status !== "ready") throw new WorkspaceError(`${source.id} is not a ready idea.`);
-      const taken = new Set<string>();
-      const fresh = (type: "project" | "task") => {
-        const id = generateId(type, { exists: (candidate) => ws.index.has(candidate) || taken.has(candidate) });
-        taken.add(id);
-        return id;
-      };
-      const research = ws.index.backlinks(source.id).filter((b) => b.rel === "supports" && b.source.type === "research").map((b) => b.source);
-      const operations = planPromotion({
-        idea: source,
-        project: { id: fresh("project"), title: project_title, status: project_status ?? "proposed", body: brief ?? promotionBrief(source.id, research) },
-        tasks: (tasks ?? []).map((title) => ({ id: fresh("task"), title })),
-        now: ws.now(),
-      });
-      return proposeAndSync(ws, { title: `Promote ${source.id} to ${project_title}`, rationale, operations });
+      const plan = promotionPlan(ws, { idea, projectTitle: project_title, projectStatus: project_status, brief, tasks });
+      return proposeAndSync(ws, { title: plan.title, rationale, operations: plan.operations });
     }),
   );
 

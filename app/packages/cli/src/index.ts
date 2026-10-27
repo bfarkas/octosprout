@@ -17,10 +17,14 @@ const USAGE = `usage: octosprout <command> [args] [--json]
   validate [--ci] [--json] [path…]   check the workspace (spec §19)
   new <type> <title…>                idea, task, project, decision, research or expert
                                      [--project ID] [--supersedes ID] [--body-file FILE|-]
+                                     [--draft] prints the record for a proposal instead
   capture <text…> | -                [--source claude] [--url https://…]
   show <ID>                          a record with its base_blob, links and backlinks
   search [words…]                    [--type T] [--status S] [--limit N]
   inbox                              captures waiting for triage
+  triage <capture> create <type> [title…] | attach <ID> | compost
+                                     [--body-file FILE|-] [--rationale TEXT]
+  promote <idea> <project title…>    [--brief-file F|-] [--tasks-file F|-] [--active]
   move <ID> <status>                 a status change (consequential ones become proposals)
   link|unlink <ID> <rel> <target>    add or remove a typed link
   propose <file.json | ->            a proposal { title, rationale, operations }

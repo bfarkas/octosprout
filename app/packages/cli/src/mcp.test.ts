@@ -40,7 +40,7 @@ describe("octosprout mcp", () => {
   it("lists the read and proposal tools of §16.3", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
-      ["get_record", "get_related", "list_inbox", "list_proposals", "propose", "propose_adr", "propose_promotion", "propose_triage", "search_records", "sync", "validate"].sort(),
+      ["draft_record", "get_record", "get_related", "list_inbox", "list_proposals", "propose", "propose_adr", "propose_promotion", "propose_triage", "search_records", "sync", "validate"].sort(),
     );
     expect(tools.find((t) => t.name === "get_record")?.annotations?.readOnlyHint).toBe(true);
   });
@@ -96,11 +96,28 @@ describe("octosprout mcp", () => {
     expect(ws.git("log", "-1", "--format=%s")).not.toMatch(/^propose:/);
   });
 
+  it("drafts a record for a combined proposal", async () => {
+    const idea = make("new", "idea", "Digest");
+    const draft = await call<{ id: string; path: string; content: string }>("draft_record", { type: "research", title: "Prior art" });
+    expect(draft.data.path).toContain(draft.data.id);
+    const { data } = await call<{ base_blob: string }>("get_record", { id: idea });
+    const result = await call("propose", {
+      title: "Research the digest",
+      rationale: "x",
+      operations: [
+        { op: "create", path: draft.data.path, content: draft.data.content },
+        { op: "add_link", id: idea, base_blob: data.base_blob, link: { rel: "relates_to", id: draft.data.id } },
+      ],
+    });
+    expect(result.isError).toBe(false);
+    expect((await call("draft_record", { type: "task", title: "x", project: idea })).isError).toBe(true);
+  });
+
   it("proposes triage, ADRs and promotions", async () => {
     const capture = make("capture", "Digest by email\nweekly, on Mondays");
     const triage = await call<{ proposal: string }>("propose_triage", { capture, action: "create", type: "idea", rationale: "Worth growing." });
     expect(triage.isError).toBe(false);
-    expect(remoteSubject()).toBe(`propose: ${triage.data.proposal} Triage ${capture}: create`);
+    expect(remoteSubject()).toBe(`propose: ${triage.data.proposal} Triage ${capture}: idea Digest by email`);
 
     const adr = await call<{ kind: string }>("propose_adr", { title: "Send digests by email", rationale: "Recording the choice." });
     expect(adr.data.kind).toBe("proposed");

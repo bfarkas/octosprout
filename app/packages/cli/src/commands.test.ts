@@ -98,6 +98,28 @@ describe("writing as a person", () => {
     expect(json<unknown[]>()).toEqual([expect.objectContaining({ consequential: true, actor: "cli" })]);
   });
 
+  it("triage commits a routine triage, and promote always proposes", () => {
+    run(["capture", "Weekly digest", "--json"]);
+    const capture = json<{ id: string }>().id;
+    expect(run(["triage", capture, "create", "idea", "--json"])).toBe(0);
+    const { id, kind } = json<{ id: string; kind: string }>();
+    expect(kind).toBe("committed");
+    run(["show", id, "--json"]);
+    expect(json<{ title: string; links: unknown[] }>()).toMatchObject({ title: "Weekly digest", links: [{ rel: "derived_from", id: capture }] });
+    run(["show", capture, "--json"]);
+    expect(json<{ status: string }>().status).toBe("planted");
+    expect(run(["triage", capture, "attach"])).toBe(2);
+
+    run(["move", id, "sprouting"]);
+    run(["move", id, "ready"]);
+    expect(run(["promote", id, "Weekly", "digest", "--tasks-file", "-", "--json"], {}, "- Pick a day\n- Write the template\n")).toBe(0);
+    const promoted = json<{ kind: string; consequential: boolean; project: string }>();
+    expect(promoted).toMatchObject({ kind: "proposed", consequential: true });
+    expect(promoted.project).toMatch(/^OS-P-/);
+    run(["proposals", "--json"]);
+    expect(out.join("\n")).toContain(`Promote ${id} to Weekly digest`);
+  });
+
   it("links and unlinks records", () => {
     run(["new", "idea", "A", "--json"]);
     const a = json<{ id: string }>().id;
@@ -132,6 +154,36 @@ describe("writing as an agent", () => {
     expect(run(["propose", "-", "--json"], AGENT, JSON.stringify(proposal))).toBe(0);
     expect(json()).toMatchObject({ kind: "proposed", consequential: false });
     expect(run(["propose", "-"], AGENT, "{ not json")).toBe(2);
+  });
+
+  it("new --draft prints a record for a larger proposal and writes nothing", () => {
+    run(["new", "idea", "Idea", "--json"]);
+    const idea = json<{ id: string }>().id;
+    run(["show", idea, "--json"]);
+    const blob = json<{ base_blob: string }>().base_blob;
+    const head = ws.git("rev-parse", "HEAD");
+    expect(run(["new", "research", "Prior", "art", "--draft", "--json"], AGENT, "")).toBe(0);
+    const draft = json<{ id: string; path: string; content: string }>();
+    expect(draft.content).toContain(`id: ${draft.id}`);
+    expect(ws.git("rev-parse", "HEAD")).toBe(head);
+    const operations = [
+      { op: "create", path: draft.path, content: draft.content.replace("\n---\n", "\nlinks:\n  - { rel: supports, id: " + idea + " }\n---\n") },
+      { op: "set_status", id: idea, base_blob: blob, status: "sprouting" },
+    ];
+    expect(run(["propose", "-", "--json"], AGENT, JSON.stringify({ title: "Explore", rationale: "x", operations }))).toBe(0);
+    expect(json()).toMatchObject({ kind: "proposed" });
+  });
+
+  it("new decision takes a body that keeps the ADR structure", () => {
+    run(["new", "decision", "Poll", "--draft", "--json"]);
+    const draft = json<{ content: string }>();
+    // A body written for another ID gets this record's heading.
+    const body = draft.content.slice(draft.content.indexOf("\n---\n") + 5).replace(/^## Decision\n/m, "## Decision\n\nWe poll every minute.\n");
+    expect(run(["new", "decision", "Poll", "often", "--body-file", "-", "--json"], {}, body), err.join("\n")).toBe(0);
+    const { id, path } = json<{ id: string; path: string }>();
+    const text = readFileSync(join(ws.root, path), "utf8");
+    expect(text).toContain(`# ADR ${id} - Poll often`);
+    expect(text).toContain("We poll every minute.");
   });
 
   it("rejects a malformed actor", () => {
