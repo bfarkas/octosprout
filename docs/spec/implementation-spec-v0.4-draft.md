@@ -1197,9 +1197,7 @@ Tests use Vitest. Git tests run against temporary bare repositories that act as 
     - A restore runbook ([`docs/operations/restore.md`](../operations/restore.md)).
   - **Done for the MVP sign-off:**
     - the Ed25519 round trip ran once in the private repository's CI (run 40588401750, `validate --ci`: No findings);
-    - the restore runbook was executed on a scratch instance on rei3, with its own compose project and volumes ([drill log](../operations/restore.md#drill-log)). The device steps are still open.
-  - **Still to do before the MVP sign-off:**
-    - the device steps of the restore drill (passkeys, Shortcut and Mac sync), which need the iPhone and Mac.
+    - the restore runbook was executed on a scratch instance on rei3, with its own compose project and volumes ([drill log](../operations/restore.md#drill-log)). The owner waived the device steps (passkeys, Shortcut and Mac sync) and closed the drill.
 
 ### Phase 0 — Compatibility and safety spike
 
