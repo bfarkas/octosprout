@@ -100,9 +100,9 @@ export interface TaskSummary {
   links: readonly Link[];
 }
 
-const CLOSED = new Set(["done"]);
+const CLOSED = new Set(["done", "archived"]);
 
-/** Tasks that `blocks` the given task and are not done. */
+/** Tasks that `blocks` the given task and are neither done nor archived. */
 export function openBlockers(taskId: string, tasks: readonly TaskSummary[]): string[] {
   return tasks
     .filter((t) => !CLOSED.has(t.status) && t.links.some((l) => l.rel === "blocks" && l.id === taskId))
