@@ -1281,10 +1281,10 @@ The MVP is complete when all of the following are demonstrated:
 ## 23. Open questions
 
 1. ~~**Application code license** for public `octosprout`.~~ Decided: Apache-2.0 (D22).
-2. **MPL-2.0 implications** of instantiating ADRs from the vendored template. The template file keeps its notice. Confirm that filled-in private ADRs need no further action, and decide how this applies once ADRs could be published through the library.
-3. **[Assumption]** Hostnames: is the app at `app.octosprout.de` with the apex reserved, or at the apex itself?
-4. **[Assumption]** Task status `cancelled`, and Research statuses `open`, `concluded` and `archived`.
-5. Does `ADOPTED` also require approval? Currently it does not; only `ACCEPTED`, `SUPERSEDED` and `EXPIRED` do.
+2. **MPL-2.0 implications** of instantiating ADRs from the vendored template. The template file keeps its notice. Open: decide how this applies to filled-in ADRs before any ADR is published through the library.
+3. ~~**Hostnames.**~~ Decided: the app is at `app.octosprout.de` and the apex stays reserved.
+4. ~~**Statuses.**~~ Decided: a task is never `cancelled`; a dropped task moves to `archived`. Research statuses are `open` and `concluded` only. Implementation to follow: the status lists in `@octosprout/core` and the validator, the CLI and MCP, the templates and the boards.
+5. ~~**ADOPTED approval.**~~ Decided: `ADOPTED` does not need approval. Only `ACCEPTED`, `SUPERSEDED` and `EXPIRED` do.
 6. ~~The board engine and frontend framework.~~ Decided: thin custom server-rendered UI, no frontend framework (D5, ADR006).
 
 ---
