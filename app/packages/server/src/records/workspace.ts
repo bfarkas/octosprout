@@ -8,7 +8,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { CONFIG_PATH, DEFAULT_CONFIG, parseWorkspaceConfig, readWorkspaceFiles, RecordIndex, type WorkspaceConfig } from "@octosprout/core";
+import { CONFIG_PATH, DEFAULT_CONFIG, gitBlobSha, parseWorkspaceConfig, readWorkspaceFiles, RecordIndex, type WorkspaceConfig } from "@octosprout/core";
 
 import type { WriteOperation, WriteResult } from "../git/write-service.js";
 
@@ -37,6 +37,21 @@ export class WorkspaceRecords {
       return parseWorkspaceConfig(readFileSync(join(this.#repoDir, CONFIG_PATH), "utf8")).config;
     } catch {
       return DEFAULT_CONFIG;
+    }
+  }
+
+  /** A workspace file that is not a record (such as `octosprout.yaml`), as proposals see it. */
+  readFile(path: string): { path: string; text: string; blob: string } | undefined {
+    // Paths come from proposals: never read outside the workspace or inside .git.
+    if (path === "" || path.startsWith("/") || path.includes("\\") || path.split("/").some((s) => s === "" || s === "." || s === ".." || s.toLowerCase() === ".git")) {
+      return undefined;
+    }
+    try {
+      const content = readFileSync(join(this.#repoDir, path));
+      return { path, text: content.toString("utf8"), blob: gitBlobSha(content) };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT" || (error as NodeJS.ErrnoException).code === "EISDIR") return undefined;
+      throw error;
     }
   }
 

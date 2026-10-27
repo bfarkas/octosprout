@@ -11,6 +11,7 @@ import { ValidationRejectedError, type WriteStatus } from "../git/write-service.
 import { InvalidRequestError, parseInboxRequest, parseJsonBody } from "../inbox/request.js";
 import type { CaptureStatus, InboxOutcome, InboxService } from "../inbox/service.js";
 import { registerRecordRoutes } from "../records/routes.js";
+import type { ProposalService } from "../records/proposals.js";
 import type { StatusMoveDeps } from "../records/status.js";
 import { registerBoards } from "../ui/boards.js";
 import { registerRecordPages } from "../ui/records.js";
@@ -28,7 +29,7 @@ export interface AppOptions {
   /** Browser sign-in. Without it, only the token-protected inbox API is served. */
   auth?: AuthOptions & { status: () => Promise<WriteStatus> };
   /** The record index and writer behind the boards. Needs `auth`. */
-  records?: StatusMoveDeps;
+  records?: StatusMoveDeps & { proposals?: ProposalService };
   rateLimiter?: RateLimiter;
   logger?: FastifyServerOptions["logger"];
   /** Trust `X-Forwarded-For` from these proxies only (Caddy). */
@@ -118,7 +119,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
 
   if (options.auth) {
     const { status, ...authOptions } = options.auth;
-    const { requireSession } = registerAuth(app, authOptions);
+    const { requireSession, recentlyVerified } = registerAuth(app, authOptions);
     app.get("/api/v1/status", { preHandler: requireSession }, async () => {
       const writer = await status();
       return { head: writer.head, pending: writer.pending, pending_branches: writer.pendingBranches };
@@ -158,7 +159,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
     });
 
     if (options.records) {
-      registerRecordRoutes(app, { ...options.records, requireSession });
+      registerRecordRoutes(app, { ...options.records, requireSession, recentlyVerified });
       registerBoards(app, { requireSession, records: options.records.records, status, ...(options.records.now ? { now: options.records.now } : {}) });
       registerRecordPages(app, { ...options.records, requireSession, status });
       registerTriagePage(app, { requireSession, records: options.records.records, status, ...(options.records.now ? { now: options.records.now } : {}) });

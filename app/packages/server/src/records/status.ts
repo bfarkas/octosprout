@@ -6,7 +6,7 @@
  * Moving a task to `done` also moves the `blocked` tasks it was the last open
  * blocker of to `ready`, in the same commit (§7.3).
  */
-import { isAllowedTransition, moveKind, rewriteStatus, unblockedBy, type MoveKind } from "@octosprout/core";
+import { isAllowedTransition, moveKind, rewriteStatus, unblockedBy, type MoveKind, type Operation } from "@octosprout/core";
 
 import { formatTimestamp } from "../inbox/capture.js";
 import { ConflictError, ValidationRejectedError, type FileChange, type Precondition, type WriteResult } from "../git/write-service.js";
@@ -32,7 +32,8 @@ export type StatusMoveOutcome =
   | { kind: "not_found" }
   | { kind: "transition"; from: string; to: string }
   /** Consequential, promotion-only, triage-only or server-only moves never commit from here. */
-  | { kind: "approval_required"; move: Exclude<MoveKind, "direct"> | "bulk"; from: string; to: string }
+  /** `operations` make the move as a proposal, which the server applies once approved. */
+  | { kind: "approval_required"; move: Exclude<MoveKind, "direct"> | "bulk"; from: string; to: string; operations: Operation[] }
   | { kind: "conflict"; path: string; base: string | null; current: string | null; submitted: string | null; current_blob: string | null }
   | { kind: "invalid"; findings: ValidationRejectedError["findings"] };
 
@@ -66,7 +67,9 @@ export async function moveStatus(deps: StatusMoveDeps, request: StatusMoveReques
     return { kind: "transition", from, to };
   }
   const kind = moveKind(record.type, from, to);
-  if (kind !== "direct") return { kind: "approval_required", move: kind, from, to };
+  if (kind !== "direct") {
+    return { kind: "approval_required", move: kind, from, to, operations: [{ op: "set_status", id: record.id, base_blob: request.baseBlob, status: to }] };
+  }
   if (record.blob !== request.baseBlob) return conflict(deps, record.path, request, to);
 
   const updated = formatTimestamp((deps.now ?? (() => new Date()))());
@@ -78,7 +81,10 @@ export async function moveStatus(deps: StatusMoveDeps, request: StatusMoveReques
     changes.push({ path: task.path, content: rewriteStatus(task.text, "ready", updated) });
     preconditions.push({ path: task.path, baseBlob: task.blob });
   }
-  if (changes.length > records.config().bulkThreshold) return { kind: "approval_required", move: "bulk", from, to };
+  if (changes.length > records.config().bulkThreshold) {
+    const operations: Operation[] = [record.id, ...unblocked].map((id, i) => ({ op: "set_status", id, base_blob: records.index.get(id)!.blob, status: i === 0 ? to : "ready" }));
+    return { kind: "approval_required", move: "bulk", from, to, operations };
+  }
 
   const suffix = unblocked.length > 0 ? ` (+${unblocked.length} unblocked)` : "";
   let result: WriteResult;

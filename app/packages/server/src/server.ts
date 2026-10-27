@@ -11,6 +11,8 @@ import { GitWriteService } from "./git/write-service.js";
 import { buildApp } from "./http/app.js";
 import { TokenStore } from "./http/tokens.js";
 import { InboxService } from "./inbox/service.js";
+import { loadSigningKey } from "./approvals/signing-key.js";
+import { ProposalService } from "./records/proposals.js";
 import { WorkspaceRecords } from "./records/workspace.js";
 
 export interface RunningServer {
@@ -34,6 +36,9 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     if (paths !== "all" && paths.some((path) => path.startsWith("records/captures/"))) inbox.reindex();
   });
   const tokens = new TokenStore(config.stateDir);
+  const recordDeps = { records, writer: { ...records.indexing(writer), readBlob: (sha: string) => writer.readBlob(sha), history: (path: string, limit?: number) => writer.history(path, limit) } };
+  const signingKey = config.approvalKeyFile ? loadSigningKey(config.approvalKeyFile) : undefined;
+  const proposals = new ProposalService({ ...recordDeps, ...(signingKey ? { signingKey } : {}), head: async () => (await writer.status()).head });
   const setupToken = config.setupTokenFile ? readFileSync(config.setupTokenFile, "utf8").trim() : undefined;
   const app = buildApp({
     inbox,
@@ -46,14 +51,15 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       ...(setupToken ? { setupToken } : {}),
       status: () => writer.status(),
     },
-    records: { records, writer: { ...records.indexing(writer), readBlob: (sha) => writer.readBlob(sha), history: (path, limit) => writer.history(path, limit) } },
+    records: { ...recordDeps, proposals },
     logger: { level: config.logLevel },
     trustProxy: config.trustProxy,
   });
 
   // Report pending commits left by an earlier run, and resume pushing them (spec §8.3).
   const status = await writer.status();
-  app.log.info({ cloned, head: status.head, pending: status.pending, pendingBranches: status.pendingBranches }, "workspace ready");
+  app.log.info({ cloned, head: status.head, pending: status.pending, pendingBranches: status.pendingBranches, approvalKey: signingKey?.id ?? null }, "workspace ready");
+  if (!signingKey) app.log.warn("no approval signing key (OCTOSPROUT_APPROVAL_KEY_FILE): consequential changes cannot be approved");
   if (status.pendingBranches.length > 0) {
     app.log.warn({ branches: status.pendingBranches }, "unresolved pending branches need attention");
   }

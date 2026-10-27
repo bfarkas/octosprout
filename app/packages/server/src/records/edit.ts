@@ -3,7 +3,7 @@
  * whole file, saved with the `base_blob` the editor was loaded from. A stale
  * base is a 409 with the base, current and submitted versions.
  */
-import { applyFormEdit, checkEdit, parseRecord, setFrontmatterFields, type FormEdit } from "@octosprout/core";
+import { applyFormEdit, checkEdit, parseRecord, setFrontmatterFields, type FormEdit, type Operation } from "@octosprout/core";
 
 import { ConflictError, ValidationRejectedError, type WriteResult } from "../git/write-service.js";
 import { formatTimestamp } from "../inbox/capture.js";
@@ -24,7 +24,8 @@ export type EditOutcome =
   | { kind: "unchanged" }
   | { kind: "not_found" }
   | { kind: "forbidden"; field?: string; message: string }
-  | { kind: "approval_required"; message: string }
+  /** `operations` make the edit as a proposal, which the server applies once approved. */
+  | { kind: "approval_required"; message: string; operations: Operation[] }
   | { kind: "conflict"; path: string; base: string | null; current: string | null; submitted: string | null; current_blob: string | null }
   | { kind: "invalid"; findings: ValidationRejectedError["findings"] };
 
@@ -53,7 +54,9 @@ export async function editRecord(deps: StatusMoveDeps, request: EditRequest): Pr
   if (edited === record.text) return { kind: "unchanged" };
   const check = checkEdit(record.text, edited);
   if (!check.ok) {
-    return check.kind === "approval_required" ? { kind: "approval_required", message: check.message } : { kind: "forbidden", message: check.message, ...(check.field ? { field: check.field } : {}) };
+    return check.kind === "approval_required"
+      ? { kind: "approval_required", message: check.message, operations: [{ op: "update", id: record.id, base_blob: record.blob, content: setFrontmatterFields(edited, { updated: now }) }] }
+      : { kind: "forbidden", message: check.message, ...(check.field ? { field: check.field } : {}) };
   }
 
   const content = setFrontmatterFields(edited, { updated: now });

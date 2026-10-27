@@ -3,7 +3,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import { formatPublicKey } from "./approvals.js";
-import { parseWorkspaceConfig } from "./config.js";
+import { parseWorkspaceConfig, withApprovalKeys } from "./config.js";
 
 const key = formatPublicKey(generateKeyPairSync("ed25519").publicKey);
 
@@ -37,5 +37,16 @@ describe("parseWorkspaceConfig", () => {
 
   it("reports invalid YAML", () => {
     expect(parseWorkspaceConfig("a: [\n").problems).toEqual([expect.objectContaining({ message: expect.stringContaining("Invalid YAML") })]);
+  });
+});
+
+describe("withApprovalKeys", () => {
+  it("sets the keys and keeps comments and other settings", () => {
+    const text = withApprovalKeys("workspace_schema_version: 1\nid_prefix: OS\napproval_public_keys: []       # trusted keys\nconsequential:\n  bulk_threshold: 5\n", [{ id: "server-1", key }]);
+    expect(text).toContain("bulk_threshold: 5");
+    const { config, problems } = parseWorkspaceConfig(text);
+    expect(problems).toEqual([]);
+    expect(config.approvalKeys.map((k) => k.id)).toEqual(["server-1"]);
+    expect(parseWorkspaceConfig(withApprovalKeys(undefined, [{ id: "server-1", key }])).problems).toEqual([]);
   });
 });

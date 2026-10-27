@@ -82,3 +82,17 @@ export function parseWorkspaceConfig(text: string, schemas: SchemaRegistry = new
   const bulkThreshold = Number.isInteger(threshold) && (threshold as number) >= 1 ? (threshold as number) : DEFAULT_BULK_THRESHOLD;
   return { config: { bulkThreshold, approvalKeys }, problems };
 }
+
+/** Starter content for a workspace without octosprout.yaml. */
+const MINIMAL_CONFIG = "workspace_schema_version: 1\nid_prefix: OS\n";
+
+/**
+ * octosprout.yaml with `approval_public_keys` set to `keys`; the other
+ * settings and their comments are kept. Starts from a minimal file if there
+ * is none.
+ */
+export function withApprovalKeys(text: string | undefined, keys: ReadonlyArray<{ id: string; key: string; status?: "active" | "retired" }>): string {
+  const doc = parseDocument(text ?? MINIMAL_CONFIG, { version: "1.2", schema: "core" });
+  doc.set("approval_public_keys", keys.map((k) => ({ ...k })));
+  return doc.toString({ lineWidth: 0 });
+}
