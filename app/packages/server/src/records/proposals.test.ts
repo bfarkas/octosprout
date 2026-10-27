@@ -101,6 +101,23 @@ describe("trusting the server's key", () => {
     expect((await post("/api/v1/approval-key/trust")).json()).toMatchObject({ error: "invalid" });
   });
 
+  it("trusts a new key after the owner retired a lost one, keeping the retired key for old approvals", async () => {
+    const lost = signingKeyFrom(generateKeyPairSync("ed25519").privateKey);
+    await seed(["octosprout.yaml", `workspace_schema_version: 1\nid_prefix: OS\napproval_public_keys:\n${keyEntry(lost)}    status: retired\n`]);
+    expect((await post("/api/v1/approval-key/trust")).statusCode).toBe(200);
+    const yaml = readFileSync(join(sandbox.server, "octosprout.yaml"), "utf8");
+    expect(yaml).toContain(lost.publicKey);
+    expect(yaml).toContain("status: retired");
+    expect(yaml).toContain(key.publicKey);
+    expect(errors()).toEqual([]);
+  });
+
+  it("refuses while another key is still active", async () => {
+    const other = signingKeyFrom(generateKeyPairSync("ed25519").privateKey);
+    await seed(["octosprout.yaml", `workspace_schema_version: 1\nid_prefix: OS\napproval_public_keys:\n${keyEntry(other)}`]);
+    expect((await post("/api/v1/approval-key/trust")).json()).toMatchObject({ error: "invalid" });
+  });
+
   it("needs a recent passkey verification", async () => {
     await seed(config(false));
     clock += 10 * 60 * 1000;

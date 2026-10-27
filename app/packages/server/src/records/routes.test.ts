@@ -404,7 +404,7 @@ describe("record pages", () => {
 
   it("show the rendered body, links, backlinks, refs and history", async () => {
     await seed(
-      file("project", "records/projects", "OS-P-0XZ4K", { status: "proposed", title: "Garden digest", refs: [{ kind: "repo", url: "https://github.com/bfarkas/x" }] }, "## Goals\n\n- **weekly**\n\n<script>alert(1)</script>\n"),
+      file("project", "records/projects", "OS-P-0XZ4K", { status: "proposed", title: "Garden digest", refs: [{ kind: "repo", url: "https://github.com/bfarkas/x" }, { kind: "url", url: "javascript:alert(1)" }] }, "## Goals\n\n- **weekly**\n\n<script>alert(1)</script>\n"),
       taskFile("OS-T-AAAAA", { title: "Pick a day", links: [{ rel: "belongs_to", id: "OS-P-0XZ4K" }] }),
     );
     const html = (await get("/records/OS-P-0XZ4K")).body;
@@ -414,6 +414,9 @@ describe("record pages", () => {
     expect(html).not.toContain("<script>alert(1)</script>");
     expect(html).toContain('<a href="/records/OS-T-AAAAA">Pick a day</a>');
     expect(html).toContain('href="https://github.com/bfarkas/x"');
+    // A ref that slipped past validation is shown, never linked.
+    expect(html).not.toContain('href="javascript:');
+    expect(html).toContain('<span class="mono">javascript:alert(1)</span>');
     expect(html).toContain("mac change");
     expect(html).toContain(`data-blob="${records.index.get("OS-P-0XZ4K")!.blob}"`);
     expect(html).toContain('<option value="active">Active</option>');

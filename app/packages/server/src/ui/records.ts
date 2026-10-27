@@ -109,7 +109,7 @@ function sidePanel(record: IndexedRecord, index: RecordIndex, history: Awaited<R
   }
   if (record.refs.length > 0) {
     sections.push(
-      `<h2>Refs</h2>${list(record.refs.map((r) => `<span class="rel">${esc(r.kind)}</span> <a href="${esc(r.url)}" rel="noreferrer noopener" target="_blank">${esc(r.url)}</a>${r.note ? ` <span class="meta">${esc(r.note)}</span>` : ""}`))}`,
+      `<h2>Refs</h2>${list(record.refs.map((r) => `<span class="rel">${esc(r.kind)}</span> ${/^https:\/\//i.test(r.url) ? `<a href="${esc(r.url)}" rel="noreferrer noopener" target="_blank">${esc(r.url)}</a>` : `<span class="mono">${esc(r.url)}</span>`}${r.note ? ` <span class="meta">${esc(r.note)}</span>` : ""}`))}`,
     );
   }
   if (record.tags.length > 0) sections.push(`<h2>Tags</h2><p class="chips">${record.tags.map((t) => `<span class="chip">#${esc(t)}</span>`).join("")}</p>`);

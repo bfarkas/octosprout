@@ -10,12 +10,14 @@
 import { randomInt } from "node:crypto";
 import { execFile } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
 
 import {
+  isWorkspacePath,
   readWorkspaceFiles,
+  resolveInside,
   validateWorkspace,
   type Finding,
   type SourceFile,
@@ -429,8 +431,14 @@ export class GitWriteService {
   }
 
   #applyChanges(changes: readonly (FileChange & { path: string })[]): void {
-    for (const change of changes) {
-      const target = join(this.#repoDir, change.path);
+    // Checked here, after syncing, so that no symbolic link leads a write outside the clone.
+    const targets = changes.map((change) => {
+      const target = resolveInside(this.#repoDir, change.path);
+      if (!target) throw new InvalidOperationError(`Invalid path: ${JSON.stringify(change.path)}`);
+      return target;
+    });
+    for (const [i, change] of changes.entries()) {
+      const target = targets[i]!;
       if ("delete" in change) {
         rmSync(target, { force: true });
       } else {
@@ -560,16 +568,7 @@ function commitMessage(operation: WriteOperation): string {
 
 /** Clients never choose arbitrary paths (§15.2): reject anything outside the workspace or inside `.git`. */
 function safePath(path: string): string {
-  const segments = path.split("/");
-  if (
-    path === "" ||
-    path.includes("\0") ||
-    path.includes("\\") ||
-    isAbsolute(path) ||
-    segments.some((segment) => segment === "" || segment === "." || segment === ".." || segment.toLowerCase() === ".git")
-  ) {
-    throw new InvalidOperationError(`Invalid path: ${JSON.stringify(path)}`);
-  }
+  if (!isWorkspacePath(path)) throw new InvalidOperationError(`Invalid path: ${JSON.stringify(path)}`);
   return path;
 }
 

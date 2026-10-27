@@ -1053,7 +1053,7 @@ app.octosprout.de {
   - Stored as SHA-256 hashes in the state directory.
   - Created and revoked in the UI (Settings), or with `octosprout-server token create|revoke|list`. Changes made with the CLI apply to the running server immediately.
   - Accepted only on `/api/v1/inbox*`.
-- **Authorization matrix:** test separately for each actor:
+- **Authorization matrix** (as built: `authz.test.ts` checks every registered route): test separately for each actor:
   - an anonymous request gets `401` everywhere except `/login`, `/setup` (with a valid setup token) and static assets;
   - an inbox token is accepted only on the inbox routes;
   - a session can do everything except operations restricted to the setup token.
@@ -1188,7 +1188,17 @@ Tests use Vitest. Git tests run against temporary bare repositories that act as 
 - **Phase 0:** domain, DNS, Caddy and TLS are live; the Git write service is proven in tests and in production; passkey login works on the iPhone; the ADR template is vendored. The board engine was evaluated and decided (ADR006). The Ed25519 approval round trip is proven in tests and in the browser end-to-end check (sign on the server, verify in `octosprout validate`); it still has to run once against the private repository's CI. Decisions taken so far are ADR001–ADR006.
 - **Phase 1:** complete and deployed. The exit criterion was met with the share link and home screen app instead of the token Shortcut (ADR001).
 - **Phase 2:** built, and to be deployed. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief; Record detail with editing; triage; proposals with signed approvals, which enable consequential moves on the boards; the promotion wizard; creating records, ADRs included; the Research and Experts lists; search; and the health panel (below).
-- **Phase 3:** not started.
+- **Phase 3:** built.
+  - **Agent tools.** The full CLI and the stdio MCP server; `AGENTS.md`, `CLAUDE.md` and the nine skills.
+  - **Workflows.** Expert advice with the `advise` workflow; the handoff bundle and outcome reports.
+  - **Hardening.**
+    - An authorization matrix over every route.
+    - A security review, with its fixes ([`docs/operations/security-review.md`](../operations/security-review.md)).
+    - A restore runbook ([`docs/operations/restore.md`](../operations/restore.md)).
+  - **Still to do before the MVP sign-off:**
+    - deploy Phases 2 and 3;
+    - run the Ed25519 round trip once in the private repository's CI;
+    - execute the restore runbook end to end on a scratch host (§20 "Recovery").
 
 ### Phase 0 — Compatibility and safety spike
 

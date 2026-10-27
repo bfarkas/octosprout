@@ -283,9 +283,13 @@ export class ProposalService {
     const key = this.#deps.signingKey;
     if (!key) return { ok: false, message: "The server has no approval signing key." };
     const { records } = this.#deps;
-    if (records.config().approvalKeys.length > 0) return { ok: false, message: "The workspace already trusts an approval key; adding another needs an approval." };
+    // The server trusts itself only while no active key could approve it instead: on first
+    // setup, or after the owner retired a lost key with a commit of their own (restore runbook).
+    const trusted = records.config().approvalKeys;
+    if (trusted.some((k) => k.status === "active")) return { ok: false, message: "The workspace already trusts an approval key; adding another needs an approval." };
     const file = records.readFile(CONFIG_PATH);
-    const content = withApprovalKeys(file?.text, [{ id: key.id, key: key.publicKey }]);
+    const kept = trusted.map((k) => ({ id: k.id, key: formatPublicKey(k.key), status: k.status }));
+    const content = withApprovalKeys(file?.text, [...kept, { id: key.id, key: key.publicKey }]);
     return {
       ok: true,
       operations: file ? [{ op: "update", path: CONFIG_PATH, base_blob: file.blob, content }] : [{ op: "create", path: CONFIG_PATH, content }],

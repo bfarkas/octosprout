@@ -7,6 +7,7 @@ export * from "./findings.js";
 export * from "./handoff.js";
 export * from "./ids.js";
 export * from "./lifecycle.js";
+export * from "./paths.js";
 export * from "./links.js";
 export * from "./promotion.js";
 export * from "./new-record.js";

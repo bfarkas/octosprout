@@ -25,6 +25,7 @@ import {
   readWorkspaceFiles,
   RecordIndex,
   renderProposal,
+  resolveInside,
   validateWorkspace,
   workspaceLookup,
   type Classification,
@@ -93,11 +94,12 @@ export class Workspace {
     return parseWorkspaceConfig(readFileSync(join(this.root, CONFIG_PATH), "utf8")).config;
   }
 
-  /** Any workspace file, as proposals see it. Never outside the checkout or inside .git. */
+  /** Any workspace file, as proposals see it. Never outside the checkout (also through a link) or inside .git. */
   readFile(path: string): { path: string; text: string; blob: string } | undefined {
-    if (path === "" || path.startsWith("/") || path.includes("\\") || path.split("/").some((s) => s === "" || s === "." || s === ".." || s.toLowerCase() === ".git")) return undefined;
+    const target = resolveInside(this.root, path);
+    if (!target) return undefined;
     try {
-      const content = readFileSync(join(this.root, path));
+      const content = readFileSync(target);
       return { path, text: content.toString("utf8"), blob: gitBlobSha(content) };
     } catch {
       return undefined;
@@ -197,8 +199,13 @@ export class Workspace {
    */
   commit(changes: readonly FileChange[], meta: { operation: string; actor: string; subject: string; proposal?: string }): string {
     this.check(changes);
-    for (const change of changes) {
-      const target = join(this.root, change.path);
+    const targets = changes.map((change) => {
+      const target = resolveInside(this.root, change.path);
+      if (!target) throw new WorkspaceError(`Invalid path: ${JSON.stringify(change.path)}`);
+      return target;
+    });
+    for (const [i, change] of changes.entries()) {
+      const target = targets[i]!;
       if ("delete" in change) rmSync(target, { force: true });
       else {
         mkdirSync(dirname(target), { recursive: true });

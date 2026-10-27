@@ -1,7 +1,7 @@
 /**
  * Reading a workspace checkout from disk.
  */
-import { readdirSync, readFileSync } from "node:fs";
+import { lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
 
 import { CONFIG_PATH } from "./config.js";
@@ -10,7 +10,11 @@ import { validateWorkspace, type SourceFile, type ValidateOptions } from "./vali
 
 const RECORD_DIRS = ["records", "experts", "proposals"];
 
-/** Reads `octosprout.yaml` and every `.md` file under the record directories of a workspace checkout. */
+/**
+ * Reads `octosprout.yaml` and every `.md` file under the record directories
+ * of a workspace checkout. Symbolic links are skipped, so nothing outside the
+ * checkout is read.
+ */
 export function readWorkspaceFiles(root: string): SourceFile[] {
   const files: SourceFile[] = [];
   const walk = (dir: string): void => {
@@ -23,13 +27,13 @@ export function readWorkspaceFiles(root: string): SourceFile[] {
     }
   };
   try {
-    files.push({ path: CONFIG_PATH, content: readFileSync(join(root, CONFIG_PATH)) });
+    if (!lstatSync(join(root, CONFIG_PATH)).isSymbolicLink()) files.push({ path: CONFIG_PATH, content: readFileSync(join(root, CONFIG_PATH)) });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
   for (const dir of RECORD_DIRS) {
     try {
-      walk(dir);
+      if (!lstatSync(join(root, dir)).isSymbolicLink()) walk(dir);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }

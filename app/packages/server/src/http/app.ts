@@ -42,6 +42,8 @@ export interface AppOptions {
   logger?: FastifyServerOptions["logger"];
   /** Trust `X-Forwarded-For` from these proxies only (Caddy). */
   trustProxy?: FastifyServerOptions["trustProxy"];
+  /** Called for every route as it is registered; the authorization matrix test lists them with it. */
+  onRoute?: (route: { method: string | string[]; url: string }) => void;
 }
 
 declare module "fastify" {
@@ -84,6 +86,10 @@ export function buildApp(options: AppOptions): FastifyInstance {
     trustProxy: options.trustProxy ?? false,
   });
 
+  if (options.onRoute) {
+    const onRoute = options.onRoute;
+    app.addHook("onRoute", (route) => onRoute({ method: route.method, url: route.url }));
+  }
   app.decorateRequest("inboxToken", null);
 
   // Parse JSON ourselves, from bytes, so invalid UTF-8 is an error and not silently replaced.

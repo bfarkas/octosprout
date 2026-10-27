@@ -70,8 +70,8 @@ export function approvalKeySection(service: ProposalService, records: WorkspaceR
     body = `<p class="hint">The server has no approval signing key, so nothing consequential can be approved. Generate one with <code>octosprout-server approval-key generate</code> and mount it as the <code>approval_signing_key</code> secret (see the deploy runbook).</p>`;
   } else if (service.approvalsReady()) {
     body = `<p>Approvals are signed with <span class="mono">${esc(key.id)}</span>, which the workspace trusts.</p>`;
-  } else if (trusted.length === 0) {
-    body = `<p class="hint">The server's key <span class="mono">${esc(key.id)}</span> is not trusted yet, so nothing consequential can be approved. Trusting it adds it to <code>approval_public_keys</code> in <code>octosprout.yaml</code>, with a proposal the server signs itself.</p>
+  } else if (!trusted.some((k) => k.status === "active")) {
+    body = `<p class="hint">The server's key <span class="mono">${esc(key.id)}</span> is not trusted yet, so nothing consequential can be approved.${trusted.length > 0 ? ` Every listed key is retired (${trusted.map((k) => esc(k.id)).join(", ")}).` : ""} Trusting it adds it to <code>approval_public_keys</code> in <code>octosprout.yaml</code>, with a proposal the server signs itself.</p>
 <div class="actions"><button type="button" data-action="trust-key">Trust this server's approval key</button></div>`;
   } else {
     body = `<p class="hint">The server's key <span class="mono">${esc(key.id)}</span> is not among the trusted keys (${trusted.map((k) => esc(k.id)).join(", ")}). Adding it is a consequential change to <code>octosprout.yaml</code>, approved with a key the workspace already trusts.</p>`;

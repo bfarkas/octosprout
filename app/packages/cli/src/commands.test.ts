@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -76,6 +77,19 @@ describe("writing as a person", () => {
     expect(subject()).toBe(`status: ${blocker} backlog -> done (+1 unblocked)`);
     run(["show", blocked, "--json"]);
     expect(json()).toMatchObject({ status: "ready" });
+  });
+
+  it("never writes through a symbolic link that leads outside the checkout", () => {
+    const outside = mkdtempSync(join(tmpdir(), "octosprout-outside-"));
+    try {
+      rmSync(join(ws.root, "records/ideas"), { recursive: true, force: true });
+      symlinkSync(outside, join(ws.root, "records/ideas"));
+      expect(run(["new", "idea", "Escape"])).toBe(1);
+      expect(err.join("\n")).toContain("Invalid path");
+      expect(readdirSync(outside)).toEqual([]);
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
   });
 
   it("refuses a change that would make the workspace invalid", () => {

@@ -22,7 +22,7 @@ import { z } from "zod";
 
 import { summary } from "./commands.js";
 import { ADVICE_SHAPE, advicePlan, draftRecord, findRecord, handoffBundle, promotionPlan, REPORT_SHAPE, reportPlan, triagePlan, type TriageInput } from "./plans.js";
-import { Workspace, WorkspaceError, type WriteOutcome } from "./workspace.js";
+import { actorFrom, isAgent, Workspace, WorkspaceError, type WriteOutcome } from "./workspace.js";
 
 const VERSION = "0.0.0";
 
@@ -46,8 +46,10 @@ export interface McpOptions {
 export function createMcpServer(cwd: string, options: McpOptions = {}): McpServer {
   const server = new McpServer({ name: "octosprout", version: VERSION }, { instructions: "OctoSprout workspace tools. Read tools are free to use. Write tools only create proposals, which the owner approves in the browser; they never change records directly." });
 
+  // An explicit actor must be an agent: everything the MCP server writes is an agent's proposal.
+  const configured = options.actor ?? process.env.OCTOSPROUT_ACTOR?.trim();
+  if (configured && !isAgent(actorFrom({ OCTOSPROUT_ACTOR: configured }))) throw new WorkspaceError(`The MCP server acts as an agent; OCTOSPROUT_ACTOR must be agent:<name>, not '${configured}'.`);
   const actor = (): string => {
-    const configured = options.actor ?? process.env.OCTOSPROUT_ACTOR;
     if (configured) return configured;
     const client = server.server.getClientVersion()?.name ?? "mcp";
     return `agent:${client.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 64) || "mcp"}`;

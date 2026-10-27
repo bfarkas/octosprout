@@ -86,6 +86,11 @@ describe("octosprout mcp", () => {
     expect((await call<Array<{ id: string }>>("list_proposals", { status: "pending" })).data.map((p) => p.id)).toEqual([result.data.proposal]);
   });
 
+  it("acts only as an agent", () => {
+    expect(() => createMcpServer(ws.root, { actor: "cli" })).toThrow(/agent:<name>/);
+    expect(() => createMcpServer(ws.root, { actor: "agent:bad name" })).toThrow(/agent:<name>/);
+  });
+
   it("refuses a stale base_blob and a change that would not validate", async () => {
     const idea = make("new", "idea", "Digest");
     const result = await call("propose", { title: "x", rationale: "x", operations: [{ op: "set_status", id: idea, base_blob: "0".repeat(40), status: "sprouting" }] });
