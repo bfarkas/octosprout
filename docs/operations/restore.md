@@ -125,4 +125,4 @@ live instance. Record each drill here:
 
 | Date | Host | Scenario (what was lost) | Result | Notes |
 |---|---|---|---|---|
-| | | | | |
+| 2026-10-27 | rei3, scratch project `octosprout-drill` (port 8091, local mirror; not a separate host) | Compose volumes and state lost. Repository rebuilt from a mirror of `octosprout-private`; approval key restored from a copy | Partial. Passed: step 2 (fresh clone validates, `No findings.`), step 3 (`workspace ready` at `a173c6a`, 0 pending, `/healthz` 200), step 4 (approval key `server-c61e62a0` matches the trusted key), and the capture write path (`201` with `OS-C-4VEWY`, `200` on replay, commit on the mirror). Not run: step 1 (same host), steps 5 and 6 and the device checks in step 7 (need the iPhone and Mac) | The drill used a local mirror instead of GitHub, so the deploy key was not needed. Approval round trip in the private repository's CI: run 40588401750 on `a173c6a` (`validate --ci`, `No findings.`). A tampered approval fails with OSV012 locally. Closed as the scratch-host drill: a separate container project counts. The device steps are still open |
