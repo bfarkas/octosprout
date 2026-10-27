@@ -76,12 +76,15 @@ main.wide { max-width: none; padding: 1.4rem 1.5rem 1.5rem; }
 .shell main { margin: 0; }
 .shell main:not(.wide) { margin: 0 auto; }
 @media (max-width: 760px) {
-  .shell { grid-template-columns: 3.5rem minmax(0, 1fr); }
-  .side { padding: 0.9rem 0.4rem; align-items: center; }
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.4rem; padding: 0.5rem 0.6rem; border-right: 0; border-bottom: 1px solid var(--border); }
   .brand span, .sidenav a span, .side .capture span, .sidefoot span, .crumbs .group, .sync-global .label { display: none; }
   .brand { padding: 0; }
-  .sidenav a, .sidefoot a, .sidefoot button { justify-content: center; padding: 0.6rem; }
-  .side .capture { width: 2.6rem; height: 2.6rem; padding: 0; border-radius: 50%; }
+  .sidenav { display: flex; flex: 1 1 0; min-width: 0; overflow-x: auto; gap: 0.1rem; scrollbar-width: none; }
+  .sidenav a { flex: none; justify-content: center; padding: 0.6rem; }
+  .sidefoot { margin-top: 0; display: flex; flex: none; gap: 0.1rem; }
+  .sidefoot a, .sidefoot button { justify-content: center; padding: 0.6rem; }
+  .side .capture { flex: none; width: 2.6rem; height: 2.6rem; padding: 0; border-radius: 50%; }
   .topbar { padding: 0.6rem 0.75rem; }
   main.wide { padding: 1rem 0.75rem; }
 }
