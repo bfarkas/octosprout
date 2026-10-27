@@ -1,7 +1,12 @@
 /**
  * Decision bodies: the pinned upstream ADR template (spec §13).
  */
-import { sha256Hex } from "./record.js";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { renderRecord, setFrontmatterFields, sha256Hex } from "./record.js";
+import { DEFAULT_TEMPLATES_DIR } from "./templates.js";
+import { ADR_TEMPLATE_PIN } from "./types.js";
 import { bodyLines, headings } from "./sections.js";
 
 /** Level-2 headings of the template, in order (§13.1). */
@@ -104,4 +109,46 @@ export function setAdrStatusLine(body: string, status: string): string {
  */
 export function decisionBodySha256(body: string): string {
   return sha256Hex(body.replace(/^\* Status:.*(\r?\n|$)/m, ""));
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** The template's date style, e.g. `Oct 27, 2026`, from a UTC RFC 3339 timestamp. */
+export function adrDate(timestamp: string): string {
+  const [year, month, day] = timestamp.slice(0, 10).split("-").map(Number);
+  return `${MONTHS[month! - 1]} ${day}, ${year}`;
+}
+
+export interface NewDecision {
+  id: string;
+  title: string;
+  now: string;
+  author?: string;
+  /** Project the decision `belongs_to`. */
+  project?: string;
+  /** Decision this one `supersedes`. */
+  supersedes?: string;
+}
+
+/**
+ * A new DRAFT decision from the vendored upstream template (§13.1): only the
+ * heading, the Date, Status and Author lines are filled in; the rest of the
+ * template stays as it is, to be written.
+ */
+export function newDecision(decision: NewDecision, templatesDir = DEFAULT_TEMPLATES_DIR): string {
+  const template = readFileSync(join(templatesDir, "adr", "adr-template.md"), "utf8");
+  const body = template
+    .replace(/^# ADR00X - \[TITLE\]$/m, `# ADR ${decision.id} - ${decision.title}`)
+    .replace(/^\* Date: .*$/m, `* Date: ${adrDate(decision.now)}`)
+    .replace(/^\* Status: .*$/m, "* Status: DRAFT")
+    .replace(/^\* Author: .*$/m, `* Author: ${decision.author ?? "[Author name(s)]"}`);
+  const links = [
+    ...(decision.project ? [{ rel: "belongs_to", id: decision.project }] : []),
+    ...(decision.supersedes ? [{ rel: "supersedes", id: decision.supersedes }] : []),
+  ];
+  const text = renderRecord(
+    { id: decision.id, type: "decision", schema_version: 1, title: decision.title, status: "DRAFT", created: decision.now, updated: decision.now, template: ADR_TEMPLATE_PIN },
+    body,
+  );
+  return links.length ? setFrontmatterFields(text, { links }) : text;
 }

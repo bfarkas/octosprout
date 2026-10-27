@@ -424,6 +424,16 @@ try {
   assert.deepEqual(validateDirectory(join(root, "repo")).filter((finding) => finding.severity === "error"), []);
   step("a ready idea is promoted through the wizard: project, task and transplanted idea in one approved commit");
 
+  // A new decision from the board starts from the ADR template and opens in the editor.
+  await page.click('.side a[title="Decisions"]');
+  await page.click('.boardhead a[href="/new/decision"]');
+  await page.fill("#author", "E2E");
+  await page.fill("#title", "Poll for board changes");
+  await page.click('#new-record button[type="submit"]');
+  await page.waitForURL(/\/records\/OS-D-[0-9A-Z]{5}\/edit$/);
+  assert.match(await page.inputValue("#body"), /\* Status: DRAFT\n\* Author: E2E\n/);
+  step("New decision creates a DRAFT from the ADR template and opens the editor");
+
   console.log("\nAll browser checks passed.");
 } finally {
   await browser?.close();

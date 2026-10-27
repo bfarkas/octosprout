@@ -117,7 +117,7 @@ function detailBody(record: IndexedRecord, index: RecordIndex, history: Awaited<
 <div class="recordhead"><div><div class="eyebrow">${esc(singular)} · ${esc(statusLabel(record, record.status))}</div>
 <h1>${esc(record.title || record.id)}</h1>
 <p class="meta">${esc(record.id)} · updated ${esc(age(record.updated, now))} · <span class="mono">${esc(record.path)}</span></p></div>
-<div class="recordactions">${record.type === "capture" ? `<a class="button" href="/inbox/${esc(record.id)}/triage">Triage</a>` : ""}${record.type === "idea" && record.status === "ready" ? `<a class="button" href="/ideas/${esc(record.id)}/promote">Promote…</a>` : ""}${statusControl(record, approvals)}${editable ? `<a class="button secondary" href="${recordUrl(record.id)}/edit">Edit</a>` : ""}</div></div>
+<div class="recordactions">${record.type === "capture" ? `<a class="button" href="/inbox/${esc(record.id)}/triage">Triage</a>` : ""}${record.type === "idea" && record.status === "ready" ? `<a class="button" href="/ideas/${esc(record.id)}/promote">Promote…</a>` : ""}${record.type === "decision" && (record.status === "ACCEPTED" || record.status === "ADOPTED") ? `<a class="button secondary" href="/new/decision?supersedes=${esc(record.id)}">Supersede…</a>` : ""}${record.type === "project" ? `<a class="button secondary" href="/new/task?project=${esc(record.id)}">New task</a>` : ""}${statusControl(record, approvals)}${editable ? `<a class="button secondary" href="${recordUrl(record.id)}/edit">Edit</a>` : ""}</div></div>
 <p id="status" class="status" role="status" aria-live="polite"></p>
 <div class="recordgrid"><div class="recordbody">${body}</div>
 <aside class="recordside">${sidePanel(record, index, history)}</aside></div>

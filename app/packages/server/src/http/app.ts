@@ -15,6 +15,7 @@ import type { ProposalService } from "../records/proposals.js";
 import type { StatusMoveDeps } from "../records/status.js";
 import { registerBoards } from "../ui/boards.js";
 import { approvalKeySection, registerProposalPages } from "../ui/proposals.js";
+import { registerNewRecord } from "../ui/new-record.js";
 import { registerPromotion } from "../ui/promote.js";
 import { registerRecordPages } from "../ui/records.js";
 import { registerTriagePage } from "../ui/triage.js";
@@ -166,6 +167,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
       const approvals = () => proposals?.approvalsReady() ?? false;
       registerBoards(app, { requireSession, records: options.records.records, status, approvals, ...(options.records.now ? { now: options.records.now } : {}) });
       registerRecordPages(app, { ...options.records, requireSession, status, approvals });
+      registerNewRecord(app, { requireSession, records: options.records.records, status });
       if (proposals) registerPromotion(app, { requireSession, recentlyVerified, records: options.records.records, proposals, status, ...(options.records.now ? { now: options.records.now } : {}) });
       if (proposals) registerProposalPages(app, { requireSession, records: options.records.records, proposals, status, ...(options.records.now ? { now: options.records.now } : {}) });
       registerTriagePage(app, { requireSession, records: options.records.records, status, ...(options.records.now ? { now: options.records.now } : {}) });

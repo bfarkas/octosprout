@@ -2,9 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://octosprout.de/schemas/workspace.v1.schema.json",
   "title": "OctoSprout workspace configuration (octosprout.yaml), version 1",
-  "description": "Spec §5.3. Changes to this file are consequential (§9.2).",
+  "description": "Spec \u00a75.3. Changes to this file are consequential (\u00a79.2).",
   "type": "object",
-  "required": ["workspace_schema_version", "id_prefix"],
+  "required": [
+    "workspace_schema_version",
+    "id_prefix"
+  ],
   "properties": {
     "workspace_schema_version": {
       "const": 1
@@ -12,12 +15,21 @@
     "id_prefix": {
       "const": "OS"
     },
+    "author": {
+      "description": "Name for the '* Author:' line of new decisions (spec \u00a713.1).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
     "approval_public_keys": {
-      "description": "Ed25519 public keys trusted for approval signatures. Retired keys stay listed so old approvals remain valid (§18.5).",
+      "description": "Ed25519 public keys trusted for approval signatures. Retired keys stay listed so old approvals remain valid (\u00a718.5).",
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "key"],
+        "required": [
+          "id",
+          "key"
+        ],
         "additionalProperties": false,
         "properties": {
           "id": {
@@ -30,7 +42,10 @@
             "pattern": "^ed25519:[A-Za-z0-9+/]{43}=$"
           },
           "status": {
-            "enum": ["active", "retired"]
+            "enum": [
+              "active",
+              "retired"
+            ]
           }
         }
       }

@@ -226,6 +226,7 @@ deploy/                      # rei3 compose overrides, Caddy site block (no secr
 ```yaml
 workspace_schema_version: 1
 id_prefix: OS
+author: "Your Name"            # optional; the * Author: line of new decisions
 approval_public_keys:          # Ed25519 public keys trusted for approval signatures
   - id: rei3-2026-10
     key: "ed25519:BASE64..."     # base64 of the raw 32-byte public key
@@ -777,6 +778,8 @@ OctoSprout adopts Andrew Harmel-Law's template from `andrewharmellaw/facilitatin
 5. Implementing tasks link to it with `implements`.
 6. A reversal is a new ADR that `supersedes` the old one. Accepted history is never rewritten.
 
+*As built (Phase 2):* **New decision** on the Decisions board, and **Supersede…** on an accepted or adopted decision, create a DRAFT from the vendored template: the heading, `* Date:` (`Oct 27, 2026`), `* Status: DRAFT` and `* Author:` (from `author` in `octosprout.yaml`, editable) are filled in, the rest of the template is left to write in the editor, and an optional project (`belongs_to`) and superseded decision (`supersedes`) are linked. Every board has a **New** button for its type; tasks, decisions and research can belong to a project.
+
 ## 14. Expert profiles and advice
 
 Expert profiles live in `experts/OS-E-…--slug.md` (type `expert`). Body sections:
@@ -1146,7 +1149,7 @@ Tests use Vitest. Git tests run against temporary bare repositories that act as 
 
 - **Phase 0:** domain, DNS, Caddy and TLS are live; the Git write service is proven in tests and in production; passkey login works on the iPhone; the ADR template is vendored. The board engine was evaluated and decided (ADR006). The Ed25519 approval round trip is proven in tests and in the browser end-to-end check (sign on the server, verify in `octosprout validate`); it still has to run once against the private repository's CI. Decisions taken so far are ADR001–ADR006.
 - **Phase 1:** complete and deployed. The exit criterion was met with the share link and home screen app instead of the token Shortcut (ADR001).
-- **Phase 2:** in progress. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief; Record detail with editing; triage; proposals with signed approvals, which enable consequential moves on the boards; and the promotion wizard (below). Next: ADR creation, Research and Experts lists, search and the health panel.
+- **Phase 2:** in progress. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief; Record detail with editing; triage; proposals with signed approvals, which enable consequential moves on the boards; the promotion wizard; and creating records, ADRs included (below). Next: Research and Experts lists, search and the health panel.
 - **Phase 3:** not started.
 
 ### Phase 0 — Compatibility and safety spike

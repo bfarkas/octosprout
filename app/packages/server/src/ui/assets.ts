@@ -126,6 +126,8 @@ ul.plain { list-style: none; padding: 0; margin: 0; }
 .boardhead { display: flex; flex-wrap: wrap; align-items: end; gap: 0.5rem 1rem; }
 .boardhead h1 { font-size: 2.1rem; letter-spacing: -0.035em; line-height: 1.1; margin: 0; }
 .filter { display: flex; gap: 0.5rem; align-items: center; margin-left: auto; }
+.boardhead > .button { padding: 0.45rem 0.9rem; }
+.boardhead > div + .button { margin-left: auto; }
 .filter label { margin: 0; font-weight: 500; color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
 .filter select { width: auto; max-width: 14rem; padding: 0.4rem 0.6rem; }
 .jump { display: none; gap: 0.4rem; overflow-x: auto; padding: 0.75rem 0 0; scrollbar-width: none; }

@@ -40,7 +40,8 @@ export function newRecord(type: TemplatedType, fields: { id: string; title: stri
   return text.slice(0, text.length - parsed.record.body.length) + fields.body;
 }
 
-const DIRS: Record<TemplatedType, string> = {
+const DIRS: Record<TemplatedType | "decision", string> = {
+  decision: "records/decisions",
   idea: "records/ideas",
   task: "records/tasks",
   project: "records/projects",
@@ -61,7 +62,7 @@ export function slugify(title: string): string {
 }
 
 /** Where a new record lives: `<dir>/<ID>--<slug>.md`, or `<dir>/<ID>.md` without a usable slug (§5.2). */
-export function recordPath(type: TemplatedType, id: string, title: string): string {
+export function recordPath(type: TemplatedType | "decision", id: string, title: string): string {
   const slug = slugify(title);
   return `${DIRS[type]}/${id}${slug ? `--${slug}` : ""}.md`;
 }

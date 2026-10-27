@@ -43,3 +43,18 @@ describe("status line", () => {
     expect(decisionBodySha256(`${body}edit`)).not.toBe(decisionBodySha256(body));
   });
 });
+
+describe("newDecision", () => {
+  it("fills in the vendored template and validates", async () => {
+    const { newDecision, adrDate } = await import("./adr.js");
+    const { validateWorkspace } = await import("./validate.js");
+    const { project, decision } = await import("./fixtures.js");
+    expect(adrDate("2026-10-27T10:00:00Z")).toBe("Oct 27, 2026");
+    const text = newDecision({ id: "OS-D-22222", title: "Poll for changes", now: "2026-10-27T10:00:00Z", author: "Ada", project: "OS-P-0XZ4K", supersedes: "OS-D-11111" });
+    expect(text).toContain("# ADR OS-D-22222 - Poll for changes\n* Date: Oct 27, 2026\n* Status: DRAFT\n* Author: Ada\n");
+    expect(text).toContain("## Options Considered\n### Option 1 (SELECTED): [Selected option]");
+    expect(text).toContain("  - { rel: supersedes, id: OS-D-11111 }");
+    const findings = validateWorkspace([project("OS-P-0XZ4K"), decision("OS-D-11111"), { path: "records/decisions/OS-D-22222--poll.md", content: text }]);
+    expect(findings.filter((f) => f.severity === "error")).toEqual([]);
+  });
+});

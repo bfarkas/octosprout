@@ -275,7 +275,7 @@ export function registerBoards(app: FastifyInstance, options: BoardOptions): voi
           sync: status,
           wide: true,
           scripts: ["app.js", "approve.js", "board.js"],
-          body: `<div class="boardhead"><div>${eyebrow}<h1>${board.title} <span class="meta">${count} record${count === 1 ? "" : "s"}</span></h1></div>${filterForm(board, index, project)}</div>
+          body: `<div class="boardhead"><div>${eyebrow}<h1>${board.title} <span class="meta">${count} record${count === 1 ? "" : "s"}</span></h1></div>${filterForm(board, index, project)}<a class="button" href="/new/${board.type}${project && board.type !== "project" ? `?project=${esc(project)}` : ""}">New ${board.type}</a></div>
 ${pending}
 <nav class="jump" aria-label="Jump to column">${jump}</nav>
 ${renderBoard(board, index, project, now(), options.approvals?.() ?? false)}

@@ -560,3 +560,51 @@ describe("the triage page", () => {
     expect((await get("/inbox/OS-I-5VT4F/triage")).statusCode).toBe(404);
   });
 });
+
+describe("creating records", () => {
+  const create = (payload: Record<string, unknown>) =>
+    app.inject({ method: "POST", url: "/api/v1/records", headers: { cookie: session.cookie, origin: TEST_ORIGIN, "x-csrf-token": session.csrf, "content-type": "application/json" }, payload: JSON.stringify(payload) });
+  const get = (url: string) => app.inject({ method: "GET", url, headers: { cookie: session.cookie, accept: "text/html" } });
+
+  it("creates a task in a project from the template", async () => {
+    await seed(file("project", "records/projects", "OS-P-0XZ4K", { status: "proposed", title: "Digest" }));
+    const response = await create({ type: "task", title: "Pick a day", project: "OS-P-0XZ4K" });
+    expect(response.statusCode).toBe(201);
+    const { id } = response.json() as { id: string };
+    expect(records.index.get(id)).toMatchObject({ type: "task", status: "backlog", title: "Pick a day", links: [{ rel: "belongs_to", id: "OS-P-0XZ4K" }] });
+    expect(records.index.get(id)?.body).toContain("## Objective");
+    expect(records.index.get(id)?.path).toMatch(/^records\/tasks\/OS-T-[0-9A-Z]{5}--pick-a-day\.md$/);
+    expect(await git(sandbox.remote, "log", "-1", "--format=%s")).toBe(`create: ${id} Pick a day`);
+  });
+
+  it("creates a DRAFT decision from the ADR template, with the author from octosprout.yaml, superseding another", async () => {
+    await seed(["octosprout.yaml", 'workspace_schema_version: 1\nid_prefix: OS\nauthor: "Ada Lovelace"\n'], file("decision", "records/decisions", "OS-D-11111", { status: "DRAFT", template: "harmel-law-adr@1775d49516784bee6824fcd02556926121a7e772" }, adrBody("OS-D-11111", "DRAFT", { title: "Example OS-D-11111" })));
+    const response = await create({ type: "decision", title: "Poll instead", supersedes: "OS-D-11111" });
+    expect(response.statusCode).toBe(201);
+    const decision = records.index.get((response.json() as { id: string }).id)!;
+    expect(decision).toMatchObject({ status: "DRAFT", links: [{ rel: "supersedes", id: "OS-D-11111" }] });
+    expect(decision.body).toContain(`# ADR ${decision.id} - Poll instead\n`);
+    expect(decision.body).toContain("* Author: Ada Lovelace\n");
+    expect(decision.path).toMatch(/^records\/decisions\/OS-D-[0-9A-Z]{5}--poll-instead\.md$/);
+  });
+
+  it("refuses bad requests", async () => {
+    await seed(ideaFile("OS-I-5VT4F"));
+    expect((await create({ type: "capture", title: "x" })).json()).toMatchObject({ field: "type" });
+    expect((await create({ type: "idea", title: "" })).json()).toMatchObject({ field: "title" });
+    expect((await create({ type: "idea", title: "x", project: "OS-P-0XZ4K" })).json()).toMatchObject({ field: "project" });
+    expect((await create({ type: "task", title: "x", project: "OS-I-5VT4F" })).json()).toMatchObject({ field: "project" });
+    expect((await create({ type: "task", title: "x", supersedes: "OS-I-5VT4F" })).json()).toMatchObject({ field: "supersedes" });
+  });
+
+  it("offers New on the boards and a form per type", async () => {
+    await seed(file("project", "records/projects", "OS-P-0XZ4K", { status: "proposed", title: "Digest" }));
+    expect((await get("/tasks?project=OS-P-0XZ4K")).body).toContain('<a class="button" href="/new/task?project=OS-P-0XZ4K">New task</a>');
+    const form = (await get("/new/task?project=OS-P-0XZ4K")).body;
+    expect(form).toContain('<option value="OS-P-0XZ4K" selected>Digest (proposed)</option>');
+    expect(form).toContain("## Acceptance criteria");
+    expect((await get("/new/decision")).body).toContain('id="author"');
+    expect((await get("/new/idea")).body).not.toContain('id="project"');
+    expect((await get("/new/capture")).statusCode).toBe(404);
+  });
+});

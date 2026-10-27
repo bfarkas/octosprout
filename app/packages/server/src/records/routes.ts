@@ -8,6 +8,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import type { FormEdit, Operation } from "@octosprout/core";
 
+import { CREATABLE, createRecord, type CreatableType } from "./create.js";
 import { editRecord } from "./edit.js";
 import type { DecisionOutcome, ProposalService } from "./proposals.js";
 import { triageCapture, type TriageAction } from "./triage.js";
@@ -103,6 +104,35 @@ export function registerRecordRoutes(app: FastifyInstance, options: RecordRoutes
           findings: outcome.findings.map(({ code, path, message, hint }) => ({ code, path, message, hint })),
         });
     }
+  });
+
+  app.post("/api/v1/records", { preHandler: requireSession }, async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    if (!(CREATABLE as readonly unknown[]).includes(body.type)) return reply.code(400).send({ error: "invalid_request", field: "type", message: `'type' is one of ${CREATABLE.join(", ")}.` });
+    if (!isString(body.title)) return reply.code(400).send({ error: "invalid_request", field: "title", message: "'title' is required." });
+    for (const field of ["body", "project", "supersedes", "author"]) {
+      if (body[field] !== undefined && !isString(body[field])) return reply.code(400).send({ error: "invalid_request", field, message: `'${field}' must be a string.` });
+    }
+    const optional = (field: string) => (isString(body[field]) && body[field] !== "" ? { [field]: body[field] as string } : {});
+    const outcome = await createRecord(options, {
+      type: body.type as CreatableType,
+      title: body.title,
+      ...(isString(body.body) ? { body: body.body } : {}),
+      ...optional("project"),
+      ...optional("supersedes"),
+      ...optional("author"),
+      actor: "user:web",
+    });
+    if (outcome.kind === "created") {
+      request.log.info({ id: outcome.id, status: outcome.status }, "record created");
+      return reply.code(201).send({ id: outcome.id, status: outcome.status, commit: outcome.commit });
+    }
+    return reply.code(422).send({
+      error: outcome.findings ? "validation" : "invalid",
+      ...(outcome.field ? { field: outcome.field } : {}),
+      message: outcome.message,
+      ...(outcome.findings ? { findings: outcome.findings.map(({ code, path, message, hint }) => ({ code, path, message, hint })) } : {}),
+    });
   });
 
   app.put<{ Params: { id: string } }>("/api/v1/records/:id", { preHandler: requireSession }, async (request, reply) => {

@@ -15,6 +15,8 @@ export const DEFAULT_BULK_THRESHOLD = 10;
 
 export interface WorkspaceConfig {
   bulkThreshold: number;
+  /** The `* Author:` of new decisions, if set. */
+  author?: string;
   approvalKeys: Array<{ id: string; key: KeyObject; status: "active" | "retired" }>;
 }
 
@@ -58,7 +60,7 @@ export function parseWorkspaceConfig(text: string, schemas: SchemaRegistry = new
     }
   }
 
-  const fields = data as { approval_public_keys?: unknown; consequential?: { bulk_threshold?: unknown } };
+  const fields = data as { approval_public_keys?: unknown; consequential?: { bulk_threshold?: unknown }; author?: unknown };
   const approvalKeys: WorkspaceConfig["approvalKeys"] = [];
   const seen = new Set<string>();
   (Array.isArray(fields.approval_public_keys) ? fields.approval_public_keys : []).forEach((entry: unknown, i) => {
@@ -80,7 +82,8 @@ export function parseWorkspaceConfig(text: string, schemas: SchemaRegistry = new
 
   const threshold = fields.consequential?.bulk_threshold;
   const bulkThreshold = Number.isInteger(threshold) && (threshold as number) >= 1 ? (threshold as number) : DEFAULT_BULK_THRESHOLD;
-  return { config: { bulkThreshold, approvalKeys }, problems };
+  const author = typeof fields.author === "string" && fields.author.trim() !== "" ? fields.author.trim() : undefined;
+  return { config: { bulkThreshold, approvalKeys, ...(author ? { author } : {}) }, problems };
 }
 
 /** Starter content for a workspace without octosprout.yaml. */
