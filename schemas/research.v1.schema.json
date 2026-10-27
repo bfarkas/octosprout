@@ -30,8 +30,7 @@
     "status": {
       "enum": [
         "open",
-        "concluded",
-        "archived"
+        "concluded"
       ]
     },
     "created": {

@@ -18,8 +18,14 @@ export interface ListOptions {
 }
 
 const STATUS_ORDER: Record<string, readonly string[]> = {
-  research: ["open", "concluded", "archived"],
+  research: ["open", "concluded"],
   expert: ["active", "retired"],
+};
+
+/** The status the "Current" view leaves out. Research has none: every note stays listed. */
+const HIDDEN_BY_DEFAULT: Record<string, string | undefined> = {
+  research: undefined,
+  expert: "retired",
 };
 
 function row(record: IndexedRecord, detail: string, now: Date): string {
@@ -62,7 +68,7 @@ export function registerLists(app: FastifyInstance, options: ListOptions): void 
       const wanted = request.query.status && statuses.includes(request.query.status) ? request.query.status : undefined;
       const all = records.index.list(type);
       const shown = all
-        .filter((r) => (wanted ? r.status === wanted : r.status !== statuses[statuses.length - 1]))
+        .filter((r) => (wanted ? r.status === wanted : r.status !== HIDDEN_BY_DEFAULT[type]))
         .sort((a, b) => b.updated.localeCompare(a.updated) || a.id.localeCompare(b.id));
       const at = now();
       const filters = [

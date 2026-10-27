@@ -39,7 +39,7 @@ start folded to a narrow strip with a count, and open on click.
 | Board | Columns (folded in *italics*) |
 |---|---|
 | Ideas | Seed, Sprouting, Ready, Dormant, *Transplanted*, *Composted* |
-| Tasks | Backlog, Ready, In progress, Blocked, Done, *Cancelled* |
+| Tasks | Backlog, Ready, In progress, Blocked, Done |
 | Projects | Proposed, Active, On hold, Completed, *Archived* |
 | Decisions | DRAFT, PROPOSED, ACCEPTED, ADOPTED, *SUPERSEDED*, *EXPIRED* |
 
@@ -73,7 +73,7 @@ card is stored anywhere but in the record files.
   Use it for anything that holds a task up, including things outside the
   workspace.
 - **The derived state** comes from `blocks` links: a task is *blocked by* every
-  task that `blocks` it and is not `done` or `cancelled`. The card shows a red
+  task that `blocks` it and is not `done`. The card shows a red
   "blocked by OS-T-…" chip in whatever column it is in. The index computes
   this; nothing is written.
 
@@ -83,7 +83,7 @@ How the two meet:
 |---|---|
 | Task has open blockers, status is not `blocked` | Red "blocked by" chip. Moving it to In progress or Done asks "Still blocked by OS-T-…. Move anyway?" |
 | A blocker is moved to `done` | Every task that is `blocked` and has no other open blocker moves to `ready` **in the same commit** (owner, 26 Oct 2026). Move to… shows it in advance ("Done (+1 unblocked)"), and those cards move and flash with the blocker. |
-| Task is `blocked`, its last blocker is `cancelled`, or was finished somewhere that didn't unblock it | Green "unblocked" chip with a one-tap **Move to Ready**. A cancelled blocker did not do its work, so it does not unblock anything by itself. |
+| Task is `blocked` and its blockers are all finished, but it was finished somewhere that didn't unblock it | Green "unblocked" chip with a one-tap **Move to Ready**. |
 | Task is `blocked`, no blocking links | Normal card in Blocked: blocked for a reason outside the workspace |
 
 Rules for the unblocking move:

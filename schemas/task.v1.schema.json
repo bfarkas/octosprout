@@ -33,8 +33,7 @@
         "ready",
         "in_progress",
         "blocked",
-        "done",
-        "cancelled"
+        "done"
       ]
     },
     "created": {

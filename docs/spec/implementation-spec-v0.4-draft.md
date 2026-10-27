@@ -404,13 +404,13 @@ A `transplanted` idea MUST have exactly one `promoted_to` link and an `approval`
 
 ### 7.3 Task
 
-`backlog`, `ready`, `in_progress`, `blocked`, `done`, `cancelled`
+`backlog`, `ready`, `in_progress`, `blocked`, `done`
 
-**[Assumption]** `cancelled` is new relative to v0.1. It lets a task be closed without being marked done.
+There is no status for a task that will not be done. Decided in §23 (item 4).
 
 Allowed transitions: from any status to any other.
 
-`blocked` is a status set by hand, for anything that holds a task up, including reasons outside the workspace. Separately, a task is *blocked by* every task that `blocks` it and is not `done` or `cancelled`; the index computes this and the UI shows it on the card, whatever the task's status. The two meet in one rule:
+`blocked` is a status set by hand, for anything that holds a task up, including reasons outside the workspace. Separately, a task is *blocked by* every task that `blocks` it and is not `done`; the index computes this and the UI shows it on the card, whatever the task's status. The two meet in one rule:
 
 - Moving a task to `done` also moves to `ready`, **in the same commit**, every task whose status is `blocked` and for which this task was the last open blocker. The operation carries a `base_blob` precondition for every file it touches, so it applies completely or not at all. The unblocked tasks count towards `bulk_threshold` (§9.2).
 - Cancelling a blocker does not move anything, and neither does a status changed by editing a file directly. The UI offers a one-tap move to `ready` for a `blocked` task with no open blockers left.
@@ -426,7 +426,7 @@ Allowed transitions: from any status to any other. Moving an `active` project to
 
 ### 7.5 Research
 
-`open`, `concluded`, `archived`
+`open`, `concluded`
 
 Allowed transitions: from any status to any other.
 
@@ -746,7 +746,7 @@ If Kanban Lite fails any criterion, build the custom UI. The frontend framework 
 | Settings | Inbox tokens (create, shown once; revoke) and registered passkeys. |
 | Ideas, Tasks, Projects and Decisions boards | Columns by status. Moving a card is a status change. Promotion opens the wizard. Consequential moves open the confirmation dialog. Tasks and Decisions filter by project. Decisions: create from template, advice panel. |
 | Research and Experts | Lists |
-| | *As built:* `/research` and `/experts` list current records (not archived or retired) newest first, with status filters, tags, and how many records a research record supports or how many decisions consulted an expert; each has a **New** button. |
+| | *As built:* `/research` and `/experts` list current records (research: all; experts: not retired) newest first, with status filters, tags, and how many records a research record supports or how many decisions consulted an expert; each has a **New** button. |
 | Record detail | Rendered body, frontmatter form, links and backlinks, refs, git history (commits touching the file), and an edit mode with a Markdown editor and `base_blob` |
 | | *As built:* `/records/<ID>` renders the body with markdown-it (raw HTML off); captures stay plain text. `/records/<ID>/edit` has a form (title, tags, links, refs, body) and a whole-file tab, both saved with `PUT /api/v1/records/<ID>`. Edits never change `id`, `type`, `schema_version`, `created`, `status` or `approval`; a capture's text and source never change; the body of an `ACCEPTED`-or-later decision is frozen; changing an active project's Goals, Non-goals, Scope or Success criteria needs approval. A 409 opens a three-way view (base, current, yours) with a merged text to save on top of the current version. Unsaved input stays in `localStorage` until the save is acknowledged. |
 | Proposals | Pending queue with diffs, approve or reject, bulk-approve for non-consequential proposals, and history |
