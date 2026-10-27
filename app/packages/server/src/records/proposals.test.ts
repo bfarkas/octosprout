@@ -207,3 +207,48 @@ describe("proposals", () => {
     expect((await post("/api/v1/proposals", { operations: [] })).json()).toMatchObject({ field: "title" });
   });
 });
+
+describe("pages", () => {
+  const get = (url: string) => app.inject({ method: "GET", url, headers: { cookie: session.cookie, accept: "text/html" } });
+
+  it("Settings offers to trust the key only while none is trusted", async () => {
+    await seed(config(false));
+    expect((await get("/settings")).body).toContain('data-action="trust-key"');
+    await post("/api/v1/approval-key/trust");
+    const html = (await get("/settings")).body;
+    expect(html).not.toContain('data-action="trust-key"');
+    expect(html).toContain(`Approvals are signed with <span class="mono">${key.id}</span>`);
+  });
+
+  it("the boards enable approval moves once the key is trusted", async () => {
+    const decision = file("decision", "records/decisions", "OS-D-4M9TZ", { status: "PROPOSED", template: "harmel-law-adr@1775d49516784bee6824fcd02556926121a7e772" }, ADR("OS-D-4M9TZ", "PROPOSED"));
+    await seed(config(false), decision);
+    expect((await get("/decisions")).body).toContain('<option value="ACCEPTED" data-kind="approval" disabled>Accept… (needs the approval key)</option>');
+    await post("/api/v1/approval-key/trust");
+    const html = (await get("/decisions")).body;
+    expect(html).toContain('<option value="ACCEPTED" data-kind="approval">Accept…</option>');
+    expect(html).toContain('data-moves="DRAFT ACCEPTED"');
+    expect(html).toContain('<script src="/static/approve.js" defer>');
+  });
+
+  it("Proposals lists pending proposals with their diff, and the history", async () => {
+    await seed(config(true), file("idea", "records/ideas", "OS-I-5VT4F"), file("idea", "records/ideas", "OS-I-6Q3D2"));
+    const routine = (await post("/api/v1/proposals", { title: "Explore <it>", rationale: "**Because**.", operations: [{ op: "set_status", id: "OS-I-5VT4F", base_blob: blob("OS-I-5VT4F"), status: "sprouting" }] })).json() as { id: string };
+    const removal = (await post("/api/v1/proposals", { title: "Remove", operations: [{ op: "delete", id: "OS-I-6Q3D2", base_blob: blob("OS-I-6Q3D2") }] })).json() as { id: string };
+    let html = (await get("/proposals")).body;
+    expect(html).toContain("2 open");
+    expect(html).toContain("Explore &lt;it&gt;");
+    expect(html).toContain("<strong>Because</strong>");
+    expect(html).toContain('<span class="del">- status: seed\n</span>');
+    expect(html).toContain('<span class="add">+ status: sprouting\n</span>');
+    expect(html).toMatch(new RegExp(`id="${routine.id}"[^>]*data-consequential="false"`));
+    expect(html).toMatch(new RegExp(`id="${removal.id}"[^>]*data-consequential="true"`));
+    expect(html).toContain("Approve with passkey");
+    expect(html).toContain('data-action="approve-bulk"');
+
+    await post(`/api/v1/proposals/${routine.id}/approve`);
+    html = (await get("/proposals")).body;
+    expect(html).toContain("1 open");
+    expect(html).toContain(`<span class="badge applied">applied</span>`);
+  });
+});

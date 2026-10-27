@@ -14,6 +14,20 @@ export const RECORD_JS = String.raw`
     csrf = (await response.json()).csrf;
     return csrf;
   }
+  /** Asks for approval with a passkey when the server says the change is consequential, then sends it approved. */
+  async function approveIfNeeded(result, title, method, url, body) {
+    const { response, data } = result;
+    if (response.status !== 403 || data.error !== "approval_required" || data.move === "promotion" || !window.octosproutApprove) return result;
+    const approved = await window.octosproutApprove(data, title, async () =>
+      fetch(url, {
+        method: method,
+        credentials: "same-origin",
+        headers: { "content-type": "application/json", "x-csrf-token": await token() },
+        body: JSON.stringify(Object.assign({}, body, { approve: true })),
+      }),
+    );
+    return approved || { response: { ok: false, status: 0 }, data: { error: "cancelled", message: "Cancelled. Nothing was changed." } };
+  }
   async function call(method, url, body) {
     const response = await fetch(url, {
       method: method,
@@ -34,6 +48,8 @@ export const RECORD_JS = String.raw`
     if (data.error === "forbidden") return data.message;
     if (data.error === "validation") return "The change would make the record invalid:";
     if (data.error === "transition") return data.from + " cannot move to " + data.to + ".";
+    if (data.error === "reverify_required") return "The passkey check expired. Try again.";
+    if (data.error === "no_signing_key") return "The server has no approval signing key, so nothing can be approved.";
     return data.message || data.error || "Saving failed. Nothing was saved.";
   };
 
@@ -48,7 +64,9 @@ export const RECORD_JS = String.raw`
       move.disabled = true;
       show("Saving…");
       try {
-        const { response, data } = await call("POST", "/api/v1/records/" + encodeURIComponent(record.dataset.id) + "/status", { to: to, base_blob: record.dataset.blob });
+        const url = "/api/v1/records/" + encodeURIComponent(record.dataset.id) + "/status";
+        const body = { to: to, base_blob: record.dataset.blob };
+        const { response, data } = await approveIfNeeded(await call("POST", url, body), "Move " + record.dataset.id + " to " + to + "?", "POST", url, body);
         if (response.ok) return location.reload();
         if (response.status === 409) show("This record changed since the page loaded. Reload to see the current version.", "error");
         else show(explain(response, data), "error");
@@ -190,7 +208,8 @@ export const RECORD_JS = String.raw`
     show("Saving…");
     let result;
     try {
-      result = await call("PUT", "/api/v1/records/" + encodeURIComponent(id), payload);
+      const url = "/api/v1/records/" + encodeURIComponent(id);
+      result = await approveIfNeeded(await call("PUT", url, payload), "Save the changes to " + id + "?", "PUT", url, payload);
     } catch (error) {
       return show(error.message + " Your changes are kept in this browser.", "error");
     }

@@ -15,6 +15,7 @@ import {
   CONFIG_PATH,
   completeOperations,
   decideProposal,
+  formatPublicKey,
   generateId,
   proposalPath,
   readOperations,
@@ -69,6 +70,12 @@ export class ProposalService {
 
   get hasKey(): boolean {
     return this.#deps.signingKey !== undefined;
+  }
+
+  /** True when approvals can be made: the server has a signing key and octosprout.yaml trusts it. */
+  approvalsReady(): boolean {
+    const key = this.#deps.signingKey;
+    return key !== undefined && this.#deps.records.config().approvalKeys.some((trusted) => formatPublicKey(trusted.key) === key.publicKey);
   }
 
   get signingKey(): SigningKey | undefined {

@@ -14,6 +14,7 @@ import { registerRecordRoutes } from "../records/routes.js";
 import type { ProposalService } from "../records/proposals.js";
 import type { StatusMoveDeps } from "../records/status.js";
 import { registerBoards } from "../ui/boards.js";
+import { approvalKeySection, registerProposalPages } from "../ui/proposals.js";
 import { registerRecordPages } from "../ui/records.js";
 import { registerTriagePage } from "../ui/triage.js";
 import { registerSettings, registerUi } from "../ui/routes.js";
@@ -160,12 +161,24 @@ export function buildApp(options: AppOptions): FastifyInstance {
 
     if (options.records) {
       registerRecordRoutes(app, { ...options.records, requireSession, recentlyVerified });
-      registerBoards(app, { requireSession, records: options.records.records, status, ...(options.records.now ? { now: options.records.now } : {}) });
-      registerRecordPages(app, { ...options.records, requireSession, status });
+      const proposals = options.records.proposals;
+      const approvals = () => proposals?.approvalsReady() ?? false;
+      registerBoards(app, { requireSession, records: options.records.records, status, approvals, ...(options.records.now ? { now: options.records.now } : {}) });
+      registerRecordPages(app, { ...options.records, requireSession, status, approvals });
+      if (proposals) registerProposalPages(app, { requireSession, records: options.records.records, proposals, status, ...(options.records.now ? { now: options.records.now } : {}) });
       registerTriagePage(app, { requireSession, records: options.records.records, status, ...(options.records.now ? { now: options.records.now } : {}) });
     }
 
-    const ui = { requireSession, inbox, tokens, passkeys: options.auth.passkeys, status };
+    const proposalService = options.records?.proposals;
+    const recordsForUi = options.records?.records;
+    const ui = {
+      requireSession,
+      inbox,
+      tokens,
+      passkeys: options.auth.passkeys,
+      status,
+      ...(proposalService && recordsForUi ? { approvalKey: () => approvalKeySection(proposalService, recordsForUi) } : {}),
+    };
     registerUi(app, ui);
     registerSettings(app, ui);
   }

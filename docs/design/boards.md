@@ -2,8 +2,9 @@
 
 Status: design for ADR006, which is accepted, and built (Phase 2): the
 four boards, the status-move API, drag and *Move to…*, the conflict dialog
-and the refresh check. Consequential moves are listed but disabled until
-proposals and signed approvals land; see §10. The owner's answers of 26 Oct 2026 are worked in
+and the refresh check. Consequential moves open the confirmation dialog
+with the diff and a passkey check, once the server's approval key is
+trusted; see §10. The owner's answers of 26 Oct 2026 are worked in
 (§9); none are open. Companion mockup: [`boards-mockup.html`](boards-mockup.html)
 (open it in a browser; sample data, saves are simulated).
 The visual direction (palette, navigation, phone layout) is in
@@ -335,10 +336,12 @@ Differences from the design above, all deliberate:
 
 - **Columns are `<details>` elements.** Folding and unfolding works without
   JavaScript; open columns are kept across refreshes, not in `localStorage`.
-- **Consequential moves are disabled options** ("Accept… (needs approval)")
-  and gated columns refuse the drop, until the approval dialog with passkey
-  re-verification exists (proposals, spec §9). The server answers `403
-  approval_required` for them either way.
+- **Consequential moves** show the dialog with the reasons and the diff
+  (from the server's `403 approval_required` answer), ask for the passkey,
+  and send the move again with `approve: true`; the server commits it with a
+  proposal and a signed approval. Until the server has an approval key the
+  workspace trusts, they are disabled options ("Accept… (needs the approval
+  key)"). Promotion stays disabled until the promotion wizard exists.
 - **After every answer the board is re-rendered** from `?fragment=board`
   rather than patched card by card, so the script holds no lifecycle rules
   and never shows a state the server does not have. The moved card then shows

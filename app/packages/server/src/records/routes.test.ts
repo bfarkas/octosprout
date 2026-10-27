@@ -256,7 +256,7 @@ describe("board pages", () => {
     await seed(ideaFile("OS-I-6Q3D2", { status: "ready" }));
     const html = (await get("/ideas")).body;
     expect(html).toContain('data-moves="sprouting dormant composted"');
-    expect(html).toContain('<option value="transplanted" data-kind="promotion" disabled>Promote… (needs approval)</option>');
+    expect(html).toContain('<option value="transplanted" data-kind="promotion" disabled>Promote… (promotion wizard)</option>');
   });
 
   it("show blockers, the unblock preview and the unblocked chip on tasks", async () => {
@@ -298,7 +298,7 @@ describe("board pages", () => {
     expect(html).toContain('id="col-ACCEPTED"');
     expect(html).toContain("supersedes OS-D-11111");
     expect(html).toContain("superseded by OS-D-22222");
-    expect(html).toContain('<option value="ACCEPTED" data-kind="approval" disabled>Accept… (needs approval)</option>');
+    expect(html).toContain('<option value="ACCEPTED" data-kind="approval" disabled>Accept… (needs the approval key)</option>');
   });
 });
 

@@ -16,6 +16,7 @@ import { renderMarkdown } from "./markdown.js";
 export interface RecordPageOptions extends StatusMoveDeps {
   requireSession: (request: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply | undefined>;
   status: () => Promise<WriteStatus>;
+  approvals?: () => boolean;
 }
 
 const TYPE_LABELS: Record<RecordType, [singular: string, plural: string]> = {
@@ -55,15 +56,15 @@ function linkTo(index: RecordIndex, id: string): string {
     : `<span class="mono">${esc(id)}</span> <span class="meta">(missing)</span>`;
 }
 
-function statusControl(record: IndexedRecord): string {
+function statusControl(record: IndexedRecord, approvals: boolean): string {
   const targets = allowedTargets(record.type, record.status);
   if (targets.length === 0 || record.type === "capture" || record.type === "proposal") return "";
   const options = targets
     .map((to) => {
       const kind = moveKind(record.type, record.status, to);
-      return kind === "direct"
-        ? `<option value="${esc(to)}">${esc(statusLabel(record, to))}</option>`
-        : `<option value="${esc(to)}" disabled>${esc(statusLabel(record, to))} (needs approval)</option>`;
+      if (kind === "direct") return `<option value="${esc(to)}">${esc(statusLabel(record, to))}</option>`;
+      if (kind === "approval" && approvals) return `<option value="${esc(to)}">${esc(statusLabel(record, to))}… (approval)</option>`;
+      return `<option value="${esc(to)}" disabled>${esc(statusLabel(record, to))} (${kind === "promotion" ? "promotion wizard" : "needs the approval key"})</option>`;
     })
     .join("");
   return `<span class="move"><select id="move" aria-label="Move ${esc(record.id)} to"><option value="">Move to…</option>${options}</select></span>`;
@@ -101,7 +102,7 @@ function sidePanel(record: IndexedRecord, index: RecordIndex, history: Awaited<R
   return sections.join("\n");
 }
 
-function detailBody(record: IndexedRecord, index: RecordIndex, history: Awaited<ReturnType<RecordPageOptions["writer"]["history"]>>, now: Date): string {
+function detailBody(record: IndexedRecord, index: RecordIndex, history: Awaited<ReturnType<RecordPageOptions["writer"]["history"]>>, now: Date, approvals: boolean): string {
   const [singular] = TYPE_LABELS[record.type];
   const body =
     record.type === "capture"
@@ -115,7 +116,7 @@ function detailBody(record: IndexedRecord, index: RecordIndex, history: Awaited<
 <div class="recordhead"><div><div class="eyebrow">${esc(singular)} · ${esc(statusLabel(record, record.status))}</div>
 <h1>${esc(record.title || record.id)}</h1>
 <p class="meta">${esc(record.id)} · updated ${esc(age(record.updated, now))} · <span class="mono">${esc(record.path)}</span></p></div>
-<div class="recordactions">${record.type === "capture" ? `<a class="button" href="/inbox/${esc(record.id)}/triage">Triage</a>` : ""}${statusControl(record)}${editable ? `<a class="button secondary" href="${recordUrl(record.id)}/edit">Edit</a>` : ""}</div></div>
+<div class="recordactions">${record.type === "capture" ? `<a class="button" href="/inbox/${esc(record.id)}/triage">Triage</a>` : ""}${statusControl(record, approvals)}${editable ? `<a class="button secondary" href="${recordUrl(record.id)}/edit">Edit</a>` : ""}</div></div>
 <p id="status" class="status" role="status" aria-live="polite"></p>
 <div class="recordgrid"><div class="recordbody">${body}</div>
 <aside class="recordside">${sidePanel(record, index, history)}</aside></div>
@@ -182,7 +183,7 @@ export function registerRecordPages(app: FastifyInstance, options: RecordPageOpt
     if (!record) return reply.code(404).type("text/html; charset=utf-8").send(page({ title: "Not found", page: "not-found", nav: "record", body: `<h1>Not found</h1><p class="hint">There is no record ${esc(request.params.id)}.</p>` }));
     if (edit && record.type === "proposal") return reply.redirect(recordUrl(record.id));
     const [, plural] = TYPE_LABELS[record.type];
-    const body = edit ? editBody(record) : detailBody(record, records.index, await writer.history(record.path), now());
+    const body = edit ? editBody(record) : detailBody(record, records.index, await writer.history(record.path), now(), options.approvals?.() ?? false);
     return reply.type("text/html; charset=utf-8").send(
       page({
         title: edit ? `Edit ${record.id}` : record.title || record.id,
@@ -190,7 +191,7 @@ export function registerRecordPages(app: FastifyInstance, options: RecordPageOpt
         nav: NAV_BY_TYPE[record.type] ?? "record",
         crumbs: [plural, record.id],
         sync: await options.status(),
-        scripts: ["app.js", "record.js"],
+        scripts: ["app.js", "approve.js", "record.js"],
         wide: true,
         body,
       }),

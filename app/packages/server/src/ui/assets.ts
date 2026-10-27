@@ -195,6 +195,25 @@ dialog::backdrop { background: var(--shade); }
   .board { scroll-snap-type: x mandatory; gap: 0.6rem; margin-inline: -0.75rem; padding-inline: 0.75rem; scroll-padding-inline: 0.75rem; }
   .col[open] { flex: 0 0 84%; min-width: 0; scroll-snap-align: start; min-height: 16rem; }
 }
+/* Approvals and proposals */
+.diff { font-family: var(--mono); font-size: 0.78rem; background: var(--column); border: 1px solid var(--border); border-radius: 12px; padding: 0.55rem 0.7rem; overflow: auto; max-height: 18rem; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; }
+.card pre.diff { font-family: var(--mono); font-size: 0.78rem; margin: 0; }
+.proposal .status:empty { display: none; }
+.diff .del { color: var(--danger); }
+.diff .add { color: var(--green); }
+dialog.approve { width: min(44rem, calc(100vw - 32px)); }
+dialog.approve .dlg ul { margin: 0; padding-left: 1.2rem; }
+.badge { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em; border-radius: 999px; padding: 0.1rem 0.5rem; background: var(--column); color: var(--muted); border: 1px solid var(--border); white-space: nowrap; }
+.badge.gated { color: var(--violet-text); background: var(--violet-soft); border-color: var(--violet-line); }
+.badge.applied { color: var(--green); background: var(--green-soft); border-color: transparent; }
+.badge.rejected, .badge.stale { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
+.proposal h2 { margin: 0 0 0.25rem; font-size: 1.05rem; display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; }
+.proposal .actions { margin-top: 0.6rem; }
+.proposal details { margin-top: 0.5rem; }
+.proposal summary { cursor: pointer; color: var(--violet-text); font-size: 0.9rem; }
+.bulk { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin: 0.5rem 0 0.25rem; }
+.select-row { display: inline-flex; gap: 0.4rem; align-items: center; font-weight: 500; margin: 0; }
+
 /* Triage */
 .banner.info { border-color: var(--green); color: var(--green); background: var(--green-soft); }
 .triage-button { float: right; margin: -0.2rem 0 0.4rem 0.75rem; padding: 0.35rem 0.8rem; font-size: 0.9rem; }
@@ -262,7 +281,7 @@ const RETURN_KEY = "octosprout.return";
  */
 export const RETURN_JS = `
 (() => {
-  const pages = ["/", "/capture", "/settings", "/ideas", "/tasks", "/projects", "/decisions"];
+  const pages = ["/", "/capture", "/settings", "/ideas", "/tasks", "/projects", "/decisions", "/proposals"];
   try {
     if (pages.includes(location.pathname) || location.pathname.startsWith("/records/") || location.pathname.startsWith("/inbox/")) {
       sessionStorage.setItem("${RETURN_KEY}", location.pathname + location.search + location.hash);

@@ -105,14 +105,28 @@ export const BOARD_JS = String.raw`
 
     let response;
     let data = {};
-    try {
-      response = await fetch("/api/v1/records/" + encodeURIComponent(id) + "/status", {
+    const send = async (approve) =>
+      fetch("/api/v1/records/" + encodeURIComponent(id) + "/status", {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json", "x-csrf-token": await token() },
-        body: JSON.stringify({ to: to, base_blob: baseBlob || el.dataset.blob }),
+        body: JSON.stringify(approve ? { to: to, base_blob: baseBlob || el.dataset.blob, approve: true } : { to: to, base_blob: baseBlob || el.dataset.blob }),
       });
+    try {
+      response = await send(false);
       data = await response.json().catch(() => ({}));
+      // A consequential move: confirm it, with the diff and a passkey, then send it again approved.
+      if (response.status === 403 && data.error === "approval_required" && data.move !== "promotion" && window.octosproutApprove) {
+        const label = (document.querySelector('.col[data-status="' + CSS.escape(to) + '"] .label') || {}).textContent || to;
+        const approved = await window.octosproutApprove(data, "Move " + id + " to " + label + "?", () => send(true));
+        if (approved === null) {
+          inFlight--;
+          await refresh(false);
+          return;
+        }
+        response = approved.response;
+        data = approved.data;
+      }
     } catch (error) {
       inFlight--;
       await refresh(false);
@@ -140,7 +154,11 @@ export const BOARD_JS = String.raw`
     }
     await refresh(false);
     if (response.status === 401) say("Your session has ended. Sign in again.");
-    else if (response.status === 403 && data.error === "approval_required") say("This move needs approval with your passkey.");
+    else if (response.status === 403 && data.error === "approval_required" && data.move === "promotion") say("An idea is promoted with the promotion wizard.");
+    else if (response.status === 403 && data.error === "approval_required") say(data.message || "This move needs the server's approval key. See Settings.");
+    else if (data.error === "reverify_required") say("The passkey check expired. Try again.");
+    else if (data.error === "no_signing_key") say("The server has no approval signing key, so nothing can be approved.");
+    else if (data.error === "stale") say(data.message || "The record changed. Nothing was saved.");
     else if (response.status === 403) {
       csrf = null;
       say("The move was refused. Reload the page and try again.");

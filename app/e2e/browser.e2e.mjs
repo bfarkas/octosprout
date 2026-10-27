@@ -23,7 +23,9 @@ import { join } from "node:path";
 
 import { chromium } from "playwright";
 
-import { renderRecord } from "../packages/core/dist/index.js";
+import { generateKeyPairSync } from "node:crypto";
+
+import { renderRecord, validateDirectory } from "../packages/core/dist/index.js";
 import { startServer } from "../packages/server/dist/index.js";
 
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
@@ -61,6 +63,14 @@ try {
   seedTask("OS-T-2B7KC", "Status route", "in_progress", [{ rel: "blocks", id: "OS-T-H4V9X" }]);
   seedTask("OS-T-H4V9X", "Conflict dialog", "blocked");
   seedTask("OS-T-5NM3A", "Pointer drag", "backlog");
+  // A decision to accept, and a workspace that trusts no approval key yet.
+  const adr = "# ADR OS-D-4M9TZ - Thin board UI\n* Date: Oct 26, 2026\n* Status: PROPOSED\n* Author: Me\n\n## Decision\nX\n\n## Context\nY\n\n## Options Considered\n### Option 1 (SELECTED): X\n#### Consequences\n * Adopted because: it works\n\n## Advice\n\n## Supporting Material\n";
+  mkdirSync(join(seed, "records/decisions"), { recursive: true });
+  writeFileSync(
+    join(seed, "records/decisions/OS-D-4M9TZ--thin-board-ui.md"),
+    renderRecord({ id: "OS-D-4M9TZ", type: "decision", schema_version: 1, title: "Thin board UI", status: "PROPOSED", created: "2026-10-26T09:00:00Z", updated: "2026-10-26T09:00:00Z", template: "harmel-law-adr@1775d49516784bee6824fcd02556926121a7e772" }, adr),
+  );
+  writeFileSync(join(seed, "octosprout.yaml"), "workspace_schema_version: 1\nid_prefix: OS\napproval_public_keys: []\n");
   git(seed, "add", "-A");
   git(seed, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "first commit");
   git(seed, "push", "-q", "origin", "HEAD:main");
@@ -69,6 +79,7 @@ try {
   const origin = `http://localhost:${port}`;
   mkdirSync(join(root, "secrets"));
   writeFileSync(join(root, "secrets", "setup_token"), "e2e-setup-token\n");
+  writeFileSync(join(root, "secrets", "approval_signing_key"), generateKeyPairSync("ed25519").privateKey.export({ format: "pem", type: "pkcs8" }));
 
   server = await startServer({
     repoDir: join(root, "repo"),
@@ -79,6 +90,7 @@ try {
     rpId: "localhost",
     origin,
     setupTokenFile: join(root, "secrets", "setup_token"),
+    approvalKeyFile: join(root, "secrets", "approval_signing_key"),
     trustProxy: false,
     syncIntervalMs: 1000,
     logLevel: "silent",
@@ -368,6 +380,28 @@ try {
   assert.equal(await newCount(), before - 2);
   assert.equal(git(remote, "log", "-1", "--format=%s", "main"), `triage: ${secondCapture} composted`);
   step("a composted capture leaves the Inbox");
+
+  // Approvals: trust the server's key, then accept a decision from the board with the passkey.
+  await page.click('.side a[title="Settings"]');
+  await page.click('[data-action="trust-key"]');
+  await page.waitForSelector("text=Approvals are signed with");
+  assert.match(git(remote, "log", "-1", "--format=%s", "main"), /^apply-proposal: OS-PROP-[0-9A-Z]{5} Trust the server's approval key server-/);
+  step("Settings trusts the server's approval key with a self-signed proposal");
+
+  await page.click('.side a[title="Decisions"]');
+  await page.selectOption("#card-OS-D-4M9TZ select", "ACCEPTED");
+  await page.waitForSelector("dialog.approve[open]");
+  assert.match(await page.textContent("dialog.approve"), /\+ status: ACCEPTED/);
+  await page.click('dialog.approve button[value="ok"]');
+  await page.waitForSelector("#col-ACCEPTED #card-OS-D-4M9TZ .sync.committed");
+  assert.match(git(remote, "log", "-1", "--format=%s", "main"), /^apply-proposal: OS-PROP-[0-9A-Z]{5} Move OS-D-4M9TZ from PROPOSED to ACCEPTED/);
+  step("accepting a decision shows the diff, asks for the passkey and commits a signed approval");
+
+  await page.click('.side a[title="Proposals"]');
+  assert.match(await page.textContent("main"), /applied/);
+  const errors = validateDirectory(join(root, "repo")).filter((finding) => finding.severity === "error");
+  assert.deepEqual(errors, []);
+  step("the workspace validates, signatures included");
 
   console.log("\nAll browser checks passed.");
 } finally {

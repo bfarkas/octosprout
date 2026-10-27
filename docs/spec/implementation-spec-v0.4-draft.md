@@ -599,6 +599,14 @@ Canonical JSON sorts object keys and has no whitespace (RFC 8785 for the strings
    - If any of them differ, the proposal becomes `stale`. The UI shows what changed, and you can reject it or ask the agent to re-propose.
 4. A rejection also writes a signed `approval` block with `decision: rejected`.
 
+**As built (Phase 2):**
+- The server reads its key from the `approval_signing_key` secret; `octosprout-server approval-key generate` makes one. Its `key_id` is `server-` and the first 8 hex digits of the public key's SHA-256.
+- While `octosprout.yaml` trusts no key, Settings offers **Trust this server's approval key**: after a passkey check the server adds its public key with a proposal it signs itself. Any later key change is an ordinary consequential proposal.
+- The server decides from the workspace, not from the proposal's `consequential` flag, whether applying is consequential, and rewrites the flag when it applies the proposal.
+- Every decision is signed, routine ones included, so every applied or rejected proposal carries an `approval` block.
+- A consequential move or edit in the browser answers `403 approval_required` with the reasons and the diff. Confirmed in a dialog and with a fresh passkey, it is sent again with `approve: true`; the server writes a proposal and applies it in the same commit.
+- A proposal whose `base_blob`s no longer match is marked `stale` when someone tries to approve it, and can then only be rejected.
+
 **Creating proposals:**
 - Agents create proposals with the CLI or MCP. Both commit only the proposal file and sync it.
 - The server also accepts proposals created in the UI itself.
@@ -1134,9 +1142,9 @@ Tests use Vitest. Git tests run against temporary bare repositories that act as 
 
 ### Status (26 October 2026)
 
-- **Phase 0:** domain, DNS, Caddy and TLS are live; the Git write service is proven in tests and in production; passkey login works on the iPhone; the ADR template is vendored. The board engine was evaluated and decided (ADR006). Still open: the Ed25519 approval round-trip in CI. Decisions taken so far are ADR001–ADR006.
+- **Phase 0:** domain, DNS, Caddy and TLS are live; the Git write service is proven in tests and in production; passkey login works on the iPhone; the ADR template is vendored. The board engine was evaluated and decided (ADR006). The Ed25519 approval round trip is proven in tests and in the browser end-to-end check (sign on the server, verify in `octosprout validate`); it still has to run once against the private repository's CI. Decisions taken so far are ADR001–ADR006.
 - **Phase 1:** complete and deployed. The exit criterion was met with the share link and home screen app instead of the token Shortcut (ADR001).
-- **Phase 2:** in progress. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief; Record detail with editing; and triage (below). Next: proposals with signed approvals (which enable consequential moves on the boards), promotion, ADR creation, research and experts lists, search and the health panel.
+- **Phase 2:** in progress. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief; Record detail with editing; triage; and proposals with signed approvals, which enable consequential moves on the boards (below). Next: proposals with signed approvals (which enable consequential moves on the boards), promotion, ADR creation, research and experts lists, search and the health panel.
 - **Phase 3:** not started.
 
 ### Phase 0 — Compatibility and safety spike

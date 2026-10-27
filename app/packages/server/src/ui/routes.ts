@@ -18,6 +18,8 @@ export interface UiOptions {
   tokens: TokenStore;
   passkeys: PasskeyStore;
   status: () => Promise<WriteStatus>;
+  /** The approval key section of Settings, when the server handles approvals. */
+  approvalKey?: () => string;
 }
 
 /** Up to this many characters of a capture are shown in the list; the rest sits behind "Show all". */
@@ -139,7 +141,7 @@ export function registerSettings(app: FastifyInstance, options: UiOptions): void
         nav: "settings",
         crumbs: ["Workspace", "Settings"],
         sync: await options.status(),
-        scripts: ["app.js"],
+        scripts: options.approvalKey ? ["app.js", "approve.js", "proposals.js"] : ["app.js"],
         body: `<h1>Settings</h1>
 <h2>Inbox tokens</h2>
 <p class="hint">A token lets a script or another client add captures through the inbox API, and nothing else. It is shown once. The share link and the home screen app need no token.</p>
@@ -154,6 +156,7 @@ export function registerSettings(app: FastifyInstance, options: UiOptions): void
 <pre id="new-token-value"></pre>
 </div>
 <p id="status" class="status" role="status" aria-live="polite"></p>
+${options.approvalKey ? options.approvalKey() : ""}
 <h2>Passkeys</h2>
 <ul class="plain">${keys}</ul>
 <p class="hint">Add another device at <a href="/setup">/setup</a> with the setup token.</p>`,

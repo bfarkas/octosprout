@@ -15,6 +15,8 @@ export interface BoardOptions {
   requireSession: (request: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply | undefined>;
   records: WorkspaceRecords;
   status: () => Promise<WriteStatus>;
+  /** True when consequential moves can be approved: the server has a signing key the workspace trusts. */
+  approvals?: () => boolean;
   now?: () => Date;
 }
 
@@ -157,14 +159,20 @@ function chips(record: IndexedRecord, index: RecordIndex): string {
   return out.length > 0 ? `<div class="chips">${out.join("")}</div>` : "";
 }
 
-function moveOptions(record: IndexedRecord, board: Board, index: RecordIndex): { html: string; targets: string[]; any: boolean } {
+function moveOptions(record: IndexedRecord, board: Board, index: RecordIndex, approvals: boolean): { html: string; targets: string[]; any: boolean } {
   const targets = [...allowedTargets(record.type, record.status)];
   const label = (status: string) => board.columns.find((c) => c.status === status)?.label ?? status;
+  // Consequential moves are confirmed with the diff and a passkey (§9.1); promotion has its own wizard (§10).
+  const movable = (to: string) => {
+    const kind = moveKind(record.type, record.status, to);
+    return kind === "direct" || (kind === "approval" && approvals);
+  };
   const options = targets.map((to) => {
     const kind: MoveKind = moveKind(record.type, record.status, to);
+    if (kind === "approval" && approvals) return `<option value="${esc(to)}" data-kind="approval">${esc(GATED_LABELS[to] ?? `${label(to)}…`)}</option>`;
     if (kind !== "direct") {
-      // Consequential moves are approved with a passkey through a proposal (§9), not from the board yet.
-      return `<option value="${esc(to)}" data-kind="${kind}" disabled>${esc(GATED_LABELS[to] ?? `${label(to)}…`)} (needs approval)</option>`;
+      const why = kind === "promotion" ? "promotion wizard" : "needs the approval key";
+      return `<option value="${esc(to)}" data-kind="${kind}" disabled>${esc(GATED_LABELS[to] ?? `${label(to)}…`)} (${why})</option>`;
     }
     const unblocked = record.type === "task" && to === "done" ? unblockedBy(record.id, index.list("task")) : [];
     const suffix = unblocked.length > 0 ? ` (+${unblocked.length} unblocked)` : "";
@@ -172,15 +180,15 @@ function moveOptions(record: IndexedRecord, board: Board, index: RecordIndex): {
   });
   return {
     any: targets.length > 0,
-    targets: targets.filter((to) => moveKind(record.type, record.status, to) === "direct"),
+    targets: targets.filter(movable),
     html: `<option value="">Move to…</option>${options.join("")}`,
   };
 }
 
-function card(record: IndexedRecord, board: Board, index: RecordIndex, now: Date): string {
+function card(record: IndexedRecord, board: Board, index: RecordIndex, now: Date, approvals: boolean): string {
   const project = projectOf(record);
   const projectTitle = project ? index.get(project)?.title : undefined;
-  const { html: options, targets, any } = moveOptions(record, board, index);
+  const { html: options, targets, any } = moveOptions(record, board, index, approvals);
   const blockedBy = record.type === "task" ? index.blockedBy(record.id) : [];
   const movable = targets.length > 0;
   return `<article class="bcard" id="card-${esc(record.id)}" data-id="${esc(record.id)}" data-blob="${esc(record.blob)}" data-status="${esc(record.status)}" data-moves="${esc(targets.join(" "))}"${blockedBy.length > 0 ? ` data-blocked-by="${esc(blockedBy.join(" "))}"` : ""}>
@@ -196,13 +204,13 @@ function visibleRecords(board: Board, index: RecordIndex, project: string | unde
 }
 
 /** The board itself: what the page swaps in when it refreshes (`?fragment=board`). */
-export function renderBoard(board: Board, index: RecordIndex, project: string | undefined, now: Date): string {
+export function renderBoard(board: Board, index: RecordIndex, project: string | undefined, now: Date, approvals = false): string {
   const records = visibleRecords(board, index, project);
   const columns = board.columns.map((column) => {
     const cards = records
       .filter((r) => r.status === column.status)
       .sort((a, b) => b.updated.localeCompare(a.updated) || a.id.localeCompare(b.id));
-    const body = cards.length > 0 ? cards.map((r) => card(r, board, index, now)).join("\n") : `<p class="empty">Nothing here</p>`;
+    const body = cards.length > 0 ? cards.map((r) => card(r, board, index, now, approvals)).join("\n") : `<p class="empty">Nothing here</p>`;
     return `<details class="col${column.gated ? " gated" : ""}" id="col-${esc(column.status)}" data-status="${esc(column.status)}"${column.folded ? "" : " open"}>
 <summary><span class="label">${esc(column.label)}</span><span class="count">${cards.length}</span></summary>
 ${column.hint ? `<div class="colhint">${esc(column.hint)}</div>` : ""}<div class="cards">
@@ -246,7 +254,7 @@ export function registerBoards(app: FastifyInstance, options: BoardOptions): voi
       const requested = board.filter ? request.query.project : undefined;
       const project = requested && index.get(requested)?.type === "project" ? index.get(requested)!.id : undefined;
       const html = (body: string) => reply.type("text/html; charset=utf-8").send(body);
-      if (request.query.fragment === "board") return html(renderBoard(board, index, project, now()));
+      if (request.query.fragment === "board") return html(renderBoard(board, index, project, now(), options.approvals?.() ?? false));
 
       const status = await options.status();
       const count = visibleRecords(board, index, project).length;
@@ -266,11 +274,11 @@ export function registerBoards(app: FastifyInstance, options: BoardOptions): voi
           crumbs: board.crumbs,
           sync: status,
           wide: true,
-          scripts: ["app.js", "board.js"],
+          scripts: ["app.js", "approve.js", "board.js"],
           body: `<div class="boardhead"><div>${eyebrow}<h1>${board.title} <span class="meta">${count} record${count === 1 ? "" : "s"}</span></h1></div>${filterForm(board, index, project)}</div>
 ${pending}
 <nav class="jump" aria-label="Jump to column">${jump}</nav>
-${renderBoard(board, index, project, now())}
+${renderBoard(board, index, project, now(), options.approvals?.() ?? false)}
 ${DIALOGS}`,
         }),
       );

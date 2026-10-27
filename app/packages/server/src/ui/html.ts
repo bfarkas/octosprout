@@ -12,7 +12,7 @@ export function esc(value: unknown): string {
 }
 
 /** `record` shows the shell with no entry current. */
-export type NavKey = "inbox" | "ideas" | "tasks" | "projects" | "decisions" | "capture" | "settings" | "record";
+export type NavKey = "inbox" | "ideas" | "tasks" | "projects" | "decisions" | "proposals" | "capture" | "settings" | "record";
 
 export interface PageOptions {
   title: string;
@@ -39,6 +39,7 @@ const ICONS = {
   decisions: '<path d="M6 3h6l3 3v11H6z"/><path d="M12 3v3h3"/><path d="M8.5 11h4M8.5 14h4"/>',
   settings: '<circle cx="10" cy="10" r="2.5"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/>',
   signout: '<path d="M8 4H5v12h3"/><path d="M12 6l4 4-4 4"/><path d="M16 10H8"/>',
+  proposals: '<path d="M10 2.5l6 2.5v4.5c0 3.8-2.6 6.6-6 8-3.4-1.4-6-4.2-6-8V5z"/><path d="M7.5 10l1.8 1.8 3.4-3.6"/>',
 } as const;
 
 const NAV: ReadonlyArray<{ key: NavKey; href: string; label: string; icon: keyof typeof ICONS }> = [
@@ -47,6 +48,7 @@ const NAV: ReadonlyArray<{ key: NavKey; href: string; label: string; icon: keyof
   { key: "tasks", href: "/tasks", label: "Tasks", icon: "tasks" },
   { key: "projects", href: "/projects", label: "Projects", icon: "projects" },
   { key: "decisions", href: "/decisions", label: "Decisions", icon: "decisions" },
+  { key: "proposals", href: "/proposals", label: "Proposals", icon: "proposals" },
 ];
 
 const icon = (name: keyof typeof ICONS): string => `<svg viewBox="0 0 20 20" aria-hidden="true">${ICONS[name]}</svg>`;
