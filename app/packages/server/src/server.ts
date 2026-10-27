@@ -42,7 +42,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       ...(setupToken ? { setupToken } : {}),
       status: () => writer.status(),
     },
-    records: { records, writer: { ...records.indexing(writer), readBlob: (sha) => writer.readBlob(sha) } },
+    records: { records, writer: { ...records.indexing(writer), readBlob: (sha) => writer.readBlob(sha), history: (path, limit) => writer.history(path, limit) } },
     logger: { level: config.logLevel },
     trustProxy: config.trustProxy,
   });

@@ -38,7 +38,10 @@ export type StatusMoveOutcome =
 
 export interface StatusMoveDeps {
   records: WorkspaceRecords;
-  writer: Writer & { readBlob(sha: string): Promise<Buffer | null> };
+  writer: Writer & {
+    readBlob(sha: string): Promise<Buffer | null>;
+    history(path: string, limit?: number): Promise<Array<{ commit: string; author: string; date: string; subject: string }>>;
+  };
   now?: () => Date;
 }
 

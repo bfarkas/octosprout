@@ -350,3 +350,21 @@ describe("the file lock", () => {
     expect((await service().submit(createCapture("OS-C-AAAAA"))).status).toBe("committed");
   });
 });
+
+describe("reading", () => {
+  it("lists the commits that touched a file, newest first, and reads blobs", async () => {
+    const writer = service();
+    await writer.submit(createCapture("OS-C-7K3QX"));
+    await writer.submit({ ...createCapture("OS-C-7K3QX", { tags: ["later"] }), subject: "edit: OS-C-7K3QX", preconditions: [] });
+    const history = await writer.history(capturePath("OS-C-7K3QX"));
+    expect(history.map((h) => h.subject)).toEqual(["edit: OS-C-7K3QX", "capture: OS-C-7K3QX (test)"]);
+    expect(history[0]).toMatchObject({ author: "OctoSprout", commit: expect.stringMatching(/^[0-9a-f]{40}$/), date: expect.stringMatching(/^\d{4}-/) });
+    expect(await writer.history("records/none.md")).toEqual([]);
+
+    const blob = await blobOf(sandbox.server, capturePath("OS-C-7K3QX"));
+    expect((await writer.readBlob(blob))?.toString()).toContain("tags:");
+    expect(await writer.readBlob("0".repeat(40))).toBeNull();
+    expect(await writer.readBlob("not-a-sha")).toBeNull();
+    expect(await writer.readBlob(history[0]!.commit)).toBeNull();
+  });
+});

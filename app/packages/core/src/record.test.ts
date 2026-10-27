@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseRecord, renderRecord, sha256Hex } from "./record.js";
+import { parseRecord, renderRecord, setFrontmatterFields, sha256Hex } from "./record.js";
 
 function parsed(text: string) {
   const result = parseRecord(text);
@@ -66,5 +66,72 @@ describe("renderRecord", () => {
 describe("sha256Hex", () => {
   it("hashes UTF-8 bytes", () => {
     expect(sha256Hex("abc")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  });
+});
+
+describe("setFrontmatterFields", () => {
+  const text = [
+    "---",
+    "id: OS-T-QF81M",
+    "title: Old  # keep",
+    "tags: [a, b]",
+    "links:",
+    "  - { rel: blocks, id: OS-T-AAAAA }",
+    "refs:",
+    "  - kind: repo",
+    "    url: https://github.com/bfarkas/x",
+    "x-board: { lane: 1 }",
+    "---",
+    "body\n",
+  ].join("\n");
+
+  it("replaces only the named fields and keeps the rest byte for byte", () => {
+    const out = setFrontmatterFields(text, {
+      title: "New: title",
+      tags: ["c"],
+      links: [{ rel: "blocks", id: "OS-T-AAAAA" }, { rel: "relates_to", id: "OS-I-2HD9W" }],
+    });
+    expect(out).toBe(
+      [
+        "---",
+        "id: OS-T-QF81M",
+        'title: "New: title"  # keep',
+        "tags: [c]",
+        "links:",
+        "  - { rel: blocks, id: OS-T-AAAAA }",
+        "  - { rel: relates_to, id: OS-I-2HD9W }",
+        "refs:",
+        "  - kind: repo",
+        "    url: https://github.com/bfarkas/x",
+        "x-board: { lane: 1 }",
+        "---",
+        "body\n",
+      ].join("\n"),
+    );
+  });
+
+  it("quotes list items that are not plain words", () => {
+    expect(setFrontmatterFields("---\n---\n", { tags: ["a-b", "x: y", "1"] })).toBe('---\ntags: [a-b, "x: y", "1"]\n---\n');
+  });
+
+  it("removes fields set to undefined or an empty list, and appends new ones", () => {
+    const out = setFrontmatterFields(text, { links: undefined, tags: [], refs: [{ kind: "pr", url: "https://github.com/bfarkas/x/pull/1", note: "first slice" }], approval: "OS-PROP-8V3KD" });
+    expect(out).toBe(
+      [
+        "---",
+        "id: OS-T-QF81M",
+        "title: Old  # keep",
+        "refs:",
+        "  - kind: pr",
+        "    url: https://github.com/bfarkas/x/pull/1",
+        "    note: first slice",
+        "x-board: { lane: 1 }",
+        "approval: OS-PROP-8V3KD",
+        "---",
+        "body\n",
+      ].join("\n"),
+    );
+    const parsed = parseRecord(out);
+    expect(parsed.ok && parsed.record.frontmatter.refs).toEqual([{ kind: "pr", url: "https://github.com/bfarkas/x/pull/1", note: "first slice" }]);
   });
 });

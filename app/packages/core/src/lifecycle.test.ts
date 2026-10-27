@@ -124,8 +124,8 @@ describe("setFrontmatterScalars", () => {
     expect(setFrontmatterScalars("---\ntitle: a\n---\n", { title: "a: b" })).toBe('---\ntitle: "a: b"\n---\n');
   });
 
-  it("refuses to overwrite a collection", () => {
-    expect(() => setFrontmatterScalars("---\ntags: [a]\n---\n", { tags: "a" })).toThrow(/not a scalar/);
+  it("replaces a collection with a scalar", () => {
+    expect(setFrontmatterScalars("---\ntags: [a]\nid: x\n---\n", { tags: "a" })).toBe("---\ntags: a\nid: x\n---\n");
   });
 });
 

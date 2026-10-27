@@ -197,6 +197,23 @@ export class GitWriteService {
     return commit === "" ? undefined : { commit, onRemote: false };
   }
 
+  /**
+   * Commits that touched `path`, newest first, following renames. Reads refs
+   * only, so it does not wait behind queued writes.
+   */
+  async history(path: string, limit = 20): Promise<Array<{ commit: string; author: string; date: string; subject: string }>> {
+    safePath(path);
+    const log = await this.#git(["log", "--follow", `-n${limit}`, "--format=%H%x1f%an%x1f%aI%x1f%s", "--", path], { allowFail: true });
+    if (log.code !== 0) return [];
+    return log.stdout
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        const [commit = "", author = "", date = "", subject = ""] = line.split("\x1f");
+        return { commit, author, date, subject };
+      });
+  }
+
   /** The content of a blob by SHA, or `null` if the clone does not have it. Reads objects only. */
   async readBlob(sha: string): Promise<Buffer | null> {
     if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(sha)) return null;

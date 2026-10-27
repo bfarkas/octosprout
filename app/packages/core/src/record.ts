@@ -7,7 +7,7 @@
  */
 import { createHash } from "node:crypto";
 
-import { LineCounter, parseDocument, stringify, isMap, isScalar, type Scalar } from "yaml";
+import { Document, LineCounter, parse, parseDocument, stringify, isMap, isScalar, isSeq, visit, type Scalar } from "yaml";
 
 export type Frontmatter = Record<string, unknown>;
 
@@ -93,16 +93,18 @@ export function parseRecord(text: string): ParseResult {
 }
 
 /**
- * Sets top-level scalar frontmatter fields in place. Only the value text of
- * each field changes; key order, comments, formatting of every other line,
- * `x-` keys and the body stay byte for byte. Missing fields are appended at
- * the end of the frontmatter. Throws if the file does not parse or a field
- * holds a mapping or sequence.
+ * Sets, replaces or removes top-level frontmatter fields in place. Only the
+ * lines of the fields named change; key order, comments and formatting of
+ * every other line, `x-` keys and the body stay byte for byte. A scalar that
+ * replaces a scalar keeps the rest of its line (such as a comment). New
+ * fields are appended at the end of the frontmatter; `undefined` removes a
+ * field, and so does an empty list. Throws if the frontmatter does not parse.
  */
-export function setFrontmatterScalars(text: string, fields: Record<string, string | number | boolean>): string {
+export function setFrontmatterFields(text: string, fields: Record<string, unknown>): string {
   const span = frontmatterSpan(text);
   if (!span.ok) throw new Error(span.error.message);
-  const doc = parseDocument(span.yamlSource, { version: "1.2", schema: "core" });
+  const yaml = span.yamlSource;
+  const doc = parseDocument(yaml, { version: "1.2", schema: "core" });
   if (doc.errors.length > 0) throw new Error(`Invalid YAML: ${doc.errors[0]!.message.split("\n")[0]}`);
   const root = doc.contents;
   if (root !== null && !isMap(root)) throw new Error("Frontmatter must be a YAML mapping.");
@@ -110,25 +112,66 @@ export function setFrontmatterScalars(text: string, fields: Record<string, strin
   const edits: Array<{ start: number; end: number; text: string }> = [];
   const appended: string[] = [];
   for (const [key, value] of Object.entries(fields)) {
-    const rendered = stringify(value, { schema: "core", lineWidth: 0 }).trimEnd();
+    const remove = value === undefined || (Array.isArray(value) && value.length === 0);
     const pair = root?.items.find((item) => isScalar(item.key) && item.key.value === key);
-    if (!pair) {
-      appended.push(`${stringify(key, { schema: "core" }).trimEnd()}: ${rendered}\n`);
+    const keyNode = pair?.key as Scalar | undefined;
+    const valueNode = pair?.value as { range?: [number, number, number] } | null | undefined;
+    if (!pair || !keyNode?.range) {
+      if (!remove) appended.push(renderField(key, value));
       continue;
     }
-    const node = pair.value as Scalar | null;
-    if (node === null || !isScalar(node) || !node.range) throw new Error(`Field '${key}' is not a scalar.`);
-    edits.push({ start: OPEN.length + node.range[0], end: OPEN.length + node.range[1], text: rendered });
+    if (!remove && isScalarValue(value) && valueNode && isScalar(valueNode) && valueNode.range) {
+      edits.push({ start: valueNode.range[0], end: valueNode.range[1], text: renderScalar(value) });
+      continue;
+    }
+    // Replace the whole field: from the start of its key's line to the end of its value's last line.
+    const start = yaml.lastIndexOf("\n", keyNode.range[0] - 1) + 1;
+    const valueEnd = valueNode?.range?.[1] ?? keyNode.range[1];
+    const end = yaml[valueEnd - 1] === "\n" ? valueEnd : yaml.indexOf("\n", valueEnd) + 1 || yaml.length;
+    edits.push({ start, end, text: remove ? "" : renderField(key, value) });
   }
 
-  let out = text;
-  let yamlEnd = OPEN.length + span.yamlSource.length;
-  for (const edit of edits.sort((a, b) => b.start - a.start)) {
-    out = out.slice(0, edit.start) + edit.text + out.slice(edit.end);
-    yamlEnd += edit.text.length - (edit.end - edit.start);
+  let out = yaml;
+  for (const edit of edits.sort((a, b) => b.start - a.start)) out = out.slice(0, edit.start) + edit.text + out.slice(edit.end);
+  out += appended.join("");
+  return text.slice(0, OPEN.length) + out + text.slice(OPEN.length + yaml.length);
+}
+
+function isScalarValue(value: unknown): value is string | number | boolean {
+  return typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+}
+
+function renderScalar(value: unknown): string {
+  return stringify(value, { schema: "core", lineWidth: 0 }).trimEnd();
+}
+
+/**
+ * Renders one field as YAML lines, in the house style of the spec's examples:
+ * lists of scalars on one line (`tags: [a, b]`, quoting anything but plain
+ * kebab-case words), small maps in a list as flow maps
+ * (`- { rel: blocks, id: OS-T-AAAAA }`), anything larger as a block.
+ */
+function renderField(key: string, value: unknown): string {
+  const name = renderScalar(key);
+  if (isScalarValue(value)) return `${name}: ${renderScalar(value)}\n`;
+  if (Array.isArray(value) && value.every(isScalarValue)) {
+    const item = (v: string | number | boolean) =>
+      typeof v === "string" && /^[a-z0-9][a-z0-9-]*$/.test(v) && typeof parse(v, { schema: "core" }) === "string" ? v : JSON.stringify(v);
+    return `${name}: [${value.map(item).join(", ")}]\n`;
   }
-  if (appended.length > 0) out = out.slice(0, yamlEnd) + appended.join("") + out.slice(yamlEnd);
-  return out;
+  const doc = new Document({ [key]: value }, { version: "1.2", schema: "core" });
+  visit(doc, {
+    Map(_key, node, path) {
+      const inSeq = isSeq(path[path.length - 1]);
+      if (inSeq && node.items.length <= 2 && node.items.every((item) => isScalar(item.value))) node.flow = true;
+    },
+  });
+  return doc.toString({ lineWidth: 0, flowCollectionPadding: true });
+}
+
+/** Sets top-level scalar fields in place; see `setFrontmatterFields`. */
+export function setFrontmatterScalars(text: string, fields: Record<string, string | number | boolean>): string {
+  return setFrontmatterFields(text, fields);
 }
 
 /** Renders a record file. The body is appended unchanged. */

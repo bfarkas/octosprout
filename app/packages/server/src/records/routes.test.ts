@@ -60,7 +60,7 @@ beforeEach(async () => {
       setupToken: TEST_SETUP_TOKEN,
       status: () => writer.status(),
     },
-    records: { records, writer: { ...records.indexing(writer), readBlob: (sha) => writer.readBlob(sha) }, now: () => NOW },
+    records: { records, writer: { ...records.indexing(writer), readBlob: (sha) => writer.readBlob(sha), history: (path, limit) => writer.history(path, limit) }, now: () => NOW },
   });
   await app.ready();
   session = await signIn(app);
@@ -299,5 +299,97 @@ describe("board pages", () => {
     expect(html).toContain("supersedes OS-D-11111");
     expect(html).toContain("superseded by OS-D-22222");
     expect(html).toContain('<option value="ACCEPTED" data-kind="approval" disabled>Accept… (needs approval)</option>');
+  });
+});
+
+describe("PUT /api/v1/records/:id", () => {
+  const put = (id: string, payload: Record<string, unknown>, headers: Record<string, string> = {}) =>
+    app.inject({
+      method: "PUT",
+      url: `/api/v1/records/${id}`,
+      headers: { cookie: session.cookie, origin: TEST_ORIGIN, "x-csrf-token": session.csrf, "content-type": "application/json", ...headers },
+      payload: JSON.stringify({ base_blob: records.index.get(id)?.blob ?? "0".repeat(40), ...payload }),
+    });
+  const path = "records/ideas/OS-I-5VT4F--example.md";
+
+  it("saves a form edit and sets updated", async () => {
+    await seed(ideaFile("OS-I-5VT4F", { tags: ["a"] }));
+    const response = await put("OS-I-5VT4F", { form: { title: "Weekly digest", tags: ["weekly", "garden"], links: [], body: "## Motivation\nWhy\n" } });
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as { status: string; base_blob: string };
+    expect(body.status).toBe("committed");
+    expect(body.base_blob).toBe(await git(sandbox.server, "rev-parse", `HEAD:${path}`));
+    const text = readFileSync(join(sandbox.server, path), "utf8");
+    expect(text).toContain("title: Weekly digest\n");
+    expect(text).toContain("tags: [weekly, garden]\n");
+    expect(text).toContain("updated: 2026-10-26T09:38:00Z\n");
+    expect(text.endsWith("---\n## Motivation\nWhy\n")).toBe(true);
+    expect(await git(sandbox.remote, "log", "-1", "--format=%s")).toBe("edit: OS-I-5VT4F Weekly digest");
+  });
+
+  it("saves a whole-file edit", async () => {
+    await seed(ideaFile("OS-I-5VT4F"));
+    const content = records.index.get("OS-I-5VT4F")!.text.replace("title: Example OS-I-5VT4F", "title: Raw edit") + "Body\n";
+    expect((await put("OS-I-5VT4F", { content })).statusCode).toBe(200);
+    expect(records.index.get("OS-I-5VT4F")?.title).toBe("Raw edit");
+    expect(records.index.get("OS-I-5VT4F")?.body).toBe("Body\n");
+  });
+
+  it("answers unchanged when nothing changes", async () => {
+    await seed(ideaFile("OS-I-5VT4F"));
+    expect((await put("OS-I-5VT4F", { form: {} })).json()).toEqual({ status: "unchanged" });
+  });
+
+  it("refuses immutable fields, status changes and capture text", async () => {
+    await seed(ideaFile("OS-I-5VT4F"));
+    const text = records.index.get("OS-I-5VT4F")!.text;
+    const status = await put("OS-I-5VT4F", { content: text.replace("status: seed", "status: ready") });
+    expect(status.statusCode).toBe(422);
+    expect(status.json()).toMatchObject({ error: "forbidden", field: "status" });
+    expect((await put("OS-I-5VT4F", { content: text.replace("id: OS-I-5VT4F", "id: OS-I-11111") })).json()).toMatchObject({ field: "id" });
+  });
+
+  it("refuses an edit that would make the record invalid", async () => {
+    await seed(ideaFile("OS-I-5VT4F"));
+    const response = await put("OS-I-5VT4F", { form: { tags: ["Not Kebab"] } });
+    expect(response.statusCode).toBe(422);
+    expect(response.json()).toMatchObject({ error: "validation", findings: [expect.objectContaining({ code: "OSV003" })] });
+  });
+
+  it("needs approval to change an active project's goals", async () => {
+    await seed(file("project", "records/projects", "OS-P-0XZ4K", { status: "active" }, "## Goals\nA\n## Non-goals\nB\n## Scope\nC\n## Success criteria\nD\n"));
+    const response = await put("OS-P-0XZ4K", { form: { body: "## Goals\nA and B\n## Non-goals\nB\n## Scope\nC\n## Success criteria\nD\n" } });
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ error: "approval_required", message: expect.stringContaining("Goals") });
+  });
+
+  it("answers 409 with base, current and submitted when the file changed", async () => {
+    await seed(ideaFile("OS-I-5VT4F"));
+    const stale = records.index.get("OS-I-5VT4F")!.blob;
+    await sandbox.macPush(Object.fromEntries([ideaFile("OS-I-5VT4F", { title: "From the Mac" })]));
+    const response = await put("OS-I-5VT4F", { base_blob: stale, form: { title: "From the browser" } });
+    expect(response.statusCode).toBe(409);
+    const body = response.json() as Record<string, string>;
+    expect(body.base).toContain("title: Example OS-I-5VT4F");
+    expect(body.current).toContain("title: From the Mac");
+    expect(body.submitted).toContain("title: From the browser");
+    expect(body.current_blob).toBe(await git(sandbox.remote, "rev-parse", `main:${path}`));
+
+    // The merged text saved against the current version goes through.
+    await writer.sync();
+    records.reindex();
+    const merged = body.current!.replace("title: From the Mac", "title: Merged");
+    const saved = await put("OS-I-5VT4F", { base_blob: body.current_blob, content: merged });
+    expect(saved.statusCode).toBe(200);
+    expect(records.index.get("OS-I-5VT4F")?.title).toBe("Merged");
+  });
+
+  it("validates the request and needs CSRF", async () => {
+    await seed(ideaFile("OS-I-5VT4F"));
+    expect((await put("OS-I-ZZZZZ", { form: {} })).statusCode).toBe(404);
+    expect((await put("OS-I-5VT4F", {})).json()).toMatchObject({ field: "form" });
+    expect((await put("OS-I-5VT4F", { form: { tags: "a" } })).json()).toMatchObject({ field: "form.tags" });
+    expect((await put("OS-I-5VT4F", { content: 3 })).json()).toMatchObject({ field: "content" });
+    expect((await put("OS-I-5VT4F", { form: {} }, { "x-csrf-token": "nope" })).statusCode).toBe(403);
   });
 });
