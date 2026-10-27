@@ -11,7 +11,9 @@ import { ValidationRejectedError, type WriteStatus } from "../git/write-service.
 import { InvalidRequestError, parseInboxRequest, parseJsonBody } from "../inbox/request.js";
 import type { CaptureStatus, InboxOutcome, InboxService } from "../inbox/service.js";
 import { registerRecordRoutes } from "../records/routes.js";
+import type { HealthService } from "../health/health.js";
 import type { ProposalService } from "../records/proposals.js";
+import { registerHealthPage } from "../ui/health.js";
 import type { StatusMoveDeps } from "../records/status.js";
 import { registerBoards } from "../ui/boards.js";
 import { approvalKeySection, registerProposalPages } from "../ui/proposals.js";
@@ -34,6 +36,8 @@ export interface AppOptions {
   auth?: AuthOptions & { status: () => Promise<WriteStatus> };
   /** The record index and writer behind the boards. Needs `auth`. */
   records?: StatusMoveDeps & { proposals?: ProposalService };
+  /** The health panel and the status API's validation and CI details. */
+  health?: HealthService;
   rateLimiter?: RateLimiter;
   logger?: FastifyServerOptions["logger"];
   /** Trust `X-Forwarded-For` from these proxies only (Caddy). */
@@ -124,10 +128,27 @@ export function buildApp(options: AppOptions): FastifyInstance {
   if (options.auth) {
     const { status, ...authOptions } = options.auth;
     const { requireSession, recentlyVerified } = registerAuth(app, authOptions);
+    // §18.4: the pending count, the last push, the last fetch and validation totals.
     app.get("/api/v1/status", { preHandler: requireSession }, async () => {
       const writer = await status();
-      return { head: writer.head, pending: writer.pending, pending_branches: writer.pendingBranches };
+      const base = {
+        head: writer.head,
+        pending: writer.pending,
+        pending_branches: writer.pendingBranches,
+        oldest_pending: writer.oldestPending ?? null,
+        last_fetch: writer.lastFetch ?? null,
+        last_push: writer.lastPush ?? null,
+      };
+      if (!options.health) return base;
+      const h = await options.health.health();
+      return {
+        ...base,
+        pending_alert: h.pendingAlert,
+        validation: { errors: h.errors, warnings: h.warnings },
+        ci: h.ci.kind === "ok" ? (h.ci.run ? { conclusion: h.ci.run.conclusion, status: h.ci.run.status, url: h.ci.run.url, sha: h.ci.run.sha } : null) : { unavailable: h.ci.kind },
+      };
     });
+    if (options.health) registerHealthPage(app, { requireSession, health: options.health });
 
     // The browser capture form uses the same pipeline as the inbox API (spec §12.2).
     app.post("/api/v1/capture", { preHandler: requireSession }, async (request, reply) => {

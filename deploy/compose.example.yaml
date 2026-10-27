@@ -15,6 +15,8 @@ services:
       OCTOSPROUT_DEPLOY_KEY_FILE: /run/secrets/deploy_key
       OCTOSPROUT_SETUP_TOKEN_FILE: /run/secrets/setup_token
       OCTOSPROUT_APPROVAL_KEY_FILE: /run/secrets/approval_signing_key
+      # Optional: the health panel's CI status.
+      # OCTOSPROUT_GITHUB_TOKEN_FILE: /run/secrets/github_token
       # Passkeys are bound to these. Changing either invalidates every registered passkey.
       OCTOSPROUT_RP_ID: octosprout.de
       OCTOSPROUT_ORIGIN: https://app.octosprout.de
@@ -28,6 +30,7 @@ services:
       - deploy_key              # SSH deploy key, write access to octosprout-private only
       - setup_token             # registers passkeys at /setup
       - approval_signing_key    # Ed25519, signs approvals (spec §9.4)
+      # - github_token          # read-only, Actions on octosprout-private
 
 volumes:
   octosprout-repo:
@@ -40,3 +43,5 @@ secrets:
     file: /etc/octosprout/secrets/setup_token
   approval_signing_key:
     file: /etc/octosprout/secrets/approval_signing_key
+  # github_token:
+  #   file: /etc/octosprout/secrets/github_token

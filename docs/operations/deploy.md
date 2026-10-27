@@ -84,6 +84,15 @@ Back the key up with the other secrets. If it is lost, generate a new one and
 trust it through an approved change; keep the old entry listed with
 `status: retired` so earlier approvals stay valid (§18.5).
 
+### CI status (optional)
+
+The health panel can show the last CI run on `octosprout-private`. Create a
+fine-grained GitHub token with access to that repository only and the
+**Actions: Read-only** permission, store it as
+`/etc/octosprout/secrets/github_token` (group 1000, mode 640, like the other
+secrets), and enable the commented `github_token` lines in the Compose file.
+Without it, the panel says CI status is not configured.
+
 ## 5. Build and start
 
 ```sh

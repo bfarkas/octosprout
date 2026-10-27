@@ -12,7 +12,7 @@ export function esc(value: unknown): string {
 }
 
 /** `record` shows the shell with no entry current. */
-export type NavKey = "inbox" | "ideas" | "tasks" | "projects" | "decisions" | "research" | "experts" | "proposals" | "capture" | "settings" | "record";
+export type NavKey = "inbox" | "ideas" | "tasks" | "projects" | "decisions" | "research" | "experts" | "proposals" | "capture" | "settings" | "health" | "record";
 
 export interface PageOptions {
   title: string;
@@ -26,7 +26,7 @@ export interface PageOptions {
   /** Top bar breadcrumb: a group and the page, e.g. ["Workspace", "Tasks"]. */
   crumbs?: readonly [string, string];
   /** The write clone's state, for the top bar's sync indicator. */
-  sync?: { pending: number; head: string };
+  sync?: { pending: number; head: string; oldestPending?: string };
   /** Use the full width (boards) instead of a reading column. */
   wide?: boolean;
 }
@@ -41,6 +41,7 @@ const ICONS = {
   signout: '<path d="M8 4H5v12h3"/><path d="M12 6l4 4-4 4"/><path d="M16 10H8"/>',
   research: '<path d="M4 4.5A1.5 1.5 0 015.5 3H15v12H5.5A1.5 1.5 0 004 16.5z"/><path d="M4 16.5A1.5 1.5 0 005.5 18H15v-3"/><path d="M8 7h4"/>',
   experts: '<circle cx="7.5" cy="7" r="2.5"/><path d="M3 16c.5-2.8 2.2-4.2 4.5-4.2S11.5 13.2 12 16"/><circle cx="14" cy="8" r="2"/><path d="M13 11.8c2 0 3.5 1.2 4 3.7"/>',
+  health: '<path d="M2.5 10h3l2-4.5 3 9 2-4.5h5"/>',
   search: '<circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/>',
   proposals: '<path d="M10 2.5l6 2.5v4.5c0 3.8-2.6 6.6-6 8-3.4-1.4-6-4.2-6-8V5z"/><path d="M7.5 10l1.8 1.8 3.4-3.6"/>',
 } as const;
@@ -67,14 +68,18 @@ function sidebar(current: NavKey): string {
 ${BRAND}
 <nav class="sidenav" aria-label="Main">${NAV.map(link).join("")}</nav>
 <a class="capture" href="/capture" title="Capture"${current === "capture" ? ' aria-current="page"' : ""}>+ <span>Capture</span></a>
-<div class="sidefoot">${link({ key: "settings", href: "/settings", label: "Settings", icon: "settings" })}<button type="button" data-action="logout" title="Sign out">${icon("signout")}<span>Sign out</span></button></div>
+<div class="sidefoot">${link({ key: "health", href: "/health", label: "Health", icon: "health" })}${link({ key: "settings", href: "/settings", label: "Settings", icon: "settings" })}<button type="button" data-action="logout" title="Sign out">${icon("signout")}<span>Sign out</span></button></div>
 </aside>`;
 }
 
 /** The top bar's summary of the write clone: up to date, or commits waiting to be pushed. */
-export function syncIndicator(sync: { pending: number; head: string } | undefined): string {
+export function syncIndicator(sync: { pending: number; head: string; oldestPending?: string } | undefined): string {
   if (!sync) return "";
   const short = esc(sync.head.slice(0, 7));
+  // Unpushed for more than an hour is an alert (§18.5).
+  if (sync.oldestPending && Date.now() - Date.parse(sync.oldestPending) > 60 * 60 * 1000) {
+    return `<a class="sync-global conflict" id="sync-global" role="alert" href="/health"><span class="dot"></span><span class="label">${sync.pending} unpushed for over an hour ·</span> ${short}</a>`;
+  }
   return sync.pending > 0
     ? `<span class="sync-global pending" id="sync-global" role="status"><span class="dot"></span><span class="label">${sync.pending} pending ·</span> ${short}</span>`
     : `<span class="sync-global" id="sync-global" role="status"><span class="dot"></span><span class="label">Up to date ·</span> ${short}</span>`;

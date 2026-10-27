@@ -216,6 +216,15 @@ dialog.approve .dlg ul { margin: 0; padding-left: 1.2rem; }
 .bulk { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin: 0.5rem 0 0.25rem; }
 .select-row { display: inline-flex; gap: 0.4rem; align-items: center; font-weight: 500; margin: 0; }
 
+/* Health */
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.75rem; margin: 1rem 0; }
+.fact { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 0.7rem 0.9rem; display: grid; gap: 0.15rem; overflow-wrap: anywhere; }
+.fact.ok strong { color: var(--green); }
+.fact.warn strong { color: var(--warn); }
+.fact.bad strong, .fact.bad a { color: var(--danger); }
+.banner.alert { border-color: var(--danger); color: var(--danger); background: var(--danger-soft); }
+a.sync-global { text-decoration: none; }
+
 /* Lists and search */
 .topsearch { margin-left: auto; flex: 0 1 16rem; min-width: 0; }
 .topsearch input { padding: 0.35rem 0.7rem; border-radius: 999px; font-size: 0.9rem; }
@@ -308,7 +317,7 @@ const RETURN_KEY = "octosprout.return";
  */
 export const RETURN_JS = `
 (() => {
-  const pages = ["/", "/capture", "/settings", "/ideas", "/tasks", "/projects", "/decisions", "/research", "/experts", "/proposals", "/search"];
+  const pages = ["/", "/capture", "/settings", "/health", "/ideas", "/tasks", "/projects", "/decisions", "/research", "/experts", "/proposals", "/search"];
   try {
     if (pages.includes(location.pathname) || location.pathname.startsWith("/records/") || location.pathname.startsWith("/inbox/")) {
       sessionStorage.setItem("${RETURN_KEY}", location.pathname + location.search + location.hash);

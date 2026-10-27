@@ -12,6 +12,8 @@ import { buildApp } from "./http/app.js";
 import { TokenStore } from "./http/tokens.js";
 import { InboxService } from "./inbox/service.js";
 import { loadSigningKey } from "./approvals/signing-key.js";
+import { CiStatus, githubRepo } from "./health/ci.js";
+import { HealthService } from "./health/health.js";
 import { ProposalService } from "./records/proposals.js";
 import { WorkspaceRecords } from "./records/workspace.js";
 
@@ -52,6 +54,14 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       status: () => writer.status(),
     },
     records: { ...recordDeps, proposals },
+    health: new HealthService({
+      repoDir: config.repoDir,
+      status: () => writer.status(),
+      ci: new CiStatus({
+        ...(config.githubTokenFile ? { token: readFileSync(config.githubTokenFile, "utf8").trim() } : {}),
+        ...(githubRepo(config.remoteUrl) ? { repo: githubRepo(config.remoteUrl)! } : {}),
+      }),
+    }),
     logger: { level: config.logLevel },
     trustProxy: config.trustProxy,
   });

@@ -741,6 +741,7 @@ If Kanban Lite fails any criterion, build the custom UI. The frontend framework 
 | | *As built:* `/records/<ID>` renders the body with markdown-it (raw HTML off); captures stay plain text. `/records/<ID>/edit` has a form (title, tags, links, refs, body) and a whole-file tab, both saved with `PUT /api/v1/records/<ID>`. Edits never change `id`, `type`, `schema_version`, `created`, `status` or `approval`; a capture's text and source never change; the body of an `ACCEPTED`-or-later decision is frozen; changing an active project's Goals, Non-goals, Scope or Success criteria needs approval. A 409 opens a three-way view (base, current, yours) with a merged text to save on top of the current version. Unsaved input stays in `localStorage` until the save is acknowledged. |
 | Proposals | Pending queue with diffs, approve or reject, bulk-approve for non-consequential proposals, and history |
 | Health | Validation results, pending-push count, last sync time and last CI status |
+| | *As built:* `/health` (sidebar foot) validates the server's clone, cached per commit, and lists errors and warnings with links to the records; shows the pending pushes and since when, the last fetch and push, pending branches, and the last CI run on `main` when an optional read-only GitHub token is configured (`OCTOSPROUT_GITHUB_TOKEN_FILE`). Commits unpushed for more than an hour turn the top bar's sync indicator red on every page (§18.5). `GET /api/v1/status` returns the same totals. |
 | Search | Title, ID and full text, served from the index |
 | | *As built:* a search box in the top bar of every page and `/search?q=…&type=…`. Every word must match; ID matches rank first, then title, tags and text, then the most recent. Results show a snippet with the words marked. `RecordIndex.search` in `@octosprout/core` is shared with the MCP `search_records` tool. |
 
@@ -1147,11 +1148,11 @@ Tests use Vitest. Git tests run against temporary bare repositories that act as 
 
 ## 21. Implementation phases (MVP = Phases 0–3)
 
-### Status (26 October 2026)
+### Status (27 October 2026)
 
 - **Phase 0:** domain, DNS, Caddy and TLS are live; the Git write service is proven in tests and in production; passkey login works on the iPhone; the ADR template is vendored. The board engine was evaluated and decided (ADR006). The Ed25519 approval round trip is proven in tests and in the browser end-to-end check (sign on the server, verify in `octosprout validate`); it still has to run once against the private repository's CI. Decisions taken so far are ADR001–ADR006.
 - **Phase 1:** complete and deployed. The exit criterion was met with the share link and home screen app instead of the token Shortcut (ADR001).
-- **Phase 2:** in progress. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief; Record detail with editing; triage; proposals with signed approvals, which enable consequential moves on the boards; the promotion wizard; creating records, ADRs included; the Research and Experts lists; and search (below). Next: the health panel.
+- **Phase 2:** built, and to be deployed. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief; Record detail with editing; triage; proposals with signed approvals, which enable consequential moves on the boards; the promotion wizard; creating records, ADRs included; the Research and Experts lists; search; and the health panel (below).
 - **Phase 3:** not started.
 
 ### Phase 0 — Compatibility and safety spike

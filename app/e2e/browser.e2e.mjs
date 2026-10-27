@@ -434,6 +434,11 @@ try {
   assert.match(await page.inputValue("#body"), /\* Status: DRAFT\n\* Author: E2E\n/);
   step("New decision creates a DRAFT from the ADR template and opens the editor");
 
+  await page.click('.side a[title="Health"]');
+  await page.waitForURL(`${origin}/health`);
+  assert.match(await page.textContent(".facts"), /0 errors/);
+  step("the health panel shows a valid workspace");
+
   console.log("\nAll browser checks passed.");
 } finally {
   await browser?.close();

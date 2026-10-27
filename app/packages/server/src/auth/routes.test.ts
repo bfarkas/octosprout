@@ -173,7 +173,7 @@ describe("login", () => {
     expect(response.statusCode, response.body).toBe(200);
     expect(passkeys.find(authenticator.id)).toMatchObject({ counter: 1, lastUsed: expect.any(String) });
     const status = await app.inject({ method: "GET", url: "/api/v1/status", headers: { cookie: cookieOf(response) } });
-    expect(json(status)).toEqual({ head: "abc123", pending: 2, pending_branches: [] });
+    expect(json(status)).toEqual({ head: "abc123", pending: 2, pending_branches: [], oldest_pending: null, last_fetch: null, last_push: null });
   });
 
   it("offers no login before a passkey exists", async () => {

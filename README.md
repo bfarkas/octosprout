@@ -10,10 +10,11 @@ decisions, and preparing context for coding agents.
 
 > **Status:** early development. Phase 1 (ingestion) is deployed: the inbox
 > API, Git write service, passkey sign-in, Inbox view, capture form and token
-> management. Phase 2 (core workspace) is in progress: every record schema,
-> the full validator with signed approvals, the record index, the Ideas,
-> Tasks, Projects and Decisions boards, record editing, triage, and proposals
-> with passkey-confirmed, signed approvals are built. The current specification is
+> management. Phase 2 (core workspace) is built, not yet deployed: every
+> record schema, the full validator with signed approvals, the boards, record
+> detail and editing, triage, proposals with passkey-confirmed approvals, the
+> promotion wizard, ADRs from the template, Research and Experts lists,
+> search and the health panel. The current specification is
 > [`docs/spec/implementation-spec-v0.4-draft.md`](docs/spec/implementation-spec-v0.4-draft.md).
 
 ## Repository layout

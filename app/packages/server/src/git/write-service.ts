@@ -70,6 +70,11 @@ export interface WriteStatus {
   pending: number;
   /** `octosprout/pending/*` branches holding commits that could not be rebased. */
   pendingBranches: string[];
+  /** When the oldest unpushed commit was made (UTC RFC 3339), if any. */
+  oldestPending?: string;
+  /** Last successful fetch and push by this process. */
+  lastFetch?: string;
+  lastPush?: string;
 }
 
 /** A precondition failed: the file changed since the client read it. */
@@ -135,6 +140,8 @@ export class GitWriteService {
   readonly #networkTimeoutMs: number;
   readonly #onBeforePush: GitWriteServiceOptions["onBeforePush"];
   #tail: Promise<unknown> = Promise.resolve();
+  #lastFetch: string | undefined;
+  #lastPush: string | undefined;
 
   constructor(options: GitWriteServiceOptions) {
     this.#repoDir = options.repoDir;
@@ -228,7 +235,18 @@ export class GitWriteService {
       const branches = (await this.#git(["for-each-ref", "--format=%(refname:short)", "refs/heads/octosprout/pending/"])).stdout
         .split("\n")
         .filter(Boolean);
-      return { head, pending: await this.#ahead(), pendingBranches: branches };
+      const pending = await this.#ahead();
+      const range = (await this.#hasRemoteRef()) ? `${this.#remoteRef}..HEAD` : "HEAD";
+      const dates = pending > 0 ? (await this.#git(["log", "--format=%cI", range])).stdout.trim().split("\n") : [];
+      const oldest = dates.length ? new Date(dates[dates.length - 1]!).toISOString().replace(/\.\d{3}Z$/, "Z") : undefined;
+      return {
+        head,
+        pending,
+        pendingBranches: branches,
+        ...(oldest ? { oldestPending: oldest } : {}),
+        ...(this.#lastFetch ? { lastFetch: this.#lastFetch } : {}),
+        ...(this.#lastPush ? { lastPush: this.#lastPush } : {}),
+      };
     });
   }
 
@@ -342,6 +360,7 @@ export class GitWriteService {
   async #syncWithRemote(): Promise<{ online: boolean; quarantined?: string }> {
     const fetched = await this.#network(["fetch", this.#remote]);
     if (fetched.code !== 0) return { online: false };
+    this.#lastFetch = stamp();
     const quarantined = await this.#rebaseOntoRemote();
     return quarantined === undefined ? { online: true } : { online: true, quarantined };
   }
@@ -475,7 +494,10 @@ export class GitWriteService {
     for (let attempt = 0; ; attempt++) {
       await this.#onBeforePush?.(attempt);
       const pushed = await this.#network(["push", this.#remote, `HEAD:refs/heads/${this.#branch}`]);
-      if (pushed.code === 0) return { pushed: true };
+      if (pushed.code === 0) {
+        this.#lastPush = stamp();
+        return { pushed: true };
+      }
       if (!NON_FAST_FORWARD.test(pushed.stderr) || attempt >= this.#maxPushRetries) {
         return { pushed: false };
       }
@@ -549,6 +571,10 @@ function safePath(path: string): string {
     throw new InvalidOperationError(`Invalid path: ${JSON.stringify(path)}`);
   }
   return path;
+}
+
+function stamp(): string {
+  return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
 function sleep(ms: number): Promise<void> {
