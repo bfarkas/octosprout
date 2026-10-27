@@ -195,6 +195,51 @@ dialog::backdrop { background: var(--shade); }
   .board { scroll-snap-type: x mandatory; gap: 0.6rem; margin-inline: -0.75rem; padding-inline: 0.75rem; scroll-padding-inline: 0.75rem; }
   .col[open] { flex: 0 0 84%; min-width: 0; scroll-snap-align: start; min-height: 16rem; }
 }
+/* Record detail and editor */
+.recordhead { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem 1rem; }
+.recordhead h1 { font-size: 2rem; letter-spacing: -0.035em; line-height: 1.15; margin: 0.15rem 0 0.25rem; }
+.recordhead .meta { margin: 0; }
+.recordactions { margin-left: auto; display: flex; gap: 0.6rem; align-items: center; }
+.recordactions .move { flex: 0 1 12rem; }
+.recordgrid { display: grid; grid-template-columns: minmax(0, 1fr) 20rem; gap: 1.5rem; margin-top: 1rem; align-items: start; }
+.recordbody { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 1rem 1.25rem; min-width: 0; }
+.recordside { display: grid; gap: 0.25rem; font-size: 0.92rem; min-width: 0; }
+.recordside h2 { font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0.75rem 0 0.25rem; }
+.facts li { padding: 0.2rem 0; overflow-wrap: anywhere; }
+.rel { font-family: var(--mono); font-size: 0.78rem; color: var(--green); margin-right: 0.25rem; }
+.markdown { overflow-wrap: anywhere; }
+.markdown h1, .markdown h2, .markdown h3 { margin: 1.1rem 0 0.4rem; display: block; }
+.markdown > :first-child { margin-top: 0; }
+.markdown pre { background: var(--column); border: 1px solid var(--border); border-radius: 12px; padding: 0.6rem 0.8rem; overflow-x: auto; }
+.markdown code { font-family: var(--mono); font-size: 0.88em; }
+.markdown table { border-collapse: collapse; display: block; overflow-x: auto; }
+.markdown th, .markdown td { border: 1px solid var(--border); padding: 0.3rem 0.5rem; }
+.markdown blockquote { margin: 0.5rem 0; padding-left: 0.8rem; border-left: 3px solid var(--violet-line); color: var(--muted); }
+.markdown li.task { list-style: none; margin-left: -1.3rem; }
+pre.verbatim { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: inherit; }
+.tabs { display: inline-flex; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); margin: 1rem 0 0.25rem; }
+.tabs .tab { border: 0; border-radius: 0; background: none; color: var(--text); padding: 0.4rem 0.9rem; font-weight: 500; }
+.tabs .tab + .tab { border-left: 1px solid var(--border); }
+.tabs .tab[aria-selected="true"] { background: var(--violet); color: var(--on-violet); }
+#editor { max-width: 52rem; }
+fieldset { border: 1px solid var(--border); border-radius: 14px; margin: 1rem 0 0; padding: 0.5rem 0.9rem 0.6rem; }
+legend { font-weight: 600; padding: 0 0.3rem; }
+.rows { display: grid; gap: 0.5rem; margin: 0.25rem 0 0.4rem; }
+.row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.row select { width: auto; flex: 0 0 auto; }
+.row input { flex: 1 1 10rem; width: auto; min-width: 0; }
+textarea.code { font-family: var(--mono); font-size: 0.9rem; line-height: 1.45; }
+textarea.tall { min-height: 24rem; }
+.three-way { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
+.three-way h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0.5rem 0 0.25rem; }
+.three-way pre { font-family: var(--mono); font-size: 0.78rem; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 0.5rem 0.6rem; overflow: auto; max-height: 24rem; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.three-way .changed { background: var(--warn-soft); }
+#findings li { color: var(--danger); font-size: 0.9rem; }
+@media (max-width: 900px) {
+  .recordgrid { grid-template-columns: minmax(0, 1fr); }
+  .three-way { grid-template-columns: minmax(0, 1fr); }
+  .recordactions { margin-left: 0; }
+}
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 `;
 
@@ -208,7 +253,7 @@ export const RETURN_JS = `
 (() => {
   const pages = ["/", "/capture", "/settings", "/ideas", "/tasks", "/projects", "/decisions"];
   try {
-    if (pages.includes(location.pathname)) {
+    if (pages.includes(location.pathname) || location.pathname.startsWith("/records/")) {
       sessionStorage.setItem("${RETURN_KEY}", location.pathname + location.search + location.hash);
     }
   } catch (_) {}

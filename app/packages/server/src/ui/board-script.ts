@@ -188,6 +188,7 @@ export const BOARD_JS = String.raw`
       rows.appendChild(tr);
     }
     dialog.querySelector('[data-field="id"]').textContent = id;
+    dialog.querySelector('[data-field="open"]').href = "/records/" + encodeURIComponent(id);
     const gone = data.current === null;
     dialog.querySelector('[data-field="note"]').textContent = gone ? "The record no longer exists." : "Move anyway applies your move to the current version.";
     dialog.querySelector('[data-field="mine"]').hidden = gone || !data.current_blob;

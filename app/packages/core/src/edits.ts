@@ -90,9 +90,15 @@ export interface FormEdit {
 
 /** Applies a form edit to a record file. Fields left out are untouched; empty lists remove the key. */
 export function applyFormEdit(text: string, form: FormEdit): string {
+  const parsed = parseRecord(text);
+  const current = parsed.ok ? parsed.record.frontmatter : {};
   const fields: Record<string, unknown> = {};
   for (const key of ["title", "tags", "links", "refs"] as const) {
-    if (form[key] !== undefined) fields[key] = form[key];
+    const value = form[key];
+    if (value === undefined) continue;
+    // Unchanged fields are left alone, so their formatting is kept. A missing list equals an empty one.
+    const before = current[key] ?? (Array.isArray(value) ? [] : undefined);
+    if (!same(before, value)) fields[key] = value;
   }
   let out = Object.keys(fields).length > 0 ? setFrontmatterFields(text, fields) : text;
   if (form.body !== undefined) {

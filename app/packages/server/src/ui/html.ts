@@ -11,7 +11,8 @@ export function esc(value: unknown): string {
   return String(value).replace(/[&<>"']/g, (char) => ESCAPES[char]!);
 }
 
-export type NavKey = "inbox" | "ideas" | "tasks" | "projects" | "decisions" | "capture" | "settings";
+/** `record` shows the shell with no entry current. */
+export type NavKey = "inbox" | "ideas" | "tasks" | "projects" | "decisions" | "capture" | "settings" | "record";
 
 export interface PageOptions {
   title: string;

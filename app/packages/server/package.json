@@ -20,9 +20,13 @@
   "dependencies": {
     "@octosprout/core": "workspace:*",
     "@simplewebauthn/server": "^13.3.3",
-    "fastify": "^5.12.7"
+    "fastify": "^5.12.7",
+    "markdown-it": "^14.1.0"
   },
   "bin": {
     "octosprout-server": "./dist/main.js"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2"
   }
 }

@@ -62,4 +62,9 @@ describe("applyFormEdit", () => {
     expect(after.endsWith("---\n## Motivation\nWhy\n")).toBe(true);
     expect(applyFormEdit(before, {})).toBe(before);
   });
+
+  it("leaves unchanged fields as they are written", () => {
+    const before = "---\nid: OS-I-2HD9W\ntitle: T\nlinks:\n  - rel: relates_to\n    id: OS-P-0XZ4K\n---\nBody\n";
+    expect(applyFormEdit(before, { title: "T", tags: [], links: [{ rel: "relates_to", id: "OS-P-0XZ4K" }], refs: [], body: "Body\n" })).toBe(before);
+  });
 });

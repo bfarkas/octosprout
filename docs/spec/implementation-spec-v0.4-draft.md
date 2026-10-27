@@ -725,6 +725,7 @@ If Kanban Lite fails any criterion, build the custom UI. The frontend framework 
 | Ideas, Tasks, Projects and Decisions boards | Columns by status. Moving a card is a status change. Promotion opens the wizard. Consequential moves open the confirmation dialog. Tasks and Decisions filter by project. Decisions: create from template, advice panel. |
 | Research and Experts | Lists |
 | Record detail | Rendered body, frontmatter form, links and backlinks, refs, git history (commits touching the file), and an edit mode with a Markdown editor and `base_blob` |
+| | *As built:* `/records/<ID>` renders the body with markdown-it (raw HTML off); captures stay plain text. `/records/<ID>/edit` has a form (title, tags, links, refs, body) and a whole-file tab, both saved with `PUT /api/v1/records/<ID>`. Edits never change `id`, `type`, `schema_version`, `created`, `status` or `approval`; a capture's text and source never change; the body of an `ACCEPTED`-or-later decision is frozen; changing an active project's Goals, Non-goals, Scope or Success criteria needs approval. A 409 opens a three-way view (base, current, yours) with a merged text to save on top of the current version. Unsaved input stays in `localStorage` until the save is acknowledged. |
 | Proposals | Pending queue with diffs, approve or reject, bulk-approve for non-consequential proposals, and history |
 | Health | Validation results, pending-push count, last sync time and last CI status |
 | Search | Title, ID and full text, served from the index |
@@ -1134,7 +1135,7 @@ Tests use Vitest. Git tests run against temporary bare repositories that act as 
 
 - **Phase 0:** domain, DNS, Caddy and TLS are live; the Git write service is proven in tests and in production; passkey login works on the iPhone; the ADR template is vendored. The board engine was evaluated and decided (ADR006). Still open: the Ed25519 approval round-trip in CI. Decisions taken so far are ADR001–ADR006.
 - **Phase 1:** complete and deployed. The exit criterion was met with the share link and home screen app instead of the token Shortcut (ADR001).
-- **Phase 2:** in progress. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; and the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief. Next: record detail and editing, triage, proposals with signed approvals (which enable consequential moves on the boards), promotion, ADR creation, research and experts lists, search and the health panel.
+- **Phase 2:** in progress. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief; and Record detail with editing (below). Next: triage, proposals with signed approvals (which enable consequential moves on the boards), promotion, ADR creation, research and experts lists, search and the health panel.
 - **Phase 3:** not started.
 
 ### Phase 0 — Compatibility and safety spike

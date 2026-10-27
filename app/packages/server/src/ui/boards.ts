@@ -184,7 +184,7 @@ function card(record: IndexedRecord, board: Board, index: RecordIndex, now: Date
   const blockedBy = record.type === "task" ? index.blockedBy(record.id) : [];
   const movable = targets.length > 0;
   return `<article class="bcard" id="card-${esc(record.id)}" data-id="${esc(record.id)}" data-blob="${esc(record.blob)}" data-status="${esc(record.status)}" data-moves="${esc(targets.join(" "))}"${blockedBy.length > 0 ? ` data-blocked-by="${esc(blockedBy.join(" "))}"` : ""}>
-<div class="bcard-top"><button type="button" class="grip" aria-label="Drag ${esc(record.id)} to another column" title="Drag to move"${movable ? "" : " disabled"}>⠿</button><span class="btitle">${esc(record.title || record.id)}</span></div>
+<div class="bcard-top"><button type="button" class="grip" aria-label="Drag ${esc(record.id)} to another column" title="Drag to move"${movable ? "" : " disabled"}>⠿</button><a class="btitle" href="/records/${esc(encodeURIComponent(record.id))}">${esc(record.title || record.id)}</a></div>
 <div class="bmeta">${esc(record.id)}${projectTitle ? ` · ${esc(projectTitle)}` : ""}</div>
 ${chips(record, index)}
 <div class="bfoot"><span class="move"><select aria-label="Move ${esc(record.id)} to"${any ? "" : " disabled"}>${options}</select></span><span class="sync"><time datetime="${esc(record.updated)}">${esc(age(record.updated, now))}</time></span></div>
@@ -227,7 +227,7 @@ const DIALOGS = `<dialog id="dlg-conflict"><form method="dialog" class="dlg">
 <p class="hint"><span class="mono" data-field="id"></span> was changed after this page loaded. Your move was not saved.</p>
 <div class="tablewrap"><table class="three"><thead><tr><th>Field</th><th>When you loaded</th><th>Now</th><th>Your move</th></tr></thead><tbody data-field="rows"></tbody></table></div>
 <p class="hint" data-field="note"></p>
-<div class="actions"><button class="secondary" value="theirs">Keep the current version</button><button value="mine" data-field="mine">Move anyway</button></div>
+<div class="actions"><a class="button secondary" data-field="open" href="/">Open record</a><button class="secondary" value="theirs">Keep the current version</button><button value="mine" data-field="mine">Move anyway</button></div>
 </form></dialog>
 <dialog id="dlg-blocked"><form method="dialog" class="dlg">
 <h2>Still blocked</h2>

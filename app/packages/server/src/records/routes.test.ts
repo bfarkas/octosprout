@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { renderRecord, type Frontmatter } from "@octosprout/core";
+import { renderRecord, sha256Hex, type Frontmatter } from "@octosprout/core";
 import type { FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -391,5 +391,64 @@ describe("PUT /api/v1/records/:id", () => {
     expect((await put("OS-I-5VT4F", { form: { tags: "a" } })).json()).toMatchObject({ field: "form.tags" });
     expect((await put("OS-I-5VT4F", { content: 3 })).json()).toMatchObject({ field: "content" });
     expect((await put("OS-I-5VT4F", { form: {} }, { "x-csrf-token": "nope" })).statusCode).toBe(403);
+  });
+});
+
+describe("record pages", () => {
+  const get = (url: string, cookie = session.cookie) => app.inject({ method: "GET", url, headers: { cookie, accept: "text/html" } });
+
+  it("require a session and answer 404 for unknown records", async () => {
+    expect((await get("/records/OS-I-5VT4F", "")).statusCode).toBe(401);
+    expect((await get("/records/OS-I-ZZZZZ")).statusCode).toBe(404);
+  });
+
+  it("show the rendered body, links, backlinks, refs and history", async () => {
+    await seed(
+      file("project", "records/projects", "OS-P-0XZ4K", { status: "proposed", title: "Garden digest", refs: [{ kind: "repo", url: "https://github.com/bfarkas/x" }] }, "## Goals\n\n- **weekly**\n\n<script>alert(1)</script>\n"),
+      taskFile("OS-T-AAAAA", { title: "Pick a day", links: [{ rel: "belongs_to", id: "OS-P-0XZ4K" }] }),
+    );
+    const html = (await get("/records/OS-P-0XZ4K")).body;
+    expect(html).toContain("<h1>Garden digest</h1>");
+    expect(html).toContain("<h2>Goals</h2>");
+    expect(html).toContain("<strong>weekly</strong>");
+    expect(html).not.toContain("<script>alert(1)</script>");
+    expect(html).toContain('<a href="/records/OS-T-AAAAA">Pick a day</a>');
+    expect(html).toContain('href="https://github.com/bfarkas/x"');
+    expect(html).toContain("mac change");
+    expect(html).toContain(`data-blob="${records.index.get("OS-P-0XZ4K")!.blob}"`);
+    expect(html).toContain('<option value="active">Active</option>');
+    expect(html).toContain('href="/records/OS-P-0XZ4K/edit"');
+
+    const task = (await get("/records/OS-T-AAAAA")).body;
+    expect(task).toContain('<span class="rel">belongs_to</span> <a href="/records/OS-P-0XZ4K">Garden digest</a>');
+  });
+
+  it("show a capture as plain text, never as Markdown", async () => {
+    const body = "# not a heading\n<b>x</b>\n";
+    await seed([
+      "records/captures/2026/10/OS-C-7K3QX.md",
+      renderRecord({ id: "OS-C-7K3QX", type: "capture", schema_version: 1, status: "new", created: "2026-10-25T14:03:11Z", updated: "2026-10-25T14:03:11Z", source: "web", idempotency_key: "abcdefgh", received_via: "web-session", content_sha256: sha256Hex(body) }, body),
+    ]);
+    const html = (await get("/records/OS-C-7K3QX")).body;
+    expect(html).toContain('<pre class="verbatim"># not a heading\n&lt;b&gt;x&lt;/b&gt;\n</pre>');
+    const edit = (await get("/records/OS-C-7K3QX/edit")).body;
+    expect(edit).not.toContain('id="body"');
+    expect(edit).toContain("only its tags can change");
+  });
+
+  it("offer a form and the whole file in the editor", async () => {
+    await seed(ideaFile("OS-I-5VT4F", { title: 'Say "hi" <now>', links: [{ rel: "relates_to", id: "OS-I-6Q3D2" }] }), ideaFile("OS-I-6Q3D2"));
+    const html = (await get("/records/OS-I-5VT4F/edit")).body;
+    expect(html).toContain('value="Say &quot;hi&quot; &lt;now&gt;"');
+    expect(html).toContain("<option selected>relates_to</option>");
+    expect(html).toContain('name="id" aria-label="Linked record ID" placeholder="OS-I-…" value="OS-I-6Q3D2"');
+    expect(html).toContain('<textarea id="raw" name="raw"');
+    expect(html).toMatch(/title: [^\n]*Say [^\n]*hi[^\n]*&lt;now&gt;/);
+    expect(html).toContain('<script src="/static/record.js" defer>');
+  });
+
+  it("link board cards to their records", async () => {
+    await seed(ideaFile("OS-I-5VT4F"));
+    expect((await get("/ideas")).body).toContain('<a class="btitle" href="/records/OS-I-5VT4F">');
   });
 });

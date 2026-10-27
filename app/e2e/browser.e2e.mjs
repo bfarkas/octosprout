@@ -4,7 +4,8 @@
  * Starts the built server against a local bare repository that plays GitHub,
  * then drives Chromium with a virtual WebAuthn authenticator through:
  * passkey registration at /setup, capturing from the form, signing out and
- * back in, the Inbox view, and moving cards on the Tasks board.
+ * back in, the Inbox view, moving cards on the Tasks board, and editing a
+ * record, including a conflict merged by hand.
  *
  * It exercises the client scripts and the real browser WebAuthn API, which
  * the unit tests cannot. It does not replace trying it on an iPhone.
@@ -15,7 +16,7 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -309,6 +310,37 @@ try {
   await page.click('#dlg-conflict button[value="theirs"]');
   await page.waitForFunction(() => document.getElementById("card-OS-T-5NM3A")?.closest(".col")?.dataset.status === "blocked");
   step("a move against a stale card shows the conflict dialog and keeps the current version");
+
+  // Record detail and the editor: a form edit, then a conflict merged by hand.
+  await page.click("#card-OS-T-2B7KC .btitle");
+  await page.waitForURL(`${origin}/records/OS-T-2B7KC`);
+  await page.click('a[href$="/edit"]');
+  await page.waitForURL(`${origin}/records/OS-T-2B7KC/edit`);
+  await page.fill("#title", "Status route, edited");
+  await page.fill("#tags", "api boards");
+  await page.click("#save");
+  await page.waitForURL(`${origin}/records/OS-T-2B7KC`);
+  assert.equal(await page.textContent("h1"), "Status route, edited");
+  assert.equal(git(remote, "log", "-1", "--format=%s", "main"), "edit: OS-T-2B7KC Status route, edited");
+  step("a form edit on Record detail is committed");
+
+  await page.click('a[href$="/edit"]');
+  await page.fill("#title", "Edited in the browser");
+  git(seed, "pull", "-q", "origin", "main");
+  const macPath = join(seed, "records/tasks/OS-T-2B7KC--task.md");
+  writeFileSync(macPath, readFileSync(macPath, "utf8").replace("## Objective\nX", "## Objective\nX, from the Mac"));
+  git(seed, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-am", "mac edit");
+  git(seed, "push", "-q", "origin", "HEAD:main");
+  await page.click("#save");
+  await page.waitForSelector("#merge:not([hidden])");
+  const mergedText = await page.inputValue("#merged");
+  assert.match(mergedText, /title: Edited in the browser/);
+  await page.fill("#merged", mergedText.replace("## Objective\nX", "## Objective\nX, from the Mac"));
+  await page.click("#save-merged");
+  await page.waitForURL(`${origin}/records/OS-T-2B7KC`);
+  assert.equal(await page.textContent("h1"), "Edited in the browser");
+  assert.match(await page.textContent(".markdown"), /from the Mac/);
+  step("a conflicting edit opens the three-way merge, and the merged text is saved");
 
   console.log("\nAll browser checks passed.");
 } finally {

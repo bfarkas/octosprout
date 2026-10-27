@@ -343,9 +343,9 @@ Differences from the design above, all deliberate:
   rather than patched card by card, so the script holds no lifecycle rules
   and never shows a state the server does not have. The moved card then shows
   the commit SHA or *pending push*.
-- **The conflict dialog** offers *Keep the current version* and *Move
-  anyway*; *Open record* comes with Record detail.
-- **Card titles are plain text** until Record detail exists.
+- **The conflict dialog** offers *Open record*, *Keep the current version*
+  and *Move anyway*.
+- **Card titles link to Record detail** (`/records/<ID>`).
 - **A move that would add validation errors** (for example a task to `ready`
   without its contract sections) is refused with `422 validation` and the
   first finding is shown.

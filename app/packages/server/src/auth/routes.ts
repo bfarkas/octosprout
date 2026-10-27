@@ -24,6 +24,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { RateLimiter } from "../http/rate-limit.js";
 import { AUTH_JS, APP_CSS, APP_JS, MANIFEST, RETURN_JS } from "../ui/assets.js";
 import { BOARD_JS } from "../ui/board-script.js";
+import { RECORD_JS } from "../ui/record-script.js";
 import { page, signInRequiredPage } from "../ui/html.js";
 import { ChallengeStore } from "./challenges.js";
 import type { PasskeyStore } from "./passkeys.js";
@@ -106,6 +107,7 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): Guards
   asset("/static/app.js", "text/javascript; charset=utf-8", APP_JS);
   asset("/static/return.js", "text/javascript; charset=utf-8", RETURN_JS);
   asset("/static/board.js", "text/javascript; charset=utf-8", BOARD_JS);
+  asset("/static/record.js", "text/javascript; charset=utf-8", RECORD_JS);
   asset("/manifest.webmanifest", "application/manifest+json; charset=utf-8", MANIFEST);
   for (const icon of ICONS) asset(`/static/${icon}`, "image/png", readFileSync(new URL(icon, STATIC_DIR)));
 
