@@ -171,6 +171,8 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): Guards
       scope.addHook("preHandler", async (request, reply) => {
         if (request.method !== "POST" || request.url.startsWith("/api/v1/auth/logout")) return undefined;
         if (request.headers.origin !== origin) return reply.code(403).send({ error: "bad_origin" });
+        // Re-verification needs a session and its CSRF token already, so it does not spend the sign-in budget.
+        if (request.url.startsWith("/api/v1/auth/reverify/")) return undefined;
         const limit = attempts.take(request.ip);
         if (!limit.allowed) {
           return reply.code(429).header("Retry-After", String(limit.retryAfterSeconds)).send({ error: "rate_limited" });

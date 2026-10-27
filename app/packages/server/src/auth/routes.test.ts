@@ -332,3 +332,18 @@ describe("re-verification", () => {
     expect((await publicPost("/api/v1/auth/reverify/options", {})).statusCode).toBe(401);
   });
 });
+
+describe("re-verification and the sign-in rate limit", () => {
+  it("does not count against the per-IP sign-in limit, since it needs a session", async () => {
+    const authenticator = new FakeAuthenticator(RP_ID, ORIGIN);
+    const registered = await register(authenticator);
+    const headers = { cookie: cookieOf(registered), "x-csrf-token": json(registered).csrf as string };
+    advanceClock = false;
+    for (let i = 0; i < 12; i++) {
+      const options = await publicPost("/api/v1/auth/reverify/options", {}, headers);
+      expect(options.statusCode).toBe(200);
+      const verified = await publicPost("/api/v1/auth/reverify/verify", { response: authenticator.get(json(options) as { challenge: string }) }, headers);
+      expect(verified.statusCode).toBe(200);
+    }
+  });
+});
