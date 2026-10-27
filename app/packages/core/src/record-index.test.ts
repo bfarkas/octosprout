@@ -72,3 +72,30 @@ describe("RecordIndex", () => {
     expect(local.get("OS-I-2HD9W")?.title).toBe("Second");
   });
 });
+
+describe("search", () => {
+  const index = new RecordIndex([
+    idea("OS-I-2HD9W", { title: "Weekly garden digest", tags: ["email"], updated: "2026-10-26T00:00:00Z" }),
+    idea("OS-I-3QH7B", { title: "Tag suggestions", updated: "2026-10-27T00:00:00Z" }),
+    { ...task("OS-T-AAAAA", { title: "Send it" }), content: (task("OS-T-AAAAA", { title: "Send it" }).content as string) + "We send the weekly digest by email on Sundays.\n" },
+  ]);
+
+  it("ranks ID, then title, then tags, then body matches", () => {
+    expect(index.search("os-i-2hd9w").map((h) => h.record.id)).toEqual(["OS-I-2HD9W"]);
+    expect(index.search("digest").map((h) => h.record.id)).toEqual(["OS-I-2HD9W", "OS-T-AAAAA"]);
+    expect(index.search("email").map((h) => h.record.id)).toEqual(["OS-I-2HD9W", "OS-T-AAAAA"]);
+  });
+
+  it("needs every word, and filters by type and status", () => {
+    expect(index.search("weekly sundays").map((h) => h.record.id)).toEqual(["OS-T-AAAAA"]);
+    expect(index.search("digest", { type: "task" }).map((h) => h.record.id)).toEqual(["OS-T-AAAAA"]);
+    expect(index.search("digest", { status: "done" })).toEqual([]);
+    expect(index.search("   ")).toEqual([]);
+  });
+
+  it("returns a snippet around the match", () => {
+    expect(index.search("sundays")[0]?.snippet).toContain("by email on Sundays.");
+    const marked = new RecordIndex([{ ...idea("OS-I-2HD9W"), content: (idea("OS-I-2HD9W").content as string) + "## Goals\n- [ ] **ship** it\n> quoted\n" }]);
+    expect(marked.search("ship")[0]?.snippet).toBe("Goals ship it quoted");
+  });
+});

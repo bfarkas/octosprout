@@ -91,7 +91,7 @@ h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.03em; margin: 0.5re
 h1 .meta { font-size: 1rem; font-weight: 500; letter-spacing: 0; }
 h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
 label { display: block; font-weight: 600; margin: 1rem 0 0.25rem; }
-input[type="text"], input[type="url"], input[type="password"], textarea, select {
+input[type="text"], input[type="url"], input[type="password"], input[type="search"], textarea, select {
   width: 100%; padding: 0.6rem 0.7rem; font: inherit; color: inherit;
   background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
 }
@@ -216,6 +216,21 @@ dialog.approve .dlg ul { margin: 0; padding-left: 1.2rem; }
 .bulk { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin: 0.5rem 0 0.25rem; }
 .select-row { display: inline-flex; gap: 0.4rem; align-items: center; font-weight: 500; margin: 0; }
 
+/* Lists and search */
+.topsearch { margin-left: auto; flex: 0 1 16rem; min-width: 0; }
+.topsearch input { padding: 0.35rem 0.7rem; border-radius: 999px; font-size: 0.9rem; }
+.topsearch + .sync-global { margin-left: 0.5rem; }
+.listrow { display: grid; gap: 0.2rem; margin: 0.6rem 0; }
+.listrow .chips { margin-top: 0.15rem; }
+.snippet { color: var(--muted); font-size: 0.9rem; overflow-wrap: anywhere; }
+mark { background: var(--violet-soft); color: inherit; border-radius: 4px; padding: 0 0.1rem; }
+.searchform { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.searchform input { flex: 1 1 14rem; width: auto; }
+.searchform select { width: auto; }
+.filters { display: flex; }
+.filters a[aria-current="page"] { border-color: var(--violet); color: var(--violet-text); font-weight: 700; }
+@media (max-width: 760px) { .topsearch { flex-basis: 8rem; } }
+
 /* Promotion wizard */
 .wizard { max-width: 56rem; }
 .wizard section { margin-top: 1.25rem; }
@@ -293,7 +308,7 @@ const RETURN_KEY = "octosprout.return";
  */
 export const RETURN_JS = `
 (() => {
-  const pages = ["/", "/capture", "/settings", "/ideas", "/tasks", "/projects", "/decisions", "/proposals"];
+  const pages = ["/", "/capture", "/settings", "/ideas", "/tasks", "/projects", "/decisions", "/research", "/experts", "/proposals", "/search"];
   try {
     if (pages.includes(location.pathname) || location.pathname.startsWith("/records/") || location.pathname.startsWith("/inbox/")) {
       sessionStorage.setItem("${RETURN_KEY}", location.pathname + location.search + location.hash);

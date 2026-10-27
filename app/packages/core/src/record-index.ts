@@ -40,6 +40,27 @@ export interface IndexedRecord {
   text: string;
 }
 
+export interface SearchHit {
+  record: IndexedRecord;
+  score: number;
+  /** About 160 characters of the body around the first word found there, or its start. */
+  snippet: string;
+}
+
+/** Text around the first matching word, on one line, without Markdown markers. */
+function snippet(body: string, words: readonly string[]): string {
+  const flat = body
+    .replace(/^\s*(#{1,6}|[-*+]\s+\[[ xX]\]|[-*+>]|\d+\.)\s+/gm, "")
+    .replace(/[*_`]+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const lower = flat.toLowerCase();
+  const at = words.map((w) => lower.indexOf(w)).filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? 0;
+  const start = Math.max(0, at - 60);
+  const text = flat.slice(start, start + 160);
+  return `${start > 0 ? "…" : ""}${text}${start + 160 < flat.length ? "…" : ""}`;
+}
+
 export interface Backlink {
   rel: LinkRel;
   source: IndexedRecord;
@@ -121,6 +142,42 @@ export class RecordIndex {
   /** Open tasks that `blocks` this task (§7.3). */
   blockedBy(taskId: string): string[] {
     return openBlockers(canonical(taskId), this.list("task"));
+  }
+
+  /**
+   * Search by ID, title, tags and full text (§12.2). Every word must match
+   * somewhere, case-insensitively. An ID match ranks first, then title,
+   * then tag, then body matches; ties go to the most recently updated.
+   */
+  search(query: string, options: { type?: RecordType; status?: string; limit?: number } = {}): SearchHit[] {
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return [];
+    const hits: SearchHit[] = [];
+    for (const record of this.#byId.values()) {
+      if (options.type && record.type !== options.type) continue;
+      if (options.status && record.status !== options.status) continue;
+      const id = record.id.toLowerCase();
+      const title = record.title.toLowerCase();
+      const tags = record.tags.join(" ");
+      const body = record.body.toLowerCase();
+      let score = 0;
+      let matched = true;
+      for (const word of words) {
+        if (id === word) score += 100;
+        else if (id.includes(word)) score += 50;
+        else if (title.includes(word)) score += 20;
+        else if (tags.includes(word)) score += 10;
+        else if (body.includes(word)) score += 1;
+        else {
+          matched = false;
+          break;
+        }
+      }
+      if (matched) hits.push({ record, score, snippet: snippet(record.body, words) });
+    }
+    return hits
+      .sort((a, b) => b.score - a.score || b.record.updated.localeCompare(a.record.updated) || a.record.id.localeCompare(b.record.id))
+      .slice(0, options.limit ?? 50);
   }
 
   /** A short hash of the IDs, statuses and blobs of one type: changes whenever that board would. */

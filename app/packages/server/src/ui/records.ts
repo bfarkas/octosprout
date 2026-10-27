@@ -36,6 +36,9 @@ const NAV_BY_TYPE: Partial<Record<RecordType, NavKey>> = {
   task: "tasks",
   project: "projects",
   decision: "decisions",
+  research: "research",
+  expert: "experts",
+  proposal: "proposals",
 };
 
 const REF_KINDS = ["repo", "pr", "commit", "branch", "issue", "file", "url"] as const;

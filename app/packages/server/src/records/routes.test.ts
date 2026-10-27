@@ -608,3 +608,42 @@ describe("creating records", () => {
     expect((await get("/new/capture")).statusCode).toBe(404);
   });
 });
+
+describe("lists and search", () => {
+  const get = (url: string) => app.inject({ method: "GET", url, headers: { cookie: session.cookie, accept: "text/html" } });
+
+  it("list current research by default and filter by status", async () => {
+    await seed(
+      file("research", "records/research", "OS-R-AAAAA", { status: "open", title: "Mail providers", links: [{ rel: "supports", id: "OS-I-5VT4F" }] }),
+      file("research", "records/research", "OS-R-BBBBB", { status: "archived", title: "Old notes" }),
+      ideaFile("OS-I-5VT4F"),
+    );
+    const html = (await get("/research")).body;
+    expect(html).toContain("Mail providers");
+    expect(html).toContain("supports 1");
+    expect(html).not.toContain("Old notes");
+    expect((await get("/research?status=archived")).body).toContain("Old notes");
+  });
+
+  it("list experts with how often they were consulted", async () => {
+    await seed(
+      file("expert", "experts", "OS-E-SEC01", { status: "active", title: "Security Architect" }),
+      file("decision", "records/decisions", "OS-D-4M9TZ", { status: "DRAFT", template: "harmel-law-adr@1775d49516784bee6824fcd02556926121a7e772", links: [{ rel: "consulted", id: "OS-E-SEC01" }] }, adrBody("OS-D-4M9TZ", "DRAFT", { title: "Example OS-D-4M9TZ" })),
+    );
+    const html = (await get("/experts")).body;
+    expect(html).toContain("Security Architect");
+    expect(html).toContain("consulted on 1 decision");
+  });
+
+  it("search finds records by ID, title and text, marks the words and escapes everything", async () => {
+    await seed(ideaFile("OS-I-5VT4F", { title: "Weekly <digest>" }), taskFile("OS-T-AAAAA", { title: "Mail it" }, "## Objective\nSend the weekly digest.\n## Acceptance criteria\n- [ ] x\n## Verification\ny\n"));
+    const html = (await get("/search?q=weekly")).body;
+    expect(html).toContain("2 results");
+    expect(html).toContain("<mark>Weekly</mark> &lt;digest&gt;");
+    expect(html.indexOf("OS-I-5VT4F")).toBeLessThan(html.indexOf("OS-T-AAAAA"));
+    expect((await get("/search?q=weekly&type=task")).body).toContain("1 result");
+    expect((await get("/search?q=os-t-aaaaa")).body).toContain("Mail it");
+    expect((await get("/search?q=nothing-matches")).body).toContain("Nothing matches every word.");
+    expect((await get("/")).body).toContain('<form class="topsearch" method="get" action="/search" role="search">');
+  });
+});

@@ -12,7 +12,7 @@ export function esc(value: unknown): string {
 }
 
 /** `record` shows the shell with no entry current. */
-export type NavKey = "inbox" | "ideas" | "tasks" | "projects" | "decisions" | "proposals" | "capture" | "settings" | "record";
+export type NavKey = "inbox" | "ideas" | "tasks" | "projects" | "decisions" | "research" | "experts" | "proposals" | "capture" | "settings" | "record";
 
 export interface PageOptions {
   title: string;
@@ -39,6 +39,9 @@ const ICONS = {
   decisions: '<path d="M6 3h6l3 3v11H6z"/><path d="M12 3v3h3"/><path d="M8.5 11h4M8.5 14h4"/>',
   settings: '<circle cx="10" cy="10" r="2.5"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/>',
   signout: '<path d="M8 4H5v12h3"/><path d="M12 6l4 4-4 4"/><path d="M16 10H8"/>',
+  research: '<path d="M4 4.5A1.5 1.5 0 015.5 3H15v12H5.5A1.5 1.5 0 004 16.5z"/><path d="M4 16.5A1.5 1.5 0 005.5 18H15v-3"/><path d="M8 7h4"/>',
+  experts: '<circle cx="7.5" cy="7" r="2.5"/><path d="M3 16c.5-2.8 2.2-4.2 4.5-4.2S11.5 13.2 12 16"/><circle cx="14" cy="8" r="2"/><path d="M13 11.8c2 0 3.5 1.2 4 3.7"/>',
+  search: '<circle cx="9" cy="9" r="5"/><path d="M13 13l4 4"/>',
   proposals: '<path d="M10 2.5l6 2.5v4.5c0 3.8-2.6 6.6-6 8-3.4-1.4-6-4.2-6-8V5z"/><path d="M7.5 10l1.8 1.8 3.4-3.6"/>',
 } as const;
 
@@ -48,6 +51,8 @@ const NAV: ReadonlyArray<{ key: NavKey; href: string; label: string; icon: keyof
   { key: "tasks", href: "/tasks", label: "Tasks", icon: "tasks" },
   { key: "projects", href: "/projects", label: "Projects", icon: "projects" },
   { key: "decisions", href: "/decisions", label: "Decisions", icon: "decisions" },
+  { key: "research", href: "/research", label: "Research", icon: "research" },
+  { key: "experts", href: "/experts", label: "Experts", icon: "experts" },
   { key: "proposals", href: "/proposals", label: "Proposals", icon: "proposals" },
 ];
 
@@ -87,7 +92,7 @@ ${options.body}
     ? `<div class="shell">
 ${sidebar(options.nav)}
 <div class="content">
-<header class="topbar">${crumbs}${syncIndicator(options.sync)}</header>
+<header class="topbar">${crumbs}<form class="topsearch" method="get" action="/search" role="search"><input type="search" name="q" placeholder="Search" aria-label="Search records"></form>${syncIndicator(options.sync)}</header>
 ${main}
 </div>
 </div>`

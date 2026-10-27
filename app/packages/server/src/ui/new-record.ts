@@ -19,7 +19,7 @@ export interface NewRecordOptions {
 }
 
 const LABELS: Record<CreatableType, string> = { idea: "idea", task: "task", project: "project", decision: "decision", research: "research record", expert: "expert profile" };
-const NAV: Partial<Record<CreatableType, NavKey>> = { idea: "ideas", task: "tasks", project: "projects", decision: "decisions" };
+const NAV: Partial<Record<CreatableType, NavKey>> = { idea: "ideas", task: "tasks", project: "projects", decision: "decisions", research: "research", expert: "experts" };
 
 export function registerNewRecord(app: FastifyInstance, options: NewRecordOptions): void {
   const { requireSession, records } = options;
