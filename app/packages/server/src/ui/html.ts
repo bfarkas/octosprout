@@ -37,7 +37,7 @@ const ICONS = {
   tasks: '<rect x="3" y="3" width="14" height="14" rx="3.5"/><path d="M7 10l2 2 4-4"/>',
   projects: '<path d="M3 6.5A2.5 2.5 0 015.5 4H8l2 2h4.5A2.5 2.5 0 0117 8.5v5a2.5 2.5 0 01-2.5 2.5h-9A2.5 2.5 0 013 13.5z"/>',
   decisions: '<path d="M6 3h6l3 3v11H6z"/><path d="M12 3v3h3"/><path d="M8.5 11h4M8.5 14h4"/>',
-  settings: '<circle cx="10" cy="10" r="2.5"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/>',
+  settings: '<circle cx="10" cy="10" r="5.5"/><circle cx="10" cy="10" r="2"/><path d="M10 2v2.5M10 15.5V18M2 10h2.5M15.5 10H18M4.1 4.1l1.8 1.8M14.1 14.1l1.8 1.8M4.1 15.9l1.8-1.8M14.1 5.9l1.8-1.8"/>',
   signout: '<path d="M8 4H5v12h3"/><path d="M12 6l4 4-4 4"/><path d="M16 10H8"/>',
   research: '<path d="M4 4.5A1.5 1.5 0 015.5 3H15v12H5.5A1.5 1.5 0 004 16.5z"/><path d="M4 16.5A1.5 1.5 0 005.5 18H15v-3"/><path d="M8 7h4"/>',
   experts: '<circle cx="7.5" cy="7" r="2.5"/><path d="M3 16c.5-2.8 2.2-4.2 4.5-4.2S11.5 13.2 12 16"/><circle cx="14" cy="8" r="2"/><path d="M13 11.8c2 0 3.5 1.2 4 3.7"/>',
