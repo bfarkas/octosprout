@@ -101,6 +101,7 @@ describe("the Inbox view", () => {
     expect(html).toContain("shortcut");
     expect(html).toContain('href="https://chatgpt.com/share/abc123" rel="noreferrer noopener"');
     expect(html).toMatch(/OS-C-[0-9A-HJKMNP-TV-Z]{5}/);
+    expect(html).toMatch(/<a class="button secondary triage-button" href="\/inbox\/OS-C-[0-9A-HJKMNP-TV-Z]{5}\/triage">Triage<\/a>/);
   });
 
   it("shows only captures that are still new", async () => {

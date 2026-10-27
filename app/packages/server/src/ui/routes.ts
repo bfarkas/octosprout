@@ -47,6 +47,7 @@ function captureCard(capture: CaptureSummary, body: string): string {
       `<details><summary><pre class="preview">${esc(preview)}</pre><span class="toggle"></span></summary><pre class="full">${esc(body)}</pre></details>`
     : `<pre>${esc(body)}</pre>`;
   return `<article class="card" id="${esc(capture.id)}">
+<a class="button secondary triage-button" href="/inbox/${esc(capture.id)}/triage">Triage</a>
 <div class="meta"><a href="/records/${esc(capture.id)}"><strong>${esc(capture.id)}</strong></a> · <time datetime="${esc(capture.created)}">${esc(formatTime(capture.created))}</time> · ${esc(sourceLabel(capture))}${link}</div>
 ${content}
 </article>`;

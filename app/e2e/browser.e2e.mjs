@@ -342,6 +342,33 @@ try {
   assert.match(await page.textContent(".markdown"), /from the Mac/);
   step("a conflicting edit opens the three-way merge, and the merged text is saved");
 
+  // Triage: a capture becomes an idea, another is composted.
+  await page.click('.side a[title="Inbox"]');
+  await page.waitForURL(`${origin}/`);
+  const newCount = async () => Number((await page.textContent("h1 .meta")).match(/\d+/)[0]);
+  const before = await newCount();
+  const firstCapture = await page.getAttribute(".card[id^='OS-C-']", "id");
+  await page.click(`#${firstCapture} .triage-button`);
+  await page.waitForURL(`${origin}/inbox/${firstCapture}/triage`);
+  await page.fill("#title-idea", "An idea from the Inbox");
+  await page.click('form[data-pane="idea"] button[type=submit]');
+  await page.waitForURL(/\/records\/OS-I-[0-9A-Z]{5}$/);
+  assert.equal(await page.textContent("h1"), "An idea from the Inbox");
+  assert.match(await page.textContent(".recordside"), new RegExp(`derived_from\\s+.*${firstCapture}`));
+  assert.match(git(remote, "log", "-1", "--format=%s", "main"), new RegExp(`^triage: ${firstCapture} -> OS-I-`));
+  await page.click('.side a[title="Inbox"]');
+  assert.equal(await newCount(), before - 1);
+  step("a capture triaged into an idea leaves the Inbox and links back to it");
+
+  const secondCapture = await page.getAttribute(".card[id^='OS-C-']", "id");
+  await page.click(`#${secondCapture} .triage-button`);
+  await page.click('.tab[data-tab="compost"]');
+  await page.click('form[data-pane="compost"] button[type=submit]');
+  await page.waitForURL(`${origin}/`);
+  assert.equal(await newCount(), before - 2);
+  assert.equal(git(remote, "log", "-1", "--format=%s", "main"), `triage: ${secondCapture} composted`);
+  step("a composted capture leaves the Inbox");
+
   console.log("\nAll browser checks passed.");
 } finally {
   await browser?.close();

@@ -720,6 +720,7 @@ If Kanban Lite fails any criterion, build the custom UI. The frontend framework 
 | View | Contents |
 |---|---|
 | Inbox | Captures with status `new`, newest first. Triage actions: create an Idea, Task or Research record (prefilled from the text), attach to an existing record, or compost. |
+| | *As built:* each Inbox card has **Triage**, which opens `/inbox/<ID>/triage`. A new record is prefilled with a title from the capture's first line (without a `Working title:` label) and its template, with the capture quoted at the top; it gets `derived_from` the capture. Attaching adds `derived_from` to an existing Idea, Task or Research record. Creating or attaching plants a `new` capture in the same commit; a planted capture can be triaged again. Compost and Restore move between `new` and `composted`. |
 | Capture form | `/capture`: a mobile-first single text area, an optional URL field, **Save** and **Paste & save**. Text shared through `/capture#text=…` is filled in (§15.4). Uses the same pipeline as the inbox API, through `POST /api/v1/capture`. The start page of the home screen app. |
 | Settings | Inbox tokens (create, shown once; revoke) and registered passkeys. |
 | Ideas, Tasks, Projects and Decisions boards | Columns by status. Moving a card is a status change. Promotion opens the wizard. Consequential moves open the confirmation dialog. Tasks and Decisions filter by project. Decisions: create from template, advice panel. |
@@ -1135,7 +1136,7 @@ Tests use Vitest. Git tests run against temporary bare repositories that act as 
 
 - **Phase 0:** domain, DNS, Caddy and TLS are live; the Git write service is proven in tests and in production; passkey login works on the iPhone; the ADR template is vendored. The board engine was evaluated and decided (ADR006). Still open: the Ed25519 approval round-trip in CI. Decisions taken so far are ADR001–ADR006.
 - **Phase 1:** complete and deployed. The exit criterion was met with the share link and home screen app instead of the token Shortcut (ADR001).
-- **Phase 2:** in progress. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief; and Record detail with editing (below). Next: triage, proposals with signed approvals (which enable consequential moves on the boards), promotion, ADR creation, research and experts lists, search and the health panel.
+- **Phase 2:** in progress. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief; Record detail with editing; and triage (below). Next: proposals with signed approvals (which enable consequential moves on the boards), promotion, ADR creation, research and experts lists, search and the health panel.
 - **Phase 3:** not started.
 
 ### Phase 0 — Compatibility and safety spike

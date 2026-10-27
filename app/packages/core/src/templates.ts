@@ -16,7 +16,9 @@ export type TemplatedType = Extract<RecordType, "idea" | "task" | "project" | "r
 
 /** The template's body for a type: its sections, without frontmatter. */
 export function templateBody(type: TemplatedType, templatesDir = DEFAULT_TEMPLATES_DIR): string {
-  const parsed = parseRecord(readFileSync(join(templatesDir, "records", `${type}.md`), "utf8"));
+  // The placeholders are not YAML scalars ("{{ID}}" reads as a flow map), so fill them in first.
+  const filled = readFileSync(join(templatesDir, "records", `${type}.md`), "utf8").replace(/\{\{[A-Z]+\}\}/g, "x");
+  const parsed = parseRecord(filled);
   if (!parsed.ok) throw new Error(`templates/records/${type}.md: ${parsed.error.message}`);
   return parsed.record.body;
 }

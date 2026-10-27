@@ -527,3 +527,36 @@ describe("POST /api/v1/captures/:id/triage", () => {
     expect((await triage({ action: "create", type: "idea", title: " ", body: "" })).json()).toMatchObject({ error: "forbidden" });
   });
 });
+
+describe("the triage page", () => {
+  const body = "Working title: Weekly digest\n<b>Sunday</b> summary.\n";
+  const capture = (status = "new"): [string, string] => [
+    "records/captures/2026/10/OS-C-7K3QX.md",
+    renderRecord({ id: "OS-C-7K3QX", type: "capture", schema_version: 1, status, created: "2026-10-25T14:03:11Z", updated: "2026-10-25T14:03:11Z", source: "chatgpt", idempotency_key: "abcdefgh", received_via: "web-session", content_sha256: sha256Hex(body) }, body),
+  ];
+  const get = (url: string) => app.inject({ method: "GET", url, headers: { cookie: session.cookie, accept: "text/html" } });
+
+  it("prefills each record type from the template with the capture quoted", async () => {
+    await seed(capture(), ideaFile("OS-I-5VT4F", { title: "Existing idea" }), file("project", "records/projects", "OS-P-0XZ4K", { status: "proposed" }));
+    const html = (await get("/inbox/OS-C-7K3QX/triage")).body;
+    expect(html).toContain('<pre class="verbatim">Working title: Weekly digest\n&lt;b&gt;Sunday&lt;/b&gt; summary.\n</pre>');
+    for (const type of ["idea", "task", "research"]) expect(html).toContain(`id="title-${type}" name="title" maxlength="200" required value="Weekly digest"`);
+    expect(html).toContain("&gt; Working title: Weekly digest\n&gt; &lt;b&gt;Sunday&lt;/b&gt; summary.\n\n## Motivation");
+    expect(html).toContain('value="OS-I-5VT4F"');
+    expect(html).not.toContain('value="OS-P-0XZ4K"');
+    expect(html).toContain('data-tab="compost"');
+    expect(html).toContain(`data-blob="${records.index.get("OS-C-7K3QX")!.blob}"`);
+  });
+
+  it("offers only Restore for a composted capture", async () => {
+    await seed(capture("composted"));
+    const html = (await get("/inbox/OS-C-7K3QX/triage")).body;
+    expect(html).toContain('data-action="restore"');
+    expect(html).not.toContain('data-action="create"');
+  });
+
+  it("answers 404 for anything but a capture, and is linked from the Inbox", async () => {
+    await seed(capture(), ideaFile("OS-I-5VT4F"));
+    expect((await get("/inbox/OS-I-5VT4F/triage")).statusCode).toBe(404);
+  });
+});

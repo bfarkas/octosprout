@@ -195,6 +195,17 @@ dialog::backdrop { background: var(--shade); }
   .board { scroll-snap-type: x mandatory; gap: 0.6rem; margin-inline: -0.75rem; padding-inline: 0.75rem; scroll-padding-inline: 0.75rem; }
   .col[open] { flex: 0 0 84%; min-width: 0; scroll-snap-align: start; min-height: 16rem; }
 }
+/* Triage */
+.banner.info { border-color: var(--green); color: var(--green); background: var(--green-soft); }
+.triage-button { float: right; margin: -0.2rem 0 0.4rem 0.75rem; padding: 0.35rem 0.8rem; font-size: 0.9rem; }
+.triage { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 1.5rem; align-items: start; margin-top: 0.5rem; }
+.triage .capture-text { margin: 1rem 0 0; max-height: 70vh; overflow: auto; }
+.picks { display: grid; gap: 0.4rem; max-height: 22rem; overflow: auto; margin-top: 0.6rem; }
+.pick { display: flex; gap: 0.6rem; align-items: start; font-weight: 400; margin: 0; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); cursor: pointer; }
+.pick:has(input:checked) { border-color: var(--violet); background: var(--violet-soft); }
+.pick input { margin-top: 0.3rem; }
+@media (max-width: 900px) { .triage { grid-template-columns: minmax(0, 1fr); } }
+
 /* Record detail and editor */
 .recordhead { display: flex; flex-wrap: wrap; align-items: end; gap: 0.75rem 1rem; }
 .recordhead h1 { font-size: 2rem; letter-spacing: -0.035em; line-height: 1.15; margin: 0.15rem 0 0.25rem; }
@@ -217,8 +228,8 @@ dialog::backdrop { background: var(--shade); }
 .markdown blockquote { margin: 0.5rem 0; padding-left: 0.8rem; border-left: 3px solid var(--violet-line); color: var(--muted); }
 .markdown li.task { list-style: none; margin-left: -1.3rem; }
 pre.verbatim { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: inherit; }
-.tabs { display: inline-flex; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); margin: 1rem 0 0.25rem; }
-.tabs .tab { border: 0; border-radius: 0; background: none; color: var(--text); padding: 0.4rem 0.9rem; font-weight: 500; }
+.tabs { display: inline-flex; max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); margin: 1rem 0 0.25rem; scrollbar-width: none; }
+.tabs .tab { flex: none; white-space: nowrap; border: 0; border-radius: 0; background: none; color: var(--text); padding: 0.4rem 0.9rem; font-weight: 500; }
 .tabs .tab + .tab { border-left: 1px solid var(--border); }
 .tabs .tab[aria-selected="true"] { background: var(--violet); color: var(--on-violet); }
 #editor { max-width: 52rem; }
@@ -253,7 +264,7 @@ export const RETURN_JS = `
 (() => {
   const pages = ["/", "/capture", "/settings", "/ideas", "/tasks", "/projects", "/decisions"];
   try {
-    if (pages.includes(location.pathname) || location.pathname.startsWith("/records/")) {
+    if (pages.includes(location.pathname) || location.pathname.startsWith("/records/") || location.pathname.startsWith("/inbox/")) {
       sessionStorage.setItem("${RETURN_KEY}", location.pathname + location.search + location.hash);
     }
   } catch (_) {}
