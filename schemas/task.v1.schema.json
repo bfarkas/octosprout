@@ -33,7 +33,8 @@
         "ready",
         "in_progress",
         "blocked",
-        "done"
+        "done",
+        "archived"
       ]
     },
     "created": {

@@ -68,6 +68,7 @@ export const BOARD_DEFS: readonly Board[] = [
       { status: "in_progress", label: "In progress", hint: "Tending now" },
       { status: "blocked", label: "Blocked", hint: "Needs a little light" },
       { status: "done", label: "Done", hint: "Harvested" },
+      { status: "archived", label: "Archived", folded: true },
     ],
   },
   {

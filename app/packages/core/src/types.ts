@@ -45,7 +45,7 @@ export type LibraryTypeCode = (typeof LIBRARY_TYPE_CODES)[number];
 export const STATUSES = {
   capture: ["new", "planted", "composted"],
   idea: ["seed", "sprouting", "ready", "dormant", "transplanted", "composted"],
-  task: ["backlog", "ready", "in_progress", "blocked", "done"],
+  task: ["backlog", "ready", "in_progress", "blocked", "done", "archived"],
   project: ["proposed", "active", "on_hold", "completed", "archived"],
   decision: ["DRAFT", "PROPOSED", "ACCEPTED", "ADOPTED", "SUPERSEDED", "EXPIRED"],
   research: ["open", "concluded"],
