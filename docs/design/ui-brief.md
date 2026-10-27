@@ -20,7 +20,7 @@ adding a generic dashboard.
 - Status columns are the source of placement; cards sort by most recently
   updated.
 - Terminal states are collapsed vertical strips by default.
-- Tasks board: Backlog, Ready, In progress, Blocked, Done, Cancelled.
+- Tasks board: Backlog, Ready, In progress, Blocked, Done.
 - Projects board: Proposed, Active, On hold, Completed, Archived.
 - Decisions board: DRAFT, PROPOSED, ACCEPTED, ADOPTED, SUPERSEDED, EXPIRED.
 - Ideas board: Seed, Sprouting, Ready, Dormant, Transplanted, Composted.

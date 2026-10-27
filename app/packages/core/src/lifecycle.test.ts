@@ -133,7 +133,7 @@ describe("blocking", () => {
   const t = (id: string, status: string, ...blocks: string[]): TaskSummary => ({ id, status, links: blocks.map((target) => ({ rel: "blocks", id: target })) });
 
   it("lists open blockers", () => {
-    const tasks = [t("A", "in_progress", "C"), t("B", "done", "C"), t("D", "cancelled", "C"), t("E", "backlog", "C"), t("C", "blocked")];
+    const tasks = [t("A", "in_progress", "C"), t("B", "done", "C"), t("E", "backlog", "C"), t("C", "blocked")];
     expect(openBlockers("C", tasks)).toEqual(["A", "E"]);
   });
 

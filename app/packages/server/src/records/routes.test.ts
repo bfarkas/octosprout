@@ -263,7 +263,7 @@ describe("board pages", () => {
     await seed(
       taskFile("OS-T-2B7KC", { status: "in_progress", links: [{ rel: "blocks", id: "OS-T-AAAAA" }] }),
       taskFile("OS-T-AAAAA", { status: "blocked" }),
-      taskFile("OS-T-CCCCC", { status: "cancelled", links: [{ rel: "blocks", id: "OS-T-DDDDD" }] }),
+      taskFile("OS-T-CCCCC", { status: "done", links: [{ rel: "blocks", id: "OS-T-DDDDD" }] }),
       taskFile("OS-T-DDDDD", { status: "blocked" }),
     );
     const html = (await get("/tasks")).body;
@@ -632,14 +632,15 @@ describe("lists and search", () => {
   it("list current research by default and filter by status", async () => {
     await seed(
       file("research", "records/research", "OS-R-AAAAA", { status: "open", title: "Mail providers", links: [{ rel: "supports", id: "OS-I-5VT4F" }] }),
-      file("research", "records/research", "OS-R-BBBBB", { status: "archived", title: "Old notes" }),
+      file("research", "records/research", "OS-R-BBBBB", { status: "concluded", title: "Old notes" }),
       ideaFile("OS-I-5VT4F"),
     );
     const html = (await get("/research")).body;
     expect(html).toContain("Mail providers");
     expect(html).toContain("supports 1");
-    expect(html).not.toContain("Old notes");
-    expect((await get("/research?status=archived")).body).toContain("Old notes");
+    expect(html).toContain("Old notes");
+    expect((await get("/research?status=open")).body).not.toContain("Old notes");
+    expect((await get("/research?status=concluded")).body).toContain("Old notes");
   });
 
   it("list experts with how often they were consulted", async () => {

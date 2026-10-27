@@ -45,10 +45,10 @@ export type LibraryTypeCode = (typeof LIBRARY_TYPE_CODES)[number];
 export const STATUSES = {
   capture: ["new", "planted", "composted"],
   idea: ["seed", "sprouting", "ready", "dormant", "transplanted", "composted"],
-  task: ["backlog", "ready", "in_progress", "blocked", "done", "cancelled"],
+  task: ["backlog", "ready", "in_progress", "blocked", "done"],
   project: ["proposed", "active", "on_hold", "completed", "archived"],
   decision: ["DRAFT", "PROPOSED", "ACCEPTED", "ADOPTED", "SUPERSEDED", "EXPIRED"],
-  research: ["open", "concluded", "archived"],
+  research: ["open", "concluded"],
   expert: ["active", "retired"],
   proposal: ["pending", "applied", "rejected", "stale"],
 } as const satisfies Record<RecordType, readonly string[]>;

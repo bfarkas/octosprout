@@ -15,10 +15,10 @@ title or filename.
 |---|---|---|---|
 | Capture | `C` | `records/captures/YYYY/MM/<ID>.md` | `new`, `planted`, `composted` |
 | Idea | `I` | `records/ideas/<ID>--<slug>.md` | `seed`, `sprouting`, `ready`, `dormant`, `transplanted`, `composted` |
-| Task | `T` | `records/tasks/<ID>--<slug>.md` | `backlog`, `ready`, `in_progress`, `blocked`, `done`, `cancelled` |
+| Task | `T` | `records/tasks/<ID>--<slug>.md` | `backlog`, `ready`, `in_progress`, `blocked`, `done` |
 | Project | `P` | `records/projects/<ID>--<slug>.md` | `proposed`, `active`, `on_hold`, `completed`, `archived` |
 | Decision (ADR) | `D` | `records/decisions/<ID>--<slug>.md` | `DRAFT`, `PROPOSED`, `ACCEPTED`, `ADOPTED`, `SUPERSEDED`, `EXPIRED` |
-| Research | `R` | `records/research/<ID>--<slug>.md` | `open`, `concluded`, `archived` |
+| Research | `R` | `records/research/<ID>--<slug>.md` | `open`, `concluded` |
 | Expert profile | `E` | `experts/<ID>--<slug>.md` | `active`, `retired` |
 | Proposal | `PROP` | `proposals/YYYY/MM/<ID>.md` | `pending`, `applied`, `rejected`, `stale` |
 
