@@ -11,5 +11,4 @@ in `AGENTS.md`:
 The skills are plain Markdown, so any agent that can read files and run the
 CLI can follow them. The MCP server is faster, but no skill depends on it.
 
-`advise` arrives with expert profiles. `handoff` and `report` arrive with the
-handoff context.
+`handoff` and `report` arrive with the handoff context.

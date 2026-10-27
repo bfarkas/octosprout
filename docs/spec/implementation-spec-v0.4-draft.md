@@ -805,6 +805,15 @@ The `advise` workflow:
 
 Simulated advice is never presented as human review. Agreement among personas never substitutes for approval.
 
+> **As built (Phase 3):**
+> - **One proposal per run.** `planAdvice` in `@octosprout/core` builds it. The MCP tool `propose_advice` and the CLI command `octosprout advise <decision> -` (the same JSON) both use it, and the `advise` skill drives them.
+> - **Decisions.** Only `DRAFT` and `PROPOSED` decisions take advice; later bodies are frozen.
+> - **Advice bullets** follow Appendix A's form: ` * <advice> - <Profile> (simulated, AI-generated, <model>), <Role>, <Date>`. They replace the template's placeholder bullet.
+> - **Profiles.** Each one is linked with `consulted`. New profiles can be created in the same proposal and are kept for reuse.
+> - **Research records.** Long-form advice and the synthesis each become a `concluded` research record. It opens with a "Simulated, AI-generated" note, `supports` the decision, and is listed under Supporting Material as ` * <title> <ID>`.
+> - **Routine.** The proposal is routine unless it crosses `bulk_threshold`.
+> - **Advice panel.** The decision's Record detail shows how many advice entries there are and how many are simulated, the profiles consulted, and the supporting research.
+
 ## 15. Ingestion
 
 ### 15.1 Use cases

@@ -4,7 +4,7 @@
  * /static/record.js saves edits and status moves, and shows the three-way
  * merge after a conflict (§8.4).
  */
-import { allowedTargets, LINK_RELS, moveKind, type IndexedRecord, type RecordIndex, type RecordType } from "@octosprout/core";
+import { ADVISABLE_STATUSES, allowedTargets, LINK_RELS, moveKind, parseAdr, type IndexedRecord, type RecordIndex, type RecordType } from "@octosprout/core";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import type { WriteStatus } from "../git/write-service.js";
@@ -74,10 +74,28 @@ function statusControl(record: IndexedRecord, approvals: boolean): string {
   return `<span class="move"><select id="move" aria-label="Move ${esc(record.id)} to"><option value="">Move to…</option>${options}</select></span>`;
 }
 
+/** The decision's advice at a glance (§12.1, §14): who was consulted, and what is simulated. */
+function advicePanel(record: IndexedRecord, index: RecordIndex): string {
+  const advice = parseAdr(record.body).advice.filter((a) => !/^\[.*\]/.test(a.text));
+  const simulated = advice.filter((a) => a.text.includes("(simulated, AI-generated")).length;
+  const consulted = record.links.filter((l) => l.rel === "consulted");
+  const research = index.backlinks(record.id).filter((b) => b.rel === "supports" && b.source.type === "research");
+  const facts = [
+    advice.length === 0 ? "No advice yet." : `${advice.length} advice ${advice.length === 1 ? "entry" : "entries"}${simulated ? `, <span class="badge gated">${simulated} simulated</span>` : ""}`,
+    ...consulted.map((l) => `<span class="rel">consulted</span> ${linkTo(index, l.id)}`),
+    ...research.map((b) => `<span class="rel">supporting</span> ${linkTo(index, b.source.id)}`),
+  ];
+  const hint = ADVISABLE_STATUSES.includes(record.status)
+    ? "Ask an agent to run the advise skill. Simulated advice is AI-generated and is never human review."
+    : "Simulated advice is AI-generated and is never human review.";
+  return `<h2>Advice</h2><ul class="plain facts">${facts.map((f) => `<li>${f}</li>`).join("")}</ul><p class="hint">${hint}</p>`;
+}
+
 function sidePanel(record: IndexedRecord, index: RecordIndex, history: Awaited<ReturnType<RecordPageOptions["writer"]["history"]>>): string {
   const sections: string[] = [];
   const list = (items: string[]) => `<ul class="plain facts">${items.map((item) => `<li>${item}</li>`).join("")}</ul>`;
 
+  if (record.type === "decision") sections.push(advicePanel(record, index));
   if (record.links.length > 0) {
     sections.push(`<h2>Links</h2>${list(record.links.map((l) => `<span class="rel">${esc(l.rel)}</span> ${linkTo(index, l.id)}`))}`);
   }

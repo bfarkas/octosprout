@@ -40,7 +40,7 @@ describe("octosprout mcp", () => {
   it("lists the read and proposal tools of §16.3", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
-      ["draft_record", "get_record", "get_related", "list_inbox", "list_proposals", "propose", "propose_adr", "propose_promotion", "propose_triage", "search_records", "sync", "validate"].sort(),
+      ["draft_record", "propose_advice", "get_record", "get_related", "list_inbox", "list_proposals", "propose", "propose_adr", "propose_promotion", "propose_triage", "search_records", "sync", "validate"].sort(),
     );
     expect(tools.find((t) => t.name === "get_record")?.annotations?.readOnlyHint).toBe(true);
   });
@@ -111,6 +111,21 @@ describe("octosprout mcp", () => {
     });
     expect(result.isError).toBe(false);
     expect((await call("draft_record", { type: "task", title: "x", project: idea })).isError).toBe(true);
+  });
+
+  it("proposes simulated advice with a new profile", async () => {
+    const decision = make("new", "decision", "Poll or push");
+    const result = await call<{ kind: string; proposal: string }>("propose_advice", {
+      decision,
+      model: "claude-opus-5-5",
+      new_experts: [{ title: "Operations Lead" }],
+      advice: [{ expert: "Operations Lead", role: "Operations", advice: "Push is simpler to run.", long_form: "Polling needs a scheduler." }],
+      synthesis: "One perspective; no disagreement.",
+      rationale: "Advice before proposing the decision.",
+    });
+    expect(result.isError).toBe(false);
+    expect(ws.git("show", "HEAD:" + ws.git("show", "--name-only", "--format=", "HEAD"))).toContain("Push is simpler to run. - Operations Lead (simulated, AI-generated, claude-opus-5-5), Operations,");
+    expect((await call("propose_advice", { decision, model: "m", advice: [{ expert: "Nobody", role: "x", advice: "x" }], rationale: "x" })).isError).toBe(true);
   });
 
   it("proposes triage, ADRs and promotions", async () => {

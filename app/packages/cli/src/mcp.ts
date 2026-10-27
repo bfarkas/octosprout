@@ -21,7 +21,7 @@ import {
 import { z } from "zod";
 
 import { summary } from "./commands.js";
-import { draftRecord, findRecord, promotionPlan, triagePlan, type TriageInput } from "./plans.js";
+import { ADVICE_SHAPE, advicePlan, draftRecord, findRecord, promotionPlan, triagePlan, type TriageInput } from "./plans.js";
 import { Workspace, WorkspaceError, type WriteOutcome } from "./workspace.js";
 
 const VERSION = "0.0.0";
@@ -231,6 +231,19 @@ export function createMcpServer(cwd: string, options: McpOptions = {}): McpServe
       const ws = open();
       const draft = draftRecord(ws, { type: "decision", title, body, project, supersedes });
       return proposeAndSync(ws, { title: `Draft ADR ${draft.id}: ${title}`, rationale, operations: [{ op: "create", path: draft.path, content: draft.content }] });
+    }),
+  );
+
+  server.registerTool(
+    "propose_advice",
+    {
+      description: "Propose simulated expert advice on a DRAFT or PROPOSED decision (spec §14): one attributed, simulated ## Advice bullet per perspective, consulted links to the profiles, and research records for long-form advice and the synthesis, listed under Supporting Material. New profiles can be created in the same proposal.",
+      inputSchema: { decision: z.string(), ...ADVICE_SHAPE, rationale: z.string() },
+    },
+    guarded(({ rationale, ...input }) => {
+      const ws = open();
+      const plan = advicePlan(ws, input);
+      return proposeAndSync(ws, { title: plan.title, rationale, operations: plan.operations });
     }),
   );
 

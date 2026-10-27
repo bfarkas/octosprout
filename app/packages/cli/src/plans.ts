@@ -4,6 +4,8 @@
  */
 import {
   buildNewRecord,
+  planAdvice,
+  type AdviceEntry,
   planPromotion,
   planTriage,
   prefillFromCapture,
@@ -12,6 +14,8 @@ import {
   type IndexedRecord,
   type Operation,
 } from "@octosprout/core";
+
+import { z } from "zod";
 
 import { Workspace, WorkspaceError } from "./workspace.js";
 
@@ -102,4 +106,74 @@ export function promotionPlan(ws: Workspace, input: PromotionInput): { title: st
     now: ws.now(),
   });
   return { title: `Promote ${idea.id} to ${input.projectTitle}`, operations, project };
+}
+
+/** The input of `propose_advice` and `octosprout advise`, besides the decision. */
+export const ADVICE_SHAPE = {
+  model: z.string().min(1).max(100).describe("The model that simulated the experts, e.g. claude-opus-5-5."),
+  advice: z
+    .array(
+      z.object({
+        expert: z.string().describe("An active expert profile's ID, or the title of one in new_experts."),
+        role: z.string().min(1).max(80).describe("The perspective's role, e.g. Security."),
+        advice: z.string().min(1).max(1000).describe("The advice in one or two sentences, for the ## Advice bullet."),
+        long_form: z.string().optional().describe("Longer reasoning and evidence; kept in a research record that supports the decision."),
+        sources: z.string().optional().describe("Markdown list of sources for the long form."),
+      }),
+    )
+    .min(1)
+    .max(20),
+  new_experts: z
+    .array(z.object({ title: z.string().min(1).max(200), body: z.string().optional().describe("The profile in the expert template's sections.") }))
+    .max(10)
+    .optional()
+    .describe("Profiles to create in the same proposal, kept for reuse."),
+  synthesis: z.string().optional().describe("Agreements, disagreements, evidence and recommendations across the perspectives."),
+};
+
+export type AdviceInput = z.infer<z.ZodObject<typeof ADVICE_SHAPE>> & { decision: string };
+
+/** An `advise` run (§14): its title and operations. */
+export function advicePlan(ws: Workspace, input: AdviceInput): { title: string; operations: Operation[] } {
+  const decision = findRecord(ws, input.decision);
+  if (decision.type !== "decision") throw new WorkspaceError(`${decision.id} is not a decision.`);
+  const taken = new Set<string>();
+  const fresh = (type: "expert" | "research") => {
+    const id = ws.newId(type, taken);
+    taken.add(id);
+    return id;
+  };
+  const drafted = new Map<string, { id: string; title: string; path: string; content: string }>();
+  for (const profile of input.new_experts ?? []) {
+    const id = fresh("expert");
+    const { path, content } = buildNewRecord({ type: "expert", id, title: profile.title, now: ws.now(), ...(profile.body !== undefined ? { body: profile.body } : {}) });
+    drafted.set(profile.title.trim().toLowerCase(), { id, title: profile.title.trim(), path, content });
+  }
+  const expertFor = (name: string) => {
+    const created = drafted.get(name.trim().toLowerCase());
+    if (created) return { id: created.id, title: created.title };
+    const existing = ws.index.get(name);
+    if (existing?.type !== "expert") throw new WorkspaceError(`${name} is neither an expert profile nor one of new_experts.`);
+    if (existing.status !== "active") throw new WorkspaceError(`${existing.id} is retired.`);
+    return { id: existing.id, title: existing.title };
+  };
+  const entries: AdviceEntry[] = input.advice.map((a) => ({
+    expert: expertFor(a.expert),
+    role: a.role,
+    advice: a.advice,
+    ...(a.long_form?.trim() ? { longForm: { id: fresh("research"), text: a.long_form, ...(a.sources ? { sources: a.sources } : {}) } } : {}),
+  }));
+  try {
+    const operations = planAdvice({
+      decision,
+      entries,
+      model: input.model,
+      now: ws.now(),
+      newExperts: [...drafted.values()].map(({ path, content }) => ({ path, content })),
+      ...(input.synthesis?.trim() ? { synthesis: { id: fresh("research"), text: input.synthesis } } : {}),
+    });
+    return { title: `Advice on ${decision.id}: ${decision.title}`, operations };
+  } catch (error) {
+    throw new WorkspaceError((error as Error).message);
+  }
 }

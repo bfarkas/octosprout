@@ -1,7 +1,7 @@
 /**
  * The workspace commands of the CLI (spec §4.1, §8.5, §16.2): new,
- * capture, show, search, inbox, move, link, unlink, propose, proposals and
- * sync. Each takes `--json` for machine-readable output, so the skills can
+ * capture, show, search, inbox, triage, promote, advise, move, link, unlink,
+ * propose, proposals and sync. Each takes `--json` for machine-readable output, so the skills can
  * use the CLI when MCP is not available.
  *
  * Exit codes: 0 done, 1 refused (validation, lifecycle, missing record),
@@ -25,8 +25,10 @@ import {
   type RecordType,
 } from "@octosprout/core";
 
+import { z } from "zod";
+
 import type { Io } from "./io.js";
-import { draftRecord, promotionPlan, triagePlan, type TriageInput } from "./plans.js";
+import { ADVICE_SHAPE, advicePlan, draftRecord, promotionPlan, triagePlan, type TriageInput } from "./plans.js";
 import { actorFrom, Workspace, WorkspaceError, type WriteOutcome } from "./workspace.js";
 
 export interface Parsed {
@@ -160,6 +162,26 @@ const promoteCommand: Command = (args, context, ws) => {
   // A promotion is consequential, so this always becomes a proposal (§10).
   const outcome = ws.write({ operations: plan.operations, title: plan.title, rationale: flag(parsed, "rationale") ?? plan.title, actor: actorFrom(context.env), operation: "promote", subject: plan.title });
   print(context, parsed.flags.has("json"), { project: plan.project, ...outcome }, () => `${plan.project} ${projectTitle}\n${describeWrite(outcome)}`);
+  return 0;
+};
+
+const ADVISE_USAGE = "usage: octosprout advise <decision> <file.json | -> where the JSON is { model, advice: [{ expert, role, advice, long_form? }], new_experts?, synthesis?, rationale? }";
+
+const adviseCommand: Command = (args, context, ws) => {
+  const parsed = parseArgs(args);
+  const [decision, source] = parsed.positional;
+  if (!decision || !source) throw new UsageError(ADVISE_USAGE);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(source === "-" ? (context.stdin?.() ?? "") : readFileSync(source, "utf8"));
+  } catch (error) {
+    throw new UsageError(`the advice is not valid JSON: ${(error as Error).message}`);
+  }
+  const input = z.object({ ...ADVICE_SHAPE, rationale: z.string().optional() }).safeParse(raw);
+  if (!input.success) throw new UsageError(`the advice does not match: ${z.prettifyError(input.error)}`);
+  const plan = advicePlan(ws, { ...input.data, decision });
+  const outcome = ws.write({ operations: plan.operations, title: plan.title, rationale: input.data.rationale ?? plan.title, actor: actorFrom(context.env), operation: "advise", subject: `advise: ${plan.title.replace(/^Advice on /, "")}` });
+  print(context, parsed.flags.has("json"), outcome, () => describeWrite(outcome));
   return 0;
 };
 
@@ -337,6 +359,7 @@ export const COMMANDS: Record<string, Command> = {
   unlink: linkCommand(true),
   triage: triageCommand,
   promote: promoteCommand,
+  advise: adviseCommand,
   propose: proposeCommand,
   proposals: proposalsCommand,
   sync: syncCommand,

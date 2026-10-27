@@ -54,6 +54,7 @@ it in the browser, and only then do records change. Commit nothing else.
   | `propose_triage` | `octosprout triage <capture> create\|attach\|compost …` |
   | `propose_promotion` | `octosprout promote <idea> <title> --brief-file - --tasks-file F` |
   | `propose_adr` | `octosprout new decision <title> --body-file -` |
+  | `propose_advice` | `octosprout advise <decision> -` with the advice JSON on stdin |
   | `validate`, `sync` | `octosprout validate`, `sync` |
 - **Operations:** `create` (path, content), `update` (id, base_blob, the whole
   new content), `set_status`, `add_link`, `remove_link` and `delete`. Every
@@ -96,4 +97,5 @@ Before one of these workflows, read its `skills/<name>/SKILL.md` and follow it:
 - `explore`: research and refine an idea.
 - `relate`: find and propose missing links between records.
 - `promote`: turn a ready idea into a project.
+- `advise`: gather simulated expert advice on a decision.
 - `review-backlog`: find stale, blocked, unlinked or invalid records.

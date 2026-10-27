@@ -71,6 +71,7 @@ octosprout link OS-I-2HD9W relates_to OS-P-0XZ4K
 octosprout triage OS-C-7K3QX create idea   # or: attach OS-I-2HD9W | compost
 octosprout promote OS-I-2HD9W Weekly digest --tasks-file tasks.txt
 octosprout new research "Prior art" --draft --json   # a record for a larger proposal
+octosprout advise OS-D-9PKVR - < advice.json        # simulated expert advice on a decision
 octosprout propose - < proposal.json  # { title, rationale, operations }
 octosprout sync                       # fetch, rebase, validate, push
 octosprout mcp                        # the stdio MCP server for Claude Code
@@ -89,7 +90,7 @@ calls also become proposals. Its read tools (`search_records`, `get_record`,
 `get_related`, `list_inbox`, `list_proposals`, `validate`, `draft_record`) read
 the checkout.
 Its write tools (`propose`, `propose_triage`, `propose_adr`,
-`propose_promotion`) commit one proposal file, then push it. Nothing changes
+`propose_advice`, `propose_promotion`) commit one proposal file, then push it. Nothing changes
 until you approve the proposal in the browser. A proposal that could not
 validate once applied is refused up front.
 

@@ -423,6 +423,20 @@ describe("record pages", () => {
     expect(task).toContain('<span class="rel">belongs_to</span> <a href="/records/OS-P-0XZ4K">Garden digest</a>');
   });
 
+  it("show a decision's advice panel: simulated entries, profiles consulted and supporting research", async () => {
+    const body = adrBody("OS-D-4M9TZ", "PROPOSED", { title: "Example OS-D-4M9TZ" }).replace("## Advice\n", "## Advice\n * Prefer push - Ops Lead (simulated, AI-generated, m), Operations, Oct 26, 2026\n");
+    await seed(
+      file("decision", "records/decisions", "OS-D-4M9TZ", { status: "PROPOSED", template: "harmel-law-adr@1775d49516784bee6824fcd02556926121a7e772", links: [{ rel: "consulted", id: "OS-E-0PS1D" }] }, body),
+      file("expert", "experts", "OS-E-0PS1D", { status: "active", title: "Ops Lead" }),
+      file("research", "records/research", "OS-R-5YNTH", { status: "concluded", title: "Advice synthesis", links: [{ rel: "supports", id: "OS-D-4M9TZ" }] }),
+    );
+    const html = (await get("/records/OS-D-4M9TZ")).body;
+    expect(html).toContain('<h2>Advice</h2><ul class="plain facts"><li>1 advice entry, <span class="badge gated">1 simulated</span></li>');
+    expect(html).toContain('<span class="rel">consulted</span> <a href="/records/OS-E-0PS1D">Ops Lead</a>');
+    expect(html).toContain('<span class="rel">supporting</span> <a href="/records/OS-R-5YNTH">Advice synthesis</a>');
+    expect(html).toContain("Ask an agent to run the advise skill.");
+  });
+
   it("show a capture as plain text, never as Markdown", async () => {
     const body = "# not a heading\n<b>x</b>\n";
     await seed([

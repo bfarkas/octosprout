@@ -120,6 +120,17 @@ describe("writing as a person", () => {
     expect(out.join("\n")).toContain(`Promote ${id} to Weekly digest`);
   });
 
+  it("advise proposes simulated advice for an agent", () => {
+    run(["new", "expert", "Security", "Architect", "--json"]);
+    const expert = json<{ id: string }>().id;
+    run(["new", "decision", "Poll", "--json"]);
+    const decision = json<{ id: string }>().id;
+    const advice = { model: "claude-opus-5-5", advice: [{ expert, role: "Security", advice: "Prefer per-file preconditions." }] };
+    expect(run(["advise", decision, "-", "--json"], AGENT, JSON.stringify(advice))).toBe(0);
+    expect(json()).toMatchObject({ kind: "proposed", consequential: false });
+    expect(run(["advise", decision, "-"], AGENT, JSON.stringify({ advice: [] }))).toBe(2);
+  });
+
   it("links and unlinks records", () => {
     run(["new", "idea", "A", "--json"]);
     const a = json<{ id: string }>().id;
