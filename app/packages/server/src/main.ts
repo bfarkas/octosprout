@@ -6,16 +6,43 @@
  *   octosprout-server token create <name>
  *   octosprout-server token revoke <name>
  *   octosprout-server token list
+ *   octosprout-server approval-key generate <file>
+ *   octosprout-server approval-key show
  */
 import { ConfigError, loadConfig } from "./config.js";
+import { generateSigningKeyFile, keyEntry, loadSigningKey } from "./approvals/signing-key.js";
 import { TokenStore } from "./http/tokens.js";
 import { startServer } from "./server.js";
 
-const USAGE = "usage: octosprout-server [serve] | token create <name> | token revoke <name> | token list";
+const USAGE =
+  "usage: octosprout-server [serve] | token create <name> | token revoke <name> | token list | approval-key generate <file> | approval-key show";
 
 async function main(argv: string[]): Promise<number> {
   const [command = "serve", subcommand, name] = argv;
+
+  // Generating a key needs no configuration: it runs before the server is set up.
+  if (command === "approval-key" && subcommand === "generate" && name) {
+    const key = generateSigningKeyFile(name);
+    console.error(`Wrote the approval signing key to ${name}. Mount it as the approval_signing_key secret.`);
+    console.error("Its public key, for approval_public_keys in octosprout.yaml (the server can add it for you from Settings):");
+    console.log(keyEntry(key).trimEnd());
+    return 0;
+  }
+
   const config = loadConfig();
+
+  if (command === "approval-key") {
+    if (subcommand !== "show") {
+      console.error(USAGE);
+      return 2;
+    }
+    if (!config.approvalKeyFile) {
+      console.error("OCTOSPROUT_APPROVAL_KEY_FILE is not set.");
+      return 1;
+    }
+    console.log(keyEntry(loadSigningKey(config.approvalKeyFile)).trimEnd());
+    return 0;
+  }
 
   if (command === "token") {
     const tokens = new TokenStore(config.stateDir);

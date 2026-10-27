@@ -298,3 +298,37 @@ describe("authorization matrix", () => {
     ).toBe(401);
   });
 });
+
+describe("re-verification", () => {
+  it("records a fresh passkey assertion on the session, and needs the session's CSRF token", async () => {
+    const authenticator = new FakeAuthenticator(RP_ID, ORIGIN);
+    const registered = await register(authenticator);
+    const cookie = cookieOf(registered);
+    const csrf = json(registered).csrf as string;
+    const id = cookie.slice(`${SESSION_COOKIE}=`.length);
+    const signedInAt = sessions.lookup(id)!.verifiedAt;
+    expect(signedInAt).toBe(new Date(now).toISOString());
+
+    const headers = { cookie, "x-csrf-token": csrf };
+    expect((await publicPost("/api/v1/auth/reverify/options", {}, { cookie })).statusCode).toBe(403);
+    const options = json(await publicPost("/api/v1/auth/reverify/options", {}, headers));
+    now += 60_000;
+    const verified = await publicPost("/api/v1/auth/reverify/verify", { response: authenticator.get(options as { challenge: string }) }, headers);
+    expect(verified.statusCode).toBe(200);
+    expect(sessions.lookup(id)!.verifiedAt).not.toBe(signedInAt);
+  });
+
+  it("refuses a login challenge, a replay and an anonymous request", async () => {
+    const authenticator = new FakeAuthenticator(RP_ID, ORIGIN);
+    const registered = await register(authenticator);
+    const headers = { cookie: cookieOf(registered), "x-csrf-token": json(registered).csrf as string };
+    const loginOptions = json(await publicPost("/api/v1/auth/login/options", {}));
+    expect((await publicPost("/api/v1/auth/reverify/verify", { response: authenticator.get(loginOptions as { challenge: string }) }, headers)).statusCode).toBe(401);
+
+    const options = json(await publicPost("/api/v1/auth/reverify/options", {}, headers));
+    const assertion = authenticator.get(options as { challenge: string });
+    expect((await publicPost("/api/v1/auth/reverify/verify", { response: assertion }, headers)).statusCode).toBe(200);
+    expect((await publicPost("/api/v1/auth/reverify/verify", { response: assertion }, headers)).statusCode).toBe(401);
+    expect((await publicPost("/api/v1/auth/reverify/options", {})).statusCode).toBe(401);
+  });
+});

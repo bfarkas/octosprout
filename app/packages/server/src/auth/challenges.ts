@@ -2,7 +2,7 @@
  * Outstanding WebAuthn challenges. Each is single-use and expires quickly.
  */
 
-export type ChallengeKind = "register" | "login";
+export type ChallengeKind = "register" | "login" | "reverify";
 
 const TTL_MS = 5 * 60 * 1000;
 const MAX_OUTSTANDING = 1000;

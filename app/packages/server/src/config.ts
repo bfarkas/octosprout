@@ -18,6 +18,8 @@ export interface ServerConfig {
   rpId: string;
   /** The exact origin the app is served from. */
   origin: string;
+  /** Ed25519 private key (PEM) that signs approvals. Without it, nothing consequential can be approved. */
+  approvalKeyFile?: string;
   /** File holding the setup token for passkey registration. Without it, /setup is disabled. */
   setupTokenFile?: string;
   /** Trust `X-Forwarded-For` from these proxies (Caddy), or not at all. */
@@ -75,6 +77,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     rpId: env.OCTOSPROUT_RP_ID || "octosprout.de",
     origin: origin(env.OCTOSPROUT_ORIGIN || "https://app.octosprout.de"),
     ...(env.OCTOSPROUT_SETUP_TOKEN_FILE ? { setupTokenFile: env.OCTOSPROUT_SETUP_TOKEN_FILE } : {}),
+    ...(env.OCTOSPROUT_APPROVAL_KEY_FILE ? { approvalKeyFile: env.OCTOSPROUT_APPROVAL_KEY_FILE } : {}),
     trustProxy,
     syncIntervalMs: integer(env, "OCTOSPROUT_SYNC_INTERVAL_SECONDS", 60, 1, 3600) * 1000,
     logLevel,

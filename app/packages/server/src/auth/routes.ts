@@ -69,9 +69,14 @@ export function denyUnauthenticated(request: FastifyRequest, reply: FastifyReply
   return reply.code(401).send({ error: "unauthorized" });
 }
 
+/** How recent a passkey assertion must be for a consequential approval (§9.3). */
+export const REVERIFY_MS = 5 * 60 * 1000;
+
 export interface Guards {
   /** Requires a live session. State-changing requests also need a matching Origin and CSRF token. */
   requireSession: (request: FastifyRequest, reply: FastifyReply) => Promise<FastifyReply | undefined>;
+  /** True if the request's session verified a passkey within the last five minutes. Call after `requireSession`. */
+  recentlyVerified: (request: FastifyRequest) => boolean;
 }
 
 export function registerAuth(app: FastifyInstance, options: AuthOptions): Guards {
@@ -269,6 +274,46 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): Guards
         }
       });
 
+      // Re-verification before a consequential approval (§9.3): a fresh assertion with user verification.
+      scope.post("/reverify/options", { preHandler: requireSession }, async () => {
+        const authentication = await generateAuthenticationOptions({
+          rpID: rpId,
+          userVerification: "required",
+          allowCredentials: passkeys.list().map((passkey) => ({ id: passkey.id, ...(passkey.transports ? { transports: transportsOf(passkey.transports)! } : {}) })),
+        });
+        challenges.remember(authentication.challenge, "reverify");
+        return authentication;
+      });
+
+      scope.post("/reverify/verify", { preHandler: requireSession }, async (request, reply) => {
+        const response = fields(request).response as AuthenticationResponseJSON | undefined;
+        const passkey = typeof response?.id === "string" ? passkeys.find(response.id) : undefined;
+        const failed = () => reply.code(401).send({ error: "reverify_failed", message: "The passkey could not be verified." });
+        if (!response || !passkey) return failed();
+        try {
+          const verification = await verifyAuthenticationResponse({
+            response,
+            expectedChallenge: (challenge) => challenges.consume(challenge, "reverify"),
+            expectedOrigin: origin,
+            expectedRPID: rpId,
+            credential: {
+              id: passkey.id,
+              publicKey: new Uint8Array(Buffer.from(passkey.publicKey, "base64url")),
+              counter: passkey.counter,
+              ...(passkey.transports ? { transports: transportsOf(passkey.transports)! } : {}),
+            },
+            requireUserVerification: true,
+          });
+          if (!verification.verified) return failed();
+          passkeys.recordUse(passkey.id, verification.authenticationInfo.newCounter, new Date(options.now?.() ?? Date.now()));
+          sessions.markVerified(request.sessionId!);
+          return { ok: true };
+        } catch (error) {
+          request.log.warn({ err: error }, "passkey re-verification failed");
+          return failed();
+        }
+      });
+
       scope.post("/logout", { preHandler: requireSession }, async (request, reply) => {
         if (request.sessionId) sessions.destroy(request.sessionId);
         reply.header("Set-Cookie", clearedSessionCookie());
@@ -286,5 +331,10 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): Guards
     passkeys: passkeys.list().map(({ id, name, created, lastUsed }) => ({ id, name, created, lastUsed })),
   }));
 
-  return { requireSession };
+  const recentlyVerified: Guards["recentlyVerified"] = (request) => {
+    const at = request.session?.verifiedAt;
+    return at !== undefined && (options.now?.() ?? Date.now()) - Date.parse(at) <= REVERIFY_MS;
+  };
+
+  return { requireSession, recentlyVerified };
 }

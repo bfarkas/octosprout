@@ -1,8 +1,8 @@
 # Deploying octosprout-server to rei3
 
 Covers what is built so far (spec §18.1): the inbox API, passkey sign-in, the
-Inbox view, the capture form and token management. Boards, proposals and
-approvals come later.
+Inbox, capture form, token management, boards, record editing, triage and
+approvals.
 
 ## 1. DNS and Caddy
 
@@ -60,7 +60,31 @@ sudo chmod 600 /etc/octosprout/secrets/setup_token
 Rotate it (replace the file and restart) after you have registered your
 devices. Without a setup token, `/setup` is disabled.
 
-## 4. Build and start
+## 4. Approval signing key
+
+The server signs approvals of consequential changes (spec §9.4) with an
+Ed25519 key that exists only on rei3. Generate it once, after building the
+image (step 5):
+
+```sh
+sudo docker run --rm --user 0 -v /etc/octosprout/secrets:/out octosprout-server:latest \
+  approval-key generate /out/approval_signing_key
+sudo chgrp 1000 /etc/octosprout/secrets/approval_signing_key
+sudo chmod 640 /etc/octosprout/secrets/approval_signing_key
+```
+
+(`openssl genpkey -algorithm ed25519 -out approval_signing_key` makes an
+equivalent key.) The command prints the public key's entry for
+`approval_public_keys`. You do not need to add it by hand: when
+`octosprout.yaml` trusts no key yet, Settings offers **Trust this server's
+approval key**, which commits the entry together with a proposal the server
+signs itself. Without the secret, nothing consequential can be approved.
+
+Back the key up with the other secrets. If it is lost, generate a new one and
+trust it through an approved change; keep the old entry listed with
+`status: retired` so earlier approvals stay valid (§18.5).
+
+## 5. Build and start
 
 ```sh
 docker build -f deploy/Dockerfile -t octosprout-server:latest .
@@ -73,7 +97,7 @@ On first start the server clones `octosprout-private` into the `octosprout-repo`
 volume. The log line `workspace ready` reports the head commit and the number
 of unpushed commits.
 
-## 5. Register your passkeys
+## 6. Register your passkeys
 
 1. Open `https://app.octosprout.de/setup` on your iPhone (Safari), enter the
    setup token, name the device and confirm with Face ID. You are signed in.
@@ -83,7 +107,7 @@ of unpushed commits.
 The passkeys are bound to `octosprout.de` and `https://app.octosprout.de`. If
 you change either setting, every passkey stops working and you register again.
 
-## 6. Set up capturing on the iPhone
+## 7. Set up capturing on the iPhone
 
 Follow [`deploy/shortcut/README.md`](../../deploy/shortcut/README.md): a
 three-action Shortcut for the share sheet, and the capture page on the home
@@ -106,7 +130,7 @@ Tokens created or revoked with the CLI take effect on the running server
 immediately, like tokens managed in the Settings page: the server re-reads
 `tokens.json` whenever it changes, so no restart is needed.
 
-## 7. Check it end to end
+## 8. Check it end to end
 
 ```sh
 curl -sS https://app.octosprout.de/healthz

@@ -19,6 +19,8 @@ export interface Session {
   credentialId: string;
   created: string;
   lastSeen: string;
+  /** Last passkey assertion with user verification: sign-in or re-verification (§9.3). */
+  verifiedAt?: string;
 }
 
 const hash = (id: string): string => createHash("sha256").update(id).digest("hex");
@@ -56,7 +58,7 @@ export class SessionStore {
     const id = randomBytes(32).toString("base64url");
     const csrf = randomBytes(32).toString("base64url");
     const now = new Date(this.#now()).toISOString();
-    this.#sessions.push({ idHash: hash(id), csrf, credentialId, created: now, lastSeen: now });
+    this.#sessions.push({ idHash: hash(id), csrf, credentialId, created: now, lastSeen: now, verifiedAt: now });
     this.#persist();
     return { id, csrf };
   }
@@ -73,6 +75,14 @@ export class SessionStore {
     session.lastSeen = new Date(now).toISOString();
     if (now - this.#lastPersisted > PERSIST_INTERVAL_MS) this.#persist();
     return session;
+  }
+
+  /** Records a fresh passkey assertion for the session. */
+  markVerified(id: string): void {
+    const session = this.#sessions.find((candidate) => candidate.idHash === hash(id));
+    if (!session) return;
+    session.verifiedAt = new Date(this.#now()).toISOString();
+    this.#persist();
   }
 
   destroy(id: string): void {
