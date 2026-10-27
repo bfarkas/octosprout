@@ -7,6 +7,7 @@ export * from "./ids.js";
 export * from "./lifecycle.js";
 export * from "./links.js";
 export * from "./promotion.js";
+export * from "./new-record.js";
 export * from "./proposals.js";
 export * from "./record-index.js";
 export * from "./record.js";

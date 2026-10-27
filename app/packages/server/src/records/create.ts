@@ -4,17 +4,15 @@
  * vendored ADR template (spec §13). Tasks, decisions and research can
  * belong to a project; a decision can supersede another.
  */
-import { addLink, generateId, newDecision, newRecord, recordPath, type TemplatedType } from "@octosprout/core";
+import { buildNewRecord, CREATABLE_TYPES, generateId, PROJECT_MEMBER_TYPES, type CreatableType } from "@octosprout/core";
 
 import { ValidationRejectedError } from "../git/write-service.js";
 import { formatTimestamp } from "../inbox/capture.js";
 import type { StatusMoveDeps } from "./status.js";
 
-export const CREATABLE = ["idea", "task", "project", "decision", "research", "expert"] as const;
-export type CreatableType = (typeof CREATABLE)[number];
-
-/** Types that can `belongs_to` a project (§6.3). */
-export const PROJECT_MEMBERS: readonly CreatableType[] = ["task", "decision", "research"];
+export const CREATABLE = CREATABLE_TYPES;
+export type { CreatableType };
+export const PROJECT_MEMBERS = PROJECT_MEMBER_TYPES;
 
 export interface CreateRequest {
   type: CreatableType;
@@ -55,14 +53,16 @@ export async function createRecord(deps: StatusMoveDeps, request: CreateRequest)
   const now = formatTimestamp((deps.now ?? (() => new Date()))());
   const id = generateId(request.type, { exists: (candidate) => index.has(candidate) });
   const author = request.author?.trim() || records.config().author;
-  let content: string;
-  if (request.type === "decision") {
-    content = newDecision({ id, title, now, ...(author ? { author } : {}), ...(project ? { project } : {}), ...(supersedes ? { supersedes } : {}) });
-  } else {
-    content = newRecord(request.type as TemplatedType, { id, title, now, ...(request.body !== undefined ? { body: request.body } : {}) });
-    if (project) content = addLink(content, { rel: "belongs_to", id: project }, now);
-  }
-  const path = recordPath(request.type, id, title);
+  const { path, content } = buildNewRecord({
+    type: request.type,
+    id,
+    title,
+    now,
+    ...(request.body !== undefined ? { body: request.body } : {}),
+    ...(project ? { project } : {}),
+    ...(supersedes ? { supersedes } : {}),
+    ...(author ? { author } : {}),
+  });
 
   try {
     const result = await writer.submit({

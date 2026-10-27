@@ -59,12 +59,24 @@ image, build it and run `deploy/smoke-test.sh`. CI runs both.
 ### CLI
 
 ```sh
-node app/packages/cli/dist/index.js init [dir]       # create a private workspace skeleton
-node app/packages/cli/dist/index.js validate [--ci] [--json] [path…]
+alias octosprout="node $PWD/app/packages/cli/dist/index.js"
+octosprout init [dir]                 # create a private workspace skeleton
+octosprout validate [--ci] [--json]   # check it (spec §19)
+octosprout new task "Pick a send day" --project OS-P-0XZ4K
+octosprout capture - --source claude < notes.md
+octosprout show OS-T-QF81M --json     # with base_blob, links and backlinks
+octosprout search digest --type idea
+octosprout move OS-T-QF81M done       # routine moves commit; consequential ones become proposals
+octosprout link OS-I-2HD9W relates_to OS-P-0XZ4K
+octosprout propose - < proposal.json  # { title, rationale, operations }
+octosprout sync                       # fetch, rebase, validate, push
 ```
 
-`init` never overwrites existing files and installs a `pre-push` hook that
-runs `validate` when the target is a Git repository.
+Every command takes `--json`. `init` never overwrites existing files and
+installs a `pre-push` hook that runs `validate`. With
+`OCTOSPROUT_ACTOR=agent:<name>` (set for Claude Code), every writing command
+creates a proposal instead of changing records; you approve it in the
+browser (spec §9.1).
 
 ## License
 
