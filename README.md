@@ -70,6 +70,7 @@ octosprout move OS-T-QF81M done       # routine moves commit; consequential ones
 octosprout link OS-I-2HD9W relates_to OS-P-0XZ4K
 octosprout propose - < proposal.json  # { title, rationale, operations }
 octosprout sync                       # fetch, rebase, validate, push
+octosprout mcp                        # the stdio MCP server for Claude Code
 ```
 
 Every command takes `--json`. `init` never overwrites existing files and
@@ -77,6 +78,14 @@ installs a `pre-push` hook that runs `validate`. With
 `OCTOSPROUT_ACTOR=agent:<name>` (set for Claude Code), every writing command
 creates a proposal instead of changing records; you approve it in the
 browser (spec §9.1).
+
+`init` also writes `.mcp.json`, which registers `octosprout mcp` with Claude
+Code as `agent:claude-code`. Its read tools (`search_records`, `get_record`,
+`get_related`, `list_inbox`, `list_proposals`, `validate`) read the checkout.
+Its write tools (`propose`, `propose_triage`, `propose_adr`,
+`propose_promotion`) commit one proposal file, then push it. Nothing changes
+until you approve the proposal in the browser. A proposal that could not
+validate once applied is refused up front.
 
 ## License
 

@@ -61,3 +61,23 @@ describe("recordPath", () => {
     expect(recordPath(type, id, title)).toBe(path);
   });
 });
+
+describe("planTriage", () => {
+  const capture = { id: "OS-C-7K3QX", type: "capture", status: "new", blob: "a".repeat(40) };
+  it("creates a record that derives from the capture and plants it", async () => {
+    const { planTriage } = await import("./triage.js");
+    const ops = planTriage(capture, { action: "create", type: "idea", id: "OS-I-2HD9W", title: "Digest", body: "> x\n", now: "2026-10-27T10:00:00Z" });
+    expect(ops.map((o) => o.op)).toEqual(["create", "set_status"]);
+    expect((ops[0] as { content: string }).content).toContain("  - { rel: derived_from, id: OS-C-7K3QX }");
+    expect(ops[1]).toMatchObject({ id: "OS-C-7K3QX", status: "planted" });
+  });
+  it("attaches, composts, and refuses what triage cannot do", async () => {
+    const { planTriage } = await import("./triage.js");
+    expect(planTriage({ ...capture, status: "planted" }, { action: "attach", target: { id: "OS-T-AAAAA", type: "task", status: "ready", blob: "b".repeat(40) } })).toEqual([
+      { op: "add_link", id: "OS-T-AAAAA", base_blob: "b".repeat(40), link: { rel: "derived_from", id: "OS-C-7K3QX" } },
+    ]);
+    expect(planTriage(capture, { action: "compost" })).toEqual([{ op: "set_status", id: "OS-C-7K3QX", base_blob: "a".repeat(40), status: "composted" }]);
+    expect(() => planTriage(capture, { action: "attach", target: { id: "OS-P-0XZ4K", type: "project", status: "active", blob: "c".repeat(40) } })).toThrow(/not a project/);
+    expect(() => planTriage({ ...capture, status: "planted" }, { action: "compost" })).toThrow(/Only a new capture/);
+  });
+});

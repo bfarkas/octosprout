@@ -949,6 +949,14 @@ The MCP server runs against the current checkout. It is registered in Claude Cod
 
 Write tools only create and commit the proposal file (`git commit -- <proposal path>`) and then call `sync`. They never modify records.
 
+> **As built (Phase 3):**
+> - `octosprout mcp` uses the official MCP TypeScript SDK over stdio. It reopens the checkout on every call, so it sees edits made outside it.
+> - The actor is `OCTOSPROUT_ACTOR` if set, else `agent:<client name>`. `octosprout init` writes `.mcp.json` with `OCTOSPROUT_ACTOR=agent:claude-code`.
+> - Before committing a proposal, the CLI and MCP server refuse it if applying it would add validation errors. OSV008 is the exception: the approval it requires is what the proposal asks for.
+> - If the push after a proposal fails, the tool still succeeds and reports `synced.error`. The proposal stays committed locally for the next `sync`.
+> - `propose_triage` fills in the same defaults as the triage page: the quoted capture plus the template, and the capture's first line as the title.
+> - `get_handoff_context` and `propose_handoff_report` arrive with the handoff step.
+
 ### 16.4 ChatGPT
 
 ChatGPT has no MCP in the MVP. The handoff brief (Appendix B) is produced by an `/octosprout` command defined once in ChatGPT's Custom Instructions, with the pasted prompt as a fallback (ADR005). Both are kept in `prompts/chatgpt-handoff.md`. The workflow never depends on access to ChatGPT conversation history.

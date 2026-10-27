@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -40,6 +40,9 @@ describe("octosprout init", () => {
       expect(existsSync(join(root, path)), path).toBe(true);
     }
     expect(readFileSync(join(root, "CLAUDE.md"), "utf8")).toContain("@AGENTS.md");
+    expect(JSON.parse(readFileSync(join(root, ".mcp.json"), "utf8"))).toEqual({
+      mcpServers: { octosprout: { command: "node", args: [resolve(cliPath), "mcp"], env: { OCTOSPROUT_ACTOR: "agent:claude-code" } } },
+    });
     expect(runValidate([], root, io)).toBe(0);
   });
 

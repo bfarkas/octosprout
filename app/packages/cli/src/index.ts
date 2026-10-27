@@ -25,7 +25,8 @@ const USAGE = `usage: octosprout <command> [args] [--json]
   link|unlink <ID> <rel> <target>    add or remove a typed link
   propose <file.json | ->            a proposal { title, rationale, operations }
   proposals                          pending proposals [--status S]
-  sync                               fetch, rebase, validate, push`;
+  sync                               fetch, rebase, validate, push
+  mcp                                the stdio MCP server for Claude Code`;
 
 const [command, ...args] = process.argv.slice(2);
 
@@ -38,6 +39,9 @@ if (command === "init") {
   process.exitCode = runInit(args, process.cwd(), io);
 } else if (command === "validate") {
   process.exitCode = runValidate(args, process.cwd(), io);
+} else if (command === "mcp") {
+  const { runMcpServer } = await import("./mcp.js");
+  await runMcpServer(process.cwd());
 } else if (command !== undefined && command in COMMANDS) {
   process.exitCode = runCommand(command, args, { cwd: process.cwd(), io, env: process.env, stdin: () => readFileSync(0, "utf8") });
 } else {

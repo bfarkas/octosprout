@@ -5,7 +5,8 @@
  */
 import { LINK_RULES, type Link } from "./links.js";
 import { parseRecord, setFrontmatterFields } from "./record.js";
-import { templateBody, DEFAULT_TEMPLATES_DIR } from "./templates.js";
+import type { Operation } from "./proposals.js";
+import { newRecord, recordPath, templateBody, DEFAULT_TEMPLATES_DIR } from "./templates.js";
 import type { RecordType } from "./types.js";
 
 /** Types a capture can become, and can be attached to (`derived_from` → capture, §6.3). */
@@ -50,4 +51,42 @@ export function addLink(text: string, link: Link, updated: string): string {
   const links = Array.isArray(parsed.record.frontmatter.links) ? (parsed.record.frontmatter.links as Link[]) : [];
   if (links.some((l) => l.rel === link.rel && String(l.id).toUpperCase() === link.id)) return setFrontmatterFields(text, { updated });
   return setFrontmatterFields(text, { links: [...links, link], updated });
+}
+
+/** What `planTriage` needs to know about a record. */
+interface TriageFile {
+  id: string;
+  type: string;
+  status: string;
+  blob: string;
+  path?: string;
+}
+
+export type TriagePlanInput =
+  | { action: "create"; type: "idea" | "task" | "research"; id: string; title: string; body: string; now: string }
+  | { action: "attach"; target: TriageFile }
+  | { action: "compost" };
+
+/**
+ * The operations of a triage (§7.1), as a proposal makes them: create a
+ * record that `derived_from` the capture or attach the capture to one, and
+ * plant a `new` capture; or compost a `new` one.
+ */
+export function planTriage(capture: TriageFile, input: TriagePlanInput, templatesDir = DEFAULT_TEMPLATES_DIR): Operation[] {
+  if (capture.type !== "capture") throw new Error(`${capture.id} is not a capture.`);
+  const plant: Operation[] = capture.status === "new" ? [{ op: "set_status", id: capture.id, base_blob: capture.blob, status: "planted" }] : [];
+  switch (input.action) {
+    case "create": {
+      if (capture.status === "composted") throw new Error("Restore the capture before triaging it.");
+      const text = addLink(newRecord(input.type, { id: input.id, title: input.title, now: input.now, body: input.body }, templatesDir), { rel: "derived_from", id: capture.id }, input.now);
+      return [{ op: "create", path: recordPath(input.type, input.id, input.title), content: text }, ...plant];
+    }
+    case "attach":
+      if (capture.status === "composted") throw new Error("Restore the capture before triaging it.");
+      if (!(TRIAGE_TYPES as readonly string[]).includes(input.target.type)) throw new Error(`A capture can be attached to an idea, task or research record, not a ${input.target.type}.`);
+      return [{ op: "add_link", id: input.target.id, base_blob: input.target.blob, link: { rel: "derived_from", id: capture.id } }, ...plant];
+    case "compost":
+      if (capture.status !== "new") throw new Error(`Only a new capture can be composted; this one is ${capture.status}.`);
+      return [{ op: "set_status", id: capture.id, base_blob: capture.blob, status: "composted" }];
+  }
 }

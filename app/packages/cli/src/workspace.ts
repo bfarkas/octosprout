@@ -153,7 +153,10 @@ export class Workspace {
   /** Commits a pending proposal file (only that file, §16.3). */
   propose(input: { title: string; rationale: string; operations: readonly Operation[]; actor: string; session?: string }): WriteOutcome & { kind: "proposed" } {
     if (input.operations.length === 0) throw new WorkspaceError("A proposal needs at least one operation.");
-    const { classification } = this.plan(input.operations);
+    const { changes, classification } = this.plan(input.operations);
+    // Refuse up front what could never be applied, rather than at approval.
+    // OSV008 is left out: the approval it asks for is what this proposal is for.
+    this.check(changes, ["OSV008"]);
     const now = this.now();
     const id = this.newId("proposal");
     const path = proposalPath(id, now);
@@ -173,10 +176,10 @@ export class Workspace {
   }
 
   /**
-   * Validates the workspace with `changes` applied, writes them, and commits
-   * exactly those paths. Refuses a change that adds validation errors.
+   * Throws if applying `changes` would add validation errors (§8.1), apart
+   * from the codes in `ignore`.
    */
-  commit(changes: readonly FileChange[], meta: { operation: string; actor: string; subject: string; proposal?: string }): string {
+  check(changes: readonly FileChange[], ignore: readonly string[] = []): void {
     const before = readWorkspaceFiles(this.root);
     const after = new Map<string, SourceFile>(before.map((f) => [f.path, f]));
     for (const change of changes) {
@@ -184,9 +187,16 @@ export class Workspace {
       else after.set(change.path, { path: change.path, content: change.content });
     }
     const baseline = new Set(validateWorkspace(before).filter((f) => f.severity === "error").map(BASELINE_KEY));
-    const added = validateWorkspace([...after.values()]).filter((f) => f.severity === "error" && !baseline.has(BASELINE_KEY(f)));
+    const added = validateWorkspace([...after.values()]).filter((f) => f.severity === "error" && !ignore.includes(f.code) && !baseline.has(BASELINE_KEY(f)));
     if (added.length > 0) throw new WorkspaceError(`The change would add ${added.length} validation error(s).`, added);
+  }
 
+  /**
+   * Validates the workspace with `changes` applied, writes them, and commits
+   * exactly those paths. Refuses a change that adds validation errors.
+   */
+  commit(changes: readonly FileChange[], meta: { operation: string; actor: string; subject: string; proposal?: string }): string {
+    this.check(changes);
     for (const change of changes) {
       const target = join(this.root, change.path);
       if ("delete" in change) rmSync(target, { force: true });

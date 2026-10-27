@@ -1,6 +1,7 @@
 /**
  * `octosprout init [dir]`: creates the private workspace skeleton (spec §5.2)
- * from the starter templates (§5.1) and installs the pre-push hook (§8.5).
+ * from the starter templates (§5.1), registers the MCP server for Claude
+ * Code in `.mcp.json` (§16.3) and installs the pre-push hook (§8.5).
  *
  * Init never overwrites: files that already exist are skipped, so it is safe
  * to run again.
@@ -29,7 +30,7 @@ const RECORD_DIRS = [
 
 export interface InitOptions {
   templatesDir?: string;
-  /** Script the pre-push hook runs. Defaults to the running CLI. */
+  /** Script the pre-push hook and `.mcp.json` run. Defaults to the running CLI. */
   cliPath?: string;
 }
 
@@ -41,6 +42,12 @@ function listFiles(dir: string, prefix = ""): string[] {
     else if (entry.isFile()) files.push(relative);
   }
   return files;
+}
+
+/** Claude Code runs `octosprout mcp` as an agent, so its writes become proposals (§9.1). */
+function mcpConfig(cliPath: string): string {
+  const config = { mcpServers: { octosprout: { command: "node", args: [cliPath, "mcp"], env: { OCTOSPROUT_ACTOR: "agent:claude-code" } } } };
+  return `${JSON.stringify(config, null, 2)}\n`;
 }
 
 function shellQuote(text: string): string {
@@ -82,7 +89,9 @@ export function runInit(args: readonly string[], cwd: string, io: Io, options: I
     put("prompts/chatgpt-handoff.md", readFileSync(join(templates, "prompts/chatgpt-handoff.md")));
     for (const dir of RECORD_DIRS) put(`${dir}/.gitkeep`, "");
 
-    installPrePushHook(target, options.cliPath ?? process.argv[1] ?? "octosprout", created, skipped, io);
+    const cliPath = resolve(options.cliPath ?? process.argv[1] ?? "octosprout");
+    put(".mcp.json", mcpConfig(cliPath));
+    installPrePushHook(target, cliPath, created, skipped, io);
   } catch (error) {
     io.err(`octosprout init: ${(error as Error).message}`);
     return 2;
