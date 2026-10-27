@@ -26,6 +26,8 @@ const USAGE = `usage: octosprout <command> [args] [--json]
                                      [--body-file FILE|-] [--rationale TEXT]
   promote <idea> <project title…>    [--brief-file F|-] [--tasks-file F|-] [--active]
   advise <decision> <file.json | ->  simulated expert advice { model, advice, new_experts?, synthesis? }
+  handoff <task>                     the context bundle for a coding agent (Markdown)
+  report <task> <file.json | ->      a handoff report { outcome, verification, prs?, commits?, status?, follow_ups? }
   move <ID> <status>                 a status change (consequential ones become proposals)
   link|unlink <ID> <rel> <target>    add or remove a typed link
   propose <file.json | ->            a proposal { title, rationale, operations }

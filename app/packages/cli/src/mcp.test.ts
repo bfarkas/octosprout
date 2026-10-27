@@ -40,7 +40,7 @@ describe("octosprout mcp", () => {
   it("lists the read and proposal tools of §16.3", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
-      ["draft_record", "propose_advice", "get_record", "get_related", "list_inbox", "list_proposals", "propose", "propose_adr", "propose_promotion", "propose_triage", "search_records", "sync", "validate"].sort(),
+      ["draft_record", "propose_advice", "get_handoff_context", "propose_handoff_report", "get_record", "get_related", "list_inbox", "list_proposals", "propose", "propose_adr", "propose_promotion", "propose_triage", "search_records", "sync", "validate"].sort(),
     );
     expect(tools.find((t) => t.name === "get_record")?.annotations?.readOnlyHint).toBe(true);
   });
@@ -126,6 +126,26 @@ describe("octosprout mcp", () => {
     expect(result.isError).toBe(false);
     expect(ws.git("show", "HEAD:" + ws.git("show", "--name-only", "--format=", "HEAD"))).toContain("Push is simpler to run. - Operations Lead (simulated, AI-generated, claude-opus-5-5), Operations,");
     expect((await call("propose_advice", { decision, model: "m", advice: [{ expert: "Nobody", role: "x", advice: "x" }], rationale: "x" })).isError).toBe(true);
+  });
+
+  it("gives the handoff context and proposes the report", async () => {
+    const project = make("new", "project", "Weekly digest");
+    const task = make("new", "task", "Pick a send day", "--project", project);
+    const context = await client.callTool({ name: "get_handoff_context", arguments: { task } });
+    const markdown = (context.content as Array<{ text: string }>)[0]!.text;
+    expect(markdown).toContain(`# Handoff: ${task} Pick a send day`);
+    expect(markdown).toContain(`## Project ${project}: Weekly digest`);
+
+    const report = await call<{ kind: string; proposal: string }>("propose_handoff_report", {
+      task,
+      outcome: "Chose Monday.",
+      verification: "Tests pass.",
+      prs: ["https://github.com/bfarkas/digest/pull/3"],
+      follow_ups: [{ title: "Add a time-zone setting" }],
+    });
+    expect(report.isError).toBe(false);
+    expect(remoteSubject()).toBe(`propose: ${report.data.proposal} Report on ${task}: Pick a send day`);
+    expect((await call("get_handoff_context", { task: project })).isError).toBe(true);
   });
 
   it("proposes triage, ADRs and promotions", async () => {

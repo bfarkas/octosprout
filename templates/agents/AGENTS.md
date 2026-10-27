@@ -55,6 +55,8 @@ it in the browser, and only then do records change. Commit nothing else.
   | `propose_promotion` | `octosprout promote <idea> <title> --brief-file - --tasks-file F` |
   | `propose_adr` | `octosprout new decision <title> --body-file -` |
   | `propose_advice` | `octosprout advise <decision> -` with the advice JSON on stdin |
+  | `get_handoff_context` | `octosprout handoff <task>` |
+  | `propose_handoff_report` | `octosprout report <task> -` with the report JSON on stdin |
   | `validate`, `sync` | `octosprout validate`, `sync` |
 - **Operations:** `create` (path, content), `update` (id, base_blob, the whole
   new content), `set_status`, `add_link`, `remove_link` and `delete`. Every
@@ -98,4 +100,6 @@ Before one of these workflows, read its `skills/<name>/SKILL.md` and follow it:
 - `relate`: find and propose missing links between records.
 - `promote`: turn a ready idea into a project.
 - `advise`: gather simulated expert advice on a decision.
+- `handoff`: start work on a task in its target repository.
+- `report`: report the outcome of that work back to the task.
 - `review-backlog`: find stale, blocked, unlinked or invalid records.

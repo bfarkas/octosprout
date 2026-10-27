@@ -21,7 +21,7 @@ import {
 import { z } from "zod";
 
 import { summary } from "./commands.js";
-import { ADVICE_SHAPE, advicePlan, draftRecord, findRecord, promotionPlan, triagePlan, type TriageInput } from "./plans.js";
+import { ADVICE_SHAPE, advicePlan, draftRecord, findRecord, handoffBundle, promotionPlan, REPORT_SHAPE, reportPlan, triagePlan, type TriageInput } from "./plans.js";
 import { Workspace, WorkspaceError, type WriteOutcome } from "./workspace.js";
 
 const VERSION = "0.0.0";
@@ -147,6 +147,16 @@ export function createMcpServer(cwd: string, options: McpOptions = {}): McpServe
   );
 
   server.registerTool(
+    "get_handoff_context",
+    {
+      description: "The handoff bundle for a task (spec §11.3): the task, its project brief, the accepted decisions, the research, the target repositories and the instructions for the coding agent, as Markdown. Generated on demand, never committed.",
+      inputSchema: { task: z.string() },
+      annotations: { readOnlyHint: true },
+    },
+    guarded(({ task }) => ({ content: [{ type: "text", text: handoffBundle(open(), task) }] })),
+  );
+
+  server.registerTool(
     "validate",
     { description: "Validate the workspace (spec §19) and return the findings.", annotations: { readOnlyHint: true } },
     guarded(() => {
@@ -244,6 +254,19 @@ export function createMcpServer(cwd: string, options: McpOptions = {}): McpServe
       const ws = open();
       const plan = advicePlan(ws, input);
       return proposeAndSync(ws, { title: plan.title, rationale, operations: plan.operations });
+    }),
+  );
+
+  server.registerTool(
+    "propose_handoff_report",
+    {
+      description: "Report a coding agent's outcome on a task (spec §11.4): a dated entry in its Handoff log with the outcome, the verification and the references, refs for PRs and commits, optionally a status change and follow-up tasks.",
+      inputSchema: { task: z.string(), ...REPORT_SHAPE, rationale: z.string().optional() },
+    },
+    guarded(({ rationale, ...input }) => {
+      const ws = open();
+      const plan = reportPlan(ws, input, actor());
+      return proposeAndSync(ws, { title: plan.title, rationale: rationale ?? input.outcome, operations: plan.operations });
     }),
   );
 

@@ -4,6 +4,7 @@ export * from "./approvals.js";
 export * from "./config.js";
 export * from "./edits.js";
 export * from "./findings.js";
+export * from "./handoff.js";
 export * from "./ids.js";
 export * from "./lifecycle.js";
 export * from "./links.js";

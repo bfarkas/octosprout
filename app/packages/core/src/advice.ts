@@ -62,7 +62,7 @@ export function adviceBullet(entry: Pick<AdviceEntry, "expert" | "role" | "advic
 export function appendToSection(text: string, section: string, bullets: readonly string[]): string {
   const lines = text.split("\n");
   const start = lines.findIndex((line) => line.trimEnd() === `## ${section}`);
-  if (start < 0) throw new Error(`The decision has no '## ${section}' section.`);
+  if (start < 0) throw new Error(`There is no '## ${section}' section.`);
   let end = lines.findIndex((line, i) => i > start && /^#{1,2} /.test(line));
   if (end < 0) end = lines.length;
   const body = lines.slice(start + 1, end).filter((line) => !/^\s*[*-]\s+\[[^\]]*\](?:\s*-?\s*\[[^\]]*\])*\s*$/.test(line));

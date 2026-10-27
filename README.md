@@ -72,6 +72,8 @@ octosprout triage OS-C-7K3QX create idea   # or: attach OS-I-2HD9W | compost
 octosprout promote OS-I-2HD9W Weekly digest --tasks-file tasks.txt
 octosprout new research "Prior art" --draft --json   # a record for a larger proposal
 octosprout advise OS-D-9PKVR - < advice.json        # simulated expert advice on a decision
+octosprout handoff OS-T-QF81M                       # the context bundle for a coding agent
+octosprout report OS-T-QF81M - < report.json        # its outcome: log entry, refs, status, follow-ups
 octosprout propose - < proposal.json  # { title, rationale, operations }
 octosprout sync                       # fetch, rebase, validate, push
 octosprout mcp                        # the stdio MCP server for Claude Code
@@ -87,10 +89,11 @@ browser (spec §9.1).
 which registers `octosprout mcp` with Claude Code, and `.claude/settings.json`,
 which sets `OCTOSPROUT_ACTOR=agent:claude-code` so that Claude Code's CLI
 calls also become proposals. Its read tools (`search_records`, `get_record`,
-`get_related`, `list_inbox`, `list_proposals`, `validate`, `draft_record`) read
-the checkout.
+`get_related`, `list_inbox`, `list_proposals`, `validate`, `draft_record`,
+`get_handoff_context`) read the checkout.
 Its write tools (`propose`, `propose_triage`, `propose_adr`,
-`propose_advice`, `propose_promotion`) commit one proposal file, then push it. Nothing changes
+`propose_advice`, `propose_handoff_report`, `propose_promotion`) commit one
+proposal file, then push it. Nothing changes
 until you approve the proposal in the browser. A proposal that could not
 validate once applied is refused up front.
 

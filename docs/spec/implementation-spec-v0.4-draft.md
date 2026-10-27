@@ -709,6 +709,16 @@ The bundle is generated on demand and never committed.
 
 You review and approve it in the UI.
 
+> **As built (Phase 3):**
+> - **Shared code.** `handoffContext` and `planHandoffReport` in `@octosprout/core` back both the CLI (`octosprout handoff`, `octosprout report <task> -` with JSON) and MCP (`get_handoff_context`, `propose_handoff_report`). The `handoff` and `report` skills drive them.
+> - **The bundle.**
+>   - Embedded records have their headings demoted to nest under the bundle's own.
+>   - Without a repo ref on the task or its project, the first instruction is to ask the owner which repository to change.
+>   - A research summary is the first paragraph of its `## Summary`, falling back to the body.
+> - **The Handoff log entry.** It is a `### <date>: <status> → <new status> (<actor>)` heading with **Outcome**, **Verification**, **References** and **Follow-ups**. A task without the section gets one.
+> - **References.** PR URLs and commit URLs become `pr` and `commit` refs. A bare commit SHA becomes a URL when the task's or project's repo ref is on GitHub; otherwise it stays in the log only, since refs must be https.
+> - **Follow-up tasks** start in `backlog` from the task template, with the given Objective. They `belongs_to` the same project and `relates_to` the reported task.
+
 ## 12. Browser UI
 
 ### 12.1 Board engine decision
@@ -940,7 +950,7 @@ Each skill states its inputs, outputs, the tools it uses, its permitted side eff
 Starter versions ship in `octosprout/templates/skills/` and are copied by `octosprout init`. The skills use portable Markdown, so any agent that can read files and run the CLI can follow them. MCP is an accelerator, not a requirement.
 
 > **As built (Phase 3):**
-> - **Skills.** `capture`, `triage`, `explore`, `relate`, `promote` and `review-backlog` ship now. `advise` arrives with expert profiles; `handoff` and `report` with the handoff step.
+> - **Skills.** All nine ship: `capture`, `triage`, `explore`, `relate`, `promote`, `advise`, `handoff`, `report` and `review-backlog`.
 > - **Shared rules.** `AGENTS.md` holds the rules the skills share: proposals, operations, approval boundaries and simulated advice. It also has a table mapping each MCP tool to its CLI command, and an index of the skills. Each skill names MCP tools and ends on a "Done when" criterion.
 > - **CLI.** The CLI gained `triage`, `promote` and `new --draft` for parity with MCP. `new --draft` and the MCP tool `draft_record` return a record with a fresh ID, which an agent can put into a larger proposal.
 > - **Decisions.** A decision created with a body keeps it. Its `# ADR … - …` heading is rewritten to name the new ID and title.
@@ -972,7 +982,7 @@ Write tools only create and commit the proposal file (`git commit -- <proposal p
 > - Before committing a proposal, the CLI and MCP server refuse it if applying it would add validation errors. OSV008 is the exception: the approval it requires is what the proposal asks for.
 > - If the push after a proposal fails, the tool still succeeds and reports `synced.error`. The proposal stays committed locally for the next `sync`.
 > - `propose_triage` fills in the same defaults as the triage page: the quoted capture plus the template, and the capture's first line as the title.
-> - `get_handoff_context` and `propose_handoff_report` arrive with the handoff step.
+> - Beyond the table, `draft_record` returns a new record from its template, with a fresh ID, for use in a larger `propose`.
 
 ### 16.4 ChatGPT
 

@@ -131,6 +131,18 @@ describe("writing as a person", () => {
     expect(run(["advise", decision, "-"], AGENT, JSON.stringify({ advice: [] }))).toBe(2);
   });
 
+  it("handoff prints the bundle, and report proposes the outcome for an agent", () => {
+    run(["new", "task", "Pick", "a", "day", "--json"]);
+    const task = json<{ id: string }>().id;
+    expect(run(["handoff", task])).toBe(0);
+    expect(out[out.length - 1]).toContain(`# Handoff: ${task} Pick a day`);
+    expect(run(["report", task, "-", "--json"], AGENT, JSON.stringify({ outcome: "Monday.", verification: "Ran it.", commits: ["abcdef1"] }))).toBe(0);
+    const proposal = json<{ kind: string; proposal: string }>();
+    expect(proposal.kind).toBe("proposed");
+    expect(run(["report", task, "-"], AGENT, JSON.stringify({ outcome: "x" }))).toBe(2);
+    expect(run(["handoff"])).toBe(2);
+  });
+
   it("links and unlinks records", () => {
     run(["new", "idea", "A", "--json"]);
     const a = json<{ id: string }>().id;

@@ -1,7 +1,7 @@
 /**
  * The workspace commands of the CLI (spec §4.1, §8.5, §16.2): new,
- * capture, show, search, inbox, triage, promote, advise, move, link, unlink,
- * propose, proposals and sync. Each takes `--json` for machine-readable output, so the skills can
+ * capture, show, search, inbox, triage, promote, advise, handoff, report,
+ * move, link, unlink, propose, proposals and sync. Each takes `--json` for machine-readable output, so the skills can
  * use the CLI when MCP is not available.
  *
  * Exit codes: 0 done, 1 refused (validation, lifecycle, missing record),
@@ -28,7 +28,7 @@ import {
 import { z } from "zod";
 
 import type { Io } from "./io.js";
-import { ADVICE_SHAPE, advicePlan, draftRecord, promotionPlan, triagePlan, type TriageInput } from "./plans.js";
+import { ADVICE_SHAPE, advicePlan, draftRecord, handoffBundle, promotionPlan, REPORT_SHAPE, reportPlan, triagePlan, type TriageInput } from "./plans.js";
 import { actorFrom, Workspace, WorkspaceError, type WriteOutcome } from "./workspace.js";
 
 export interface Parsed {
@@ -181,6 +181,36 @@ const adviseCommand: Command = (args, context, ws) => {
   if (!input.success) throw new UsageError(`the advice does not match: ${z.prettifyError(input.error)}`);
   const plan = advicePlan(ws, { ...input.data, decision });
   const outcome = ws.write({ operations: plan.operations, title: plan.title, rationale: input.data.rationale ?? plan.title, actor: actorFrom(context.env), operation: "advise", subject: `advise: ${plan.title.replace(/^Advice on /, "")}` });
+  print(context, parsed.flags.has("json"), outcome, () => describeWrite(outcome));
+  return 0;
+};
+
+const handoffCommand: Command = (args, context, ws) => {
+  const parsed = parseArgs(args);
+  const [task] = parsed.positional;
+  if (!task || parsed.positional.length > 1) throw new UsageError("usage: octosprout handoff <task>");
+  const markdown = handoffBundle(ws, task);
+  print(context, parsed.flags.has("json"), { task: ws.index.get(task)!.id, markdown }, () => markdown);
+  return 0;
+};
+
+const REPORT_USAGE = "usage: octosprout report <task> <file.json | -> where the JSON is { outcome, verification, prs?, commits?, status?, follow_ups? }";
+
+const reportCommand: Command = (args, context, ws) => {
+  const parsed = parseArgs(args);
+  const [task, source] = parsed.positional;
+  if (!task || !source) throw new UsageError(REPORT_USAGE);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(source === "-" ? (context.stdin?.() ?? "") : readFileSync(source, "utf8"));
+  } catch (error) {
+    throw new UsageError(`the report is not valid JSON: ${(error as Error).message}`);
+  }
+  const input = z.object({ ...REPORT_SHAPE, rationale: z.string().optional() }).safeParse(raw);
+  if (!input.success) throw new UsageError(`the report does not match: ${z.prettifyError(input.error)}`);
+  const actor = actorFrom(context.env);
+  const plan = reportPlan(ws, { ...input.data, task }, actor);
+  const outcome = ws.write({ operations: plan.operations, title: plan.title, rationale: input.data.rationale ?? input.data.outcome, actor, operation: "report", subject: `report: ${plan.title.replace(/^Report on /, "")}` });
   print(context, parsed.flags.has("json"), outcome, () => describeWrite(outcome));
   return 0;
 };
@@ -360,6 +390,8 @@ export const COMMANDS: Record<string, Command> = {
   triage: triageCommand,
   promote: promoteCommand,
   advise: adviseCommand,
+  handoff: handoffCommand,
+  report: reportCommand,
   propose: proposeCommand,
   proposals: proposalsCommand,
   sync: syncCommand,

@@ -4,7 +4,10 @@
  */
 import {
   buildNewRecord,
+  handoffContext,
+  parentProject,
   planAdvice,
+  planHandoffReport,
   type AdviceEntry,
   planPromotion,
   planTriage,
@@ -173,6 +176,61 @@ export function advicePlan(ws: Workspace, input: AdviceInput): { title: string; 
       ...(input.synthesis?.trim() ? { synthesis: { id: fresh("research"), text: input.synthesis } } : {}),
     });
     return { title: `Advice on ${decision.id}: ${decision.title}`, operations };
+  } catch (error) {
+    throw new WorkspaceError((error as Error).message);
+  }
+}
+
+/** The handoff bundle for a task (§11.3): Markdown, never committed. */
+export function handoffBundle(ws: Workspace, taskId: string): string {
+  const task = findRecord(ws, taskId);
+  if (task.type !== "task") throw new WorkspaceError(`${task.id} is not a task.`);
+  return handoffContext(ws.index, task.id, ws.now());
+}
+
+/** The input of `propose_handoff_report` and `octosprout report`, besides the task. */
+export const REPORT_SHAPE = {
+  outcome: z.string().min(1).describe("What was done, and what was not."),
+  verification: z.string().describe("How it was verified: the tests and checks run, and their results."),
+  prs: z.array(z.string().regex(/^https:\/\/\S+$/)).max(20).optional().describe("Pull request URLs."),
+  commits: z.array(z.string()).max(50).optional().describe("Commit URLs or SHAs."),
+  status: z.enum(["in_progress", "done", "blocked"]).optional().describe("Move the task: done when its acceptance criteria are met, blocked when it cannot go on."),
+  follow_ups: z
+    .array(z.object({ title: z.string().min(1).max(200), objective: z.string().optional() }))
+    .max(10)
+    .optional()
+    .describe("Follow-up tasks to draft in the same project."),
+};
+
+export type ReportInput = z.infer<z.ZodObject<typeof REPORT_SHAPE>> & { task: string };
+
+/** A handoff report (§11.4): its title and operations. */
+export function reportPlan(ws: Workspace, input: ReportInput, actor: string): { title: string; operations: Operation[] } {
+  const task = findRecord(ws, input.task);
+  if (task.type !== "task") throw new WorkspaceError(`${task.id} is not a task.`);
+  const project = parentProject(ws.index, task);
+  const repoUrl = [...task.refs, ...(project?.refs ?? [])].find((r) => r.kind === "repo")?.url;
+  const taken = new Set<string>();
+  const followUps = (input.follow_ups ?? []).map((f) => {
+    const id = ws.newId("task", taken);
+    taken.add(id);
+    return { id, title: f.title, ...(f.objective ? { objective: f.objective } : {}) };
+  });
+  try {
+    const operations = planHandoffReport({
+      task,
+      outcome: input.outcome,
+      verification: input.verification,
+      ...(input.prs ? { prs: input.prs } : {}),
+      ...(input.commits ? { commits: input.commits } : {}),
+      ...(input.status ? { status: input.status } : {}),
+      followUps,
+      ...(project ? { project: project.id } : {}),
+      ...(repoUrl ? { repoUrl } : {}),
+      actor,
+      now: ws.now(),
+    });
+    return { title: `Report on ${task.id}: ${task.title}${input.status ? ` (${input.status})` : ""}`, operations };
   } catch (error) {
     throw new WorkspaceError((error as Error).message);
   }
