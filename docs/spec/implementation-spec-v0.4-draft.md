@@ -1185,7 +1185,7 @@ Tests use Vitest. Git tests run against temporary bare repositories that act as 
 
 ### Status (27 October 2026)
 
-- **Phase 0:** domain, DNS, Caddy and TLS are live; the Git write service is proven in tests and in production; passkey login works on the iPhone; the ADR template is vendored. The board engine was evaluated and decided (ADR006). The Ed25519 approval round trip is proven in tests and in the browser end-to-end check (sign on the server, verify in `octosprout validate`); it still has to run once against the private repository's CI. Decisions taken so far are ADR001–ADR006.
+- **Phase 0:** domain, DNS, Caddy and TLS are live; the Git write service is proven in tests and in production; passkey login works on the iPhone; the ADR template is vendored. The board engine was evaluated and decided (ADR006). The Ed25519 approval round trip is proven in tests and in the browser end-to-end check (sign on the server, verify in `octosprout validate`); it ran once in the private repository's CI on 27 October 2026. Decisions taken so far are ADR001–ADR006.
 - **Phase 1:** complete and deployed. The exit criterion was met with the share link and home screen app instead of the token Shortcut (ADR001).
 - **Phase 2:** built, and to be deployed. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief; Record detail with editing; triage; proposals with signed approvals, which enable consequential moves on the boards; the promotion wizard; creating records, ADRs included; the Research and Experts lists; search; and the health panel (below).
 - **Phase 3:** built.
@@ -1195,10 +1195,11 @@ Tests use Vitest. Git tests run against temporary bare repositories that act as 
     - An authorization matrix over every route.
     - A security review, with its fixes ([`docs/operations/security-review.md`](../operations/security-review.md)).
     - A restore runbook ([`docs/operations/restore.md`](../operations/restore.md)).
+  - **Done for the MVP sign-off:**
+    - the Ed25519 round trip ran once in the private repository's CI (run 40588401750, `validate --ci`: No findings);
+    - the restore runbook was executed on a scratch instance on rei3, with its own compose project and volumes ([drill log](../operations/restore.md#drill-log)). The device steps are still open.
   - **Still to do before the MVP sign-off:**
-    - deploy Phases 2 and 3;
-    - run the Ed25519 round trip once in the private repository's CI;
-    - execute the restore runbook end to end on a scratch host (§20 "Recovery").
+    - the device steps of the restore drill (passkeys, Shortcut and Mac sync), which need the iPhone and Mac.
 
 ### Phase 0 — Compatibility and safety spike
 
