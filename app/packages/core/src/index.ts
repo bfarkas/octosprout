@@ -11,6 +11,8 @@ export * from "./record.js";
 export * from "./schemas.js";
 export * from "./secrets.js";
 export * from "./sections.js";
+export * from "./templates.js";
+export * from "./triage.js";
 export * from "./types.js";
 export * from "./validate.js";
 export * from "./workspace.js";

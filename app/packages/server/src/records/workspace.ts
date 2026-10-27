@@ -19,6 +19,7 @@ export interface Writer {
 
 export class WorkspaceRecords {
   readonly #repoDir: string;
+  readonly #listeners: Array<(paths: readonly string[] | "all") => void> = [];
   #index: RecordIndex;
 
   constructor(repoDir: string) {
@@ -39,14 +40,21 @@ export class WorkspaceRecords {
     }
   }
 
+  /** Calls `listener` after every refresh, with the paths re-read, or `"all"` after a rebuild. */
+  onChange(listener: (paths: readonly string[] | "all") => void): void {
+    this.#listeners.push(listener);
+  }
+
   /** Rebuilds the whole index from the working tree. */
   reindex(): void {
     this.#index = new RecordIndex(readWorkspaceFiles(this.#repoDir));
+    for (const listener of this.#listeners) listener("all");
   }
 
   /** Re-reads the given paths from the working tree. */
   refresh(paths: Iterable<string>): void {
-    for (const path of paths) {
+    const list = [...paths];
+    for (const path of list) {
       let content: Buffer;
       try {
         content = readFileSync(join(this.#repoDir, path));
@@ -57,6 +65,7 @@ export class WorkspaceRecords {
       }
       this.#index.set({ path, content });
     }
+    for (const listener of this.#listeners) listener(list);
   }
 
   /** Wraps a writer so that every write refreshes the paths it touched. */

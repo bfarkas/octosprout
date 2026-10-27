@@ -452,3 +452,78 @@ describe("record pages", () => {
     expect((await get("/ideas")).body).toContain('<a class="btitle" href="/records/OS-I-5VT4F">');
   });
 });
+
+describe("POST /api/v1/captures/:id/triage", () => {
+  const CAPTURE = "OS-C-7K3QX";
+  const capturePath = `records/captures/2026/10/${CAPTURE}.md`;
+  const captureFile = (status = "new", body = "Working title: Weekly digest\nSend a summary every Sunday.\n"): [string, string] => [
+    capturePath,
+    renderRecord({ id: CAPTURE, type: "capture", schema_version: 1, status, created: "2026-10-25T14:03:11Z", updated: "2026-10-25T14:03:11Z", source: "chatgpt", idempotency_key: "abcdefgh", received_via: "web-session", content_sha256: sha256Hex(body) }, body),
+  ];
+  const triage = (payload: Record<string, unknown>, id = CAPTURE) =>
+    app.inject({
+      method: "POST",
+      url: `/api/v1/captures/${id}/triage`,
+      headers: { cookie: session.cookie, origin: TEST_ORIGIN, "x-csrf-token": session.csrf, "content-type": "application/json" },
+      payload: JSON.stringify({ base_blob: records.index.get(id)?.blob ?? "0".repeat(40), ...payload }),
+    });
+  const files = async () => (await git(sandbox.remote, "show", "--name-only", "--format=", "main")).split("\n").filter(Boolean).sort();
+
+  it.each(["idea", "task", "research"] as const)("creates a %s that derives from the capture and plants it, in one commit", async (type) => {
+    await seed(captureFile());
+    const response = await triage({ action: "create", type, title: "Weekly digest", body: "> quoted\n\n## Motivation\n" });
+    expect(response.statusCode).toBe(200);
+    const { id, status } = response.json() as { id: string; status: string };
+    expect(status).toBe("committed");
+    const record = records.index.get(id)!;
+    expect(record).toMatchObject({ type, title: "Weekly digest", links: [{ rel: "derived_from", id: CAPTURE }], body: "> quoted\n\n## Motivation\n" });
+    expect(record.path).toMatch(/--weekly-digest\.md$/);
+    expect(records.index.get(CAPTURE)?.status).toBe("planted");
+    expect(await files()).toEqual([capturePath, record.path].sort());
+    expect(await git(sandbox.remote, "log", "-1", "--format=%s")).toBe(`triage: ${CAPTURE} -> ${id} (${type})`);
+  });
+
+  it("attaches the capture to an existing record", async () => {
+    await seed(captureFile(), ideaFile("OS-I-5VT4F"));
+    const response = await triage({ action: "attach", target: "os-i-5vt4f" });
+    expect(response.json()).toMatchObject({ status: "committed", id: "OS-I-5VT4F" });
+    expect(records.index.get("OS-I-5VT4F")?.links).toEqual([{ rel: "derived_from", id: CAPTURE }]);
+    expect(records.index.get(CAPTURE)?.status).toBe("planted");
+  });
+
+  it("refuses to attach to a project or an unknown record", async () => {
+    await seed(captureFile(), file("project", "records/projects", "OS-P-0XZ4K", { status: "proposed" }));
+    expect((await triage({ action: "attach", target: "OS-P-0XZ4K" })).json()).toMatchObject({ error: "forbidden", message: expect.stringContaining("not a project") });
+    expect((await triage({ action: "attach", target: "OS-I-ZZZZZ" })).statusCode).toBe(422);
+  });
+
+  it("composts and restores, and keeps a planted capture planted when triaged again", async () => {
+    await seed(captureFile());
+    expect((await triage({ action: "compost" })).statusCode).toBe(200);
+    expect(records.index.get(CAPTURE)?.status).toBe("composted");
+    expect((await triage({ action: "create", type: "idea", title: "x", body: "" })).json()).toMatchObject({ error: "forbidden" });
+    expect((await triage({ action: "restore" })).statusCode).toBe(200);
+    expect(records.index.get(CAPTURE)?.status).toBe("new");
+    await triage({ action: "create", type: "idea", title: "First", body: "" });
+    expect((await triage({ action: "create", type: "task", title: "Second", body: "" })).statusCode).toBe(200);
+    expect(records.index.get(CAPTURE)?.status).toBe("planted");
+    expect(records.index.backlinks(CAPTURE)).toHaveLength(2);
+    expect((await triage({ action: "compost" })).json()).toMatchObject({ error: "forbidden" });
+  });
+
+  it("keeps the capture text byte for byte", async () => {
+    const body = "  spaced\r\nCRLF 🌱\n---\n";
+    await seed(captureFile("new", body));
+    await triage({ action: "create", type: "idea", title: "Spaced", body: "" });
+    expect(records.index.get(CAPTURE)?.body).toBe(body);
+  });
+
+  it("answers 409 for a stale capture, 404 for a non-capture, 400 for a bad request", async () => {
+    await seed(captureFile(), ideaFile("OS-I-5VT4F"));
+    expect((await triage({ action: "compost", base_blob: "1".repeat(40) })).statusCode).toBe(409);
+    expect((await triage({ action: "compost" }, "OS-I-5VT4F")).statusCode).toBe(404);
+    expect((await triage({ action: "create", type: "project", title: "x", body: "" })).json()).toMatchObject({ field: "type" });
+    expect((await triage({ action: "nope" })).json()).toMatchObject({ field: "action" });
+    expect((await triage({ action: "create", type: "idea", title: " ", body: "" })).json()).toMatchObject({ error: "forbidden" });
+  });
+});

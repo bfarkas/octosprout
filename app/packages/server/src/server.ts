@@ -29,6 +29,10 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
   const writer = new GitWriteService({ repoDir: config.repoDir });
   const records = new WorkspaceRecords(config.repoDir);
   const inbox = new InboxService({ writer: records.indexing(writer), repoDir: config.repoDir });
+  // Triage changes a capture's status; the Inbox lists from its own idempotency index.
+  records.onChange((paths) => {
+    if (paths !== "all" && paths.some((path) => path.startsWith("records/captures/"))) inbox.reindex();
+  });
   const tokens = new TokenStore(config.stateDir);
   const setupToken = config.setupTokenFile ? readFileSync(config.setupTokenFile, "utf8").trim() : undefined;
   const app = buildApp({
@@ -62,8 +66,8 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       const { head } = await writer.status();
       if (head !== indexedHead) {
         indexedHead = head;
-        inbox.reindex();
         records.reindex();
+        inbox.reindex();
       }
     },
     onError: (error) => app.log.error({ err: error }, "background sync failed"),

@@ -3,7 +3,8 @@
 #   docker build -f deploy/Dockerfile -t octosprout-server:latest .
 #
 # The repository layout is kept inside the image because @octosprout/core
-# loads the JSON Schemas from <root>/schemas.
+# loads the JSON Schemas from <root>/schemas and the record templates from
+# <root>/templates.
 
 FROM node:24-slim AS build
 ENV CI=true
@@ -11,6 +12,7 @@ RUN npm install --global pnpm@10.28.0
 WORKDIR /opt/octosprout/app
 COPY app/ ./
 COPY schemas/ ../schemas/
+COPY templates/ ../templates/
 # `pnpm prune --prod` drops the workspace links (@octosprout/core), so reinstall
 # production dependencies from scratch instead.
 RUN pnpm install --frozen-lockfile \

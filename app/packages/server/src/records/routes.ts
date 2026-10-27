@@ -9,6 +9,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { FormEdit } from "@octosprout/core";
 
 import { editRecord } from "./edit.js";
+import { triageCapture, type TriageAction } from "./triage.js";
 import { moveStatus, type StatusMoveDeps } from "./status.js";
 
 export interface RecordRoutesOptions extends StatusMoveDeps {
@@ -103,6 +104,30 @@ export function registerRecordRoutes(app: FastifyInstance, options: RecordRoutes
     }
   });
 
+  app.post<{ Params: { id: string } }>("/api/v1/captures/:id/triage", { preHandler: requireSession }, async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    if (typeof body.base_blob !== "string" || !SHA.test(body.base_blob)) {
+      return reply.code(400).send({ error: "invalid_request", field: "base_blob", message: "'base_blob' must be the capture's blob SHA." });
+    }
+    const triage = parseTriage(body);
+    if (typeof triage === "string") return reply.code(400).send({ error: "invalid_request", field: triage, message: `'${triage}' is missing or malformed.` });
+
+    const outcome = await triageCapture(options, { captureId: request.params.id, baseBlob: body.base_blob, actor: "user:web", triage });
+    switch (outcome.kind) {
+      case "done":
+        request.log.info({ capture: request.params.id, action: triage.action, id: outcome.id, status: outcome.status }, "capture triaged");
+        return { status: outcome.status, commit: outcome.commit, id: outcome.id };
+      case "not_found":
+        return reply.code(404).send({ error: "not_found" });
+      case "forbidden":
+        return reply.code(422).send({ error: "forbidden", message: outcome.message });
+      case "conflict":
+        return reply.code(409).send({ error: "conflict", path: outcome.path, current_blob: outcome.current_blob });
+      case "invalid":
+        return reply.code(422).send({ error: "validation", findings: outcome.findings.map(({ code, path, message, hint }) => ({ code, path, message, hint })) });
+    }
+  });
+
   app.get<{ Params: { board: string } }>("/api/v1/boards/:board/version", { preHandler: requireSession }, async (request, reply) => {
     const type = BOARDS[request.params.board];
     if (!type) return reply.code(404).send({ error: "not_found" });
@@ -151,4 +176,22 @@ function parseForm(value: unknown): FormEdit | string {
     form.refs = refs;
   }
   return form;
+}
+
+/** A triage action, or the name of the first missing or malformed field. */
+function parseTriage(body: Record<string, unknown>): TriageAction | string {
+  switch (body.action) {
+    case "create":
+      if (body.type !== "idea" && body.type !== "task" && body.type !== "research") return "type";
+      if (!isString(body.title)) return "title";
+      if (!isString(body.body)) return "body";
+      return { action: "create", type: body.type, title: body.title, body: body.body };
+    case "attach":
+      return isString(body.target) ? { action: "attach", target: body.target } : "target";
+    case "compost":
+    case "restore":
+      return { action: body.action };
+    default:
+      return "action";
+  }
 }
