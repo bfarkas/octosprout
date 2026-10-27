@@ -21,7 +21,7 @@
     "@octosprout/core": "workspace:*",
     "@simplewebauthn/server": "^13.3.3",
     "fastify": "^5.12.7",
-    "markdown-it": "^14.1.0"
+    "markdown-it": "^14.3.3"
   },
   "bin": {
     "octosprout-server": "./dist/main.js"
