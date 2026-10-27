@@ -61,6 +61,10 @@ export const RECORD_JS = String.raw`
     move.addEventListener("change", async () => {
       const to = move.value;
       if (!to) return;
+      if (move.selectedOptions[0] && move.selectedOptions[0].dataset.kind === "promotion") {
+        location.assign("/ideas/" + encodeURIComponent(record.dataset.id) + "/promote");
+        return;
+      }
       move.disabled = true;
       show("Saving…");
       try {

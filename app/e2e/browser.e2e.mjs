@@ -366,6 +366,7 @@ try {
   await page.click('form[data-pane="idea"] button[type=submit]');
   await page.waitForURL(/\/records\/OS-I-[0-9A-Z]{5}$/);
   assert.equal(await page.textContent("h1"), "An idea from the Inbox");
+  const ideaId = page.url().split("/").pop();
   assert.match(await page.textContent(".recordside"), new RegExp(`derived_from\\s+.*${firstCapture}`));
   assert.match(git(remote, "log", "-1", "--format=%s", "main"), new RegExp(`^triage: ${firstCapture} -> OS-I-`));
   await page.click('.side a[title="Inbox"]');
@@ -402,6 +403,26 @@ try {
   const errors = validateDirectory(join(root, "repo")).filter((finding) => finding.severity === "error");
   assert.deepEqual(errors, []);
   step("the workspace validates, signatures included");
+
+  // Promotion: the idea from triage goes to Ready, then through the wizard.
+  await page.click('.side a[title="Ideas"]');
+  await page.selectOption(`#card-${ideaId} select`, "sprouting");
+  await page.waitForSelector(`#col-sprouting #card-${ideaId} .sync.committed`);
+  await page.selectOption(`#card-${ideaId} select`, "ready");
+  await page.waitForSelector(`#col-ready #card-${ideaId} .sync.committed`);
+  await page.selectOption(`#card-${ideaId} select`, "transplanted");
+  await page.waitForURL(`${origin}/ideas/${ideaId}/promote`);
+  await page.fill("#title", "Inbox digest");
+  await page.fill("input[name=task]", "Pick a send day");
+  await page.click('#promote button[type="submit"]');
+  await page.waitForSelector("dialog.approve[open]");
+  await page.click('dialog.approve button[value="ok"]');
+  await page.waitForURL(/\/records\/OS-P-[0-9A-Z]{5}$/);
+  assert.equal(await page.textContent("h1"), "Inbox digest");
+  assert.match(await page.textContent(".recordside"), /belongs_to\s+Pick a send day/);
+  assert.match(git(remote, "log", "-1", "--format=%s", "main"), new RegExp(`^apply-proposal: OS-PROP-[0-9A-Z]{5} Promote ${ideaId} to Inbox digest`));
+  assert.deepEqual(validateDirectory(join(root, "repo")).filter((finding) => finding.severity === "error"), []);
+  step("a ready idea is promoted through the wizard: project, task and transplanted idea in one approved commit");
 
   console.log("\nAll browser checks passed.");
 } finally {

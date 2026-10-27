@@ -165,13 +165,13 @@ function moveOptions(record: IndexedRecord, board: Board, index: RecordIndex, ap
   // Consequential moves are confirmed with the diff and a passkey (§9.1); promotion has its own wizard (§10).
   const movable = (to: string) => {
     const kind = moveKind(record.type, record.status, to);
-    return kind === "direct" || (kind === "approval" && approvals);
+    return kind === "direct" || ((kind === "approval" || kind === "promotion") && approvals);
   };
   const options = targets.map((to) => {
     const kind: MoveKind = moveKind(record.type, record.status, to);
-    if (kind === "approval" && approvals) return `<option value="${esc(to)}" data-kind="approval">${esc(GATED_LABELS[to] ?? `${label(to)}…`)}</option>`;
+    if ((kind === "approval" || kind === "promotion") && approvals) return `<option value="${esc(to)}" data-kind="${kind}">${esc(GATED_LABELS[to] ?? `${label(to)}…`)}</option>`;
     if (kind !== "direct") {
-      const why = kind === "promotion" ? "promotion wizard" : "needs the approval key";
+      const why = "needs the approval key";
       return `<option value="${esc(to)}" data-kind="${kind}" disabled>${esc(GATED_LABELS[to] ?? `${label(to)}…`)} (${why})</option>`;
     }
     const unblocked = record.type === "task" && to === "done" ? unblockedBy(record.id, index.list("task")) : [];

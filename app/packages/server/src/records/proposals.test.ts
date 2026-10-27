@@ -252,3 +252,52 @@ describe("pages", () => {
     expect(html).toContain(`<span class="badge applied">applied</span>`);
   });
 });
+
+describe("promotion", () => {
+  const promote = (payload: Record<string, unknown>) => post("/api/v1/ideas/OS-I-5VT4F/promote", { base_blob: blob("OS-I-5VT4F"), title: "Weekly digest", status: "proposed", body: "## Goals\nA\n", tasks: ["Pick a day", " ", "Write the template"], ...payload });
+
+  it("previews, then creates the project and tasks and transplants the idea in one approved commit", async () => {
+    await seed(config(true), file("idea", "records/ideas", "OS-I-5VT4F", { status: "ready" }), file("research", "records/research", "OS-R-B7N2C", { status: "open", links: [{ rel: "supports", id: "OS-I-5VT4F" }] }));
+    const preview = await promote({});
+    expect(preview.statusCode).toBe(403);
+    expect(preview.json()).toMatchObject({ error: "approval_required", classification: { consequential: true } });
+    expect((preview.json() as { diff: unknown[] }).diff).toHaveLength(4);
+
+    const response = await promote({ approve: true, rationale: "It is time." });
+    expect(response.statusCode).toBe(200);
+    const { project, proposal } = response.json() as { project: string; proposal: string };
+    expect(records.index.get(project)).toMatchObject({ type: "project", status: "proposed", title: "Weekly digest", body: "## Goals\nA\n" });
+    const tasks = records.index.backlinks(project).filter((b) => b.rel === "belongs_to").map((b) => b.source.title).sort();
+    expect(tasks).toEqual(["Pick a day", "Write the template"]);
+    expect(records.index.get("OS-I-5VT4F")).toMatchObject({ status: "transplanted", approval: proposal, links: [{ rel: "promoted_to", id: project }] });
+    expect(records.index.get(proposal)?.body).toContain("It is time.");
+    expect((await git(sandbox.remote, "show", "--name-only", "--format=", "main")).split("\n").filter(Boolean)).toHaveLength(5);
+    expect(errors()).toEqual([]);
+  });
+
+  it("refuses an idea that is not ready, a stale page and a bad request", async () => {
+    await seed(config(true), file("idea", "records/ideas", "OS-I-5VT4F", { status: "sprouting" }));
+    expect((await promote({ approve: true })).json()).toMatchObject({ error: "transition" });
+    await seed(file("idea", "records/ideas", "OS-I-5VT4F", { status: "ready" }));
+    expect((await promote({ approve: true, base_blob: "1".repeat(40) })).statusCode).toBe(409);
+    expect((await promote({ status: "done" })).json()).toMatchObject({ field: "status" });
+    expect((await promote({ title: "" })).json()).toMatchObject({ field: "title" });
+  });
+
+  it("refuses an active project without its brief sections", async () => {
+    await seed(config(true), file("idea", "records/ideas", "OS-I-5VT4F", { status: "ready" }));
+    const response = await promote({ approve: true, status: "active" });
+    expect(response.json()).toMatchObject({ error: "validation", findings: expect.arrayContaining([expect.objectContaining({ code: "OSV009" })]) });
+    expect(records.index.get("OS-I-5VT4F")?.status).toBe("ready");
+  });
+
+  it("the wizard page shows the idea, its research and a brief that references them", async () => {
+    await seed(config(true), file("idea", "records/ideas", "OS-I-5VT4F", { status: "ready" }), file("research", "records/research", "OS-R-B7N2C", { status: "open", title: "Digest survey", links: [{ rel: "supports", id: "OS-I-5VT4F" }] }));
+    const html = (await app.inject({ method: "GET", url: "/ideas/OS-I-5VT4F/promote", headers: { cookie: session.cookie, accept: "text/html" } })).body;
+    expect(html).toContain('<a href="/records/OS-R-B7N2C">Digest survey</a>');
+    expect(html).toContain("## Related\n\n- Idea OS-I-5VT4F\n- Digest survey (OS-R-B7N2C)");
+    expect(html).toMatch(/<button type="submit">Review and approve…<\/button>/);
+    const board = (await app.inject({ method: "GET", url: "/ideas", headers: { cookie: session.cookie, accept: "text/html" } })).body;
+    expect(board).toContain('<option value="transplanted" data-kind="promotion">Promote…</option>');
+  });
+});

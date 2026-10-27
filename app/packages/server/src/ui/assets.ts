@@ -214,6 +214,16 @@ dialog.approve .dlg ul { margin: 0; padding-left: 1.2rem; }
 .bulk { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin: 0.5rem 0 0.25rem; }
 .select-row { display: inline-flex; gap: 0.4rem; align-items: center; font-weight: 500; margin: 0; }
 
+/* Promotion wizard */
+.wizard { max-width: 56rem; }
+.wizard section { margin-top: 1.25rem; }
+.wizard h2 { display: flex; gap: 0.5rem; align-items: baseline; }
+.review { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.review h3 { font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0.75rem 0 0.25rem; }
+.choices { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; }
+.choices label { display: inline-flex; gap: 0.4rem; align-items: center; margin: 0; font-weight: 500; }
+@media (max-width: 760px) { .review { grid-template-columns: minmax(0, 1fr); } }
+
 /* Triage */
 .banner.info { border-color: var(--green); color: var(--green); background: var(--green-soft); }
 .triage-button { float: right; margin: -0.2rem 0 0.4rem 0.75rem; padding: 0.35rem 0.8rem; font-size: 0.9rem; }

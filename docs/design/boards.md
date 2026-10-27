@@ -341,7 +341,7 @@ Differences from the design above, all deliberate:
   and send the move again with `approve: true`; the server commits it with a
   proposal and a signed approval. Until the server has an approval key the
   workspace trusts, they are disabled options ("Accept… (needs the approval
-  key)"). Promotion stays disabled until the promotion wizard exists.
+  key)"). *Promote…* opens the promotion wizard instead of moving the card.
 - **After every answer the board is re-rendered** from `?fragment=board`
   rather than patched card by card, so the script holds no lifecycle rules
   and never shows a state the server does not have. The moved card then shows

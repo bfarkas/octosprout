@@ -26,6 +26,7 @@ import { AUTH_JS, APP_CSS, APP_JS, MANIFEST, RETURN_JS } from "../ui/assets.js";
 import { APPROVE_JS } from "../ui/approve-script.js";
 import { BOARD_JS } from "../ui/board-script.js";
 import { RECORD_JS } from "../ui/record-script.js";
+import { PROMOTE_JS } from "../ui/promote.js";
 import { PROPOSALS_JS } from "../ui/proposals.js";
 import { TRIAGE_JS } from "../ui/triage.js";
 import { page, signInRequiredPage } from "../ui/html.js";
@@ -117,6 +118,7 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): Guards
   asset("/static/board.js", "text/javascript; charset=utf-8", BOARD_JS);
   asset("/static/approve.js", "text/javascript; charset=utf-8", APPROVE_JS);
   asset("/static/proposals.js", "text/javascript; charset=utf-8", PROPOSALS_JS);
+  asset("/static/promote.js", "text/javascript; charset=utf-8", PROMOTE_JS);
   asset("/static/record.js", "text/javascript; charset=utf-8", RECORD_JS);
   asset("/static/triage.js", "text/javascript; charset=utf-8", TRIAGE_JS);
   asset("/manifest.webmanifest", "application/manifest+json; charset=utf-8", MANIFEST);

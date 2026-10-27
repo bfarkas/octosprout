@@ -644,6 +644,8 @@ Promotion is a workflow, not a column move.
 
 The idea remains the historical record of motivation and exploration. The project brief references the idea and research instead of copying them.
 
+*As built (Phase 2):* the wizard is one page at `/ideas/<ID>/promote`, opened from a `ready` idea's *Promote…* (on the board or Record detail). It shows the idea, its captures, research and related records; the brief starts from the project template with the idea and its research listed under Related; initial tasks are a list of titles and get `belongs_to` the project and `derived_from` the idea; an optional rationale becomes the proposal's. Submitting shows the approval dialog with the diff and asks for the passkey. `planPromotion` in `@octosprout/core` builds the operations, for the `promote` skill to reuse.
+
 ## 11. Project briefs, tasks and coding-agent handoff
 
 ### 11.1 Project brief template sections
@@ -1144,7 +1146,7 @@ Tests use Vitest. Git tests run against temporary bare repositories that act as 
 
 - **Phase 0:** domain, DNS, Caddy and TLS are live; the Git write service is proven in tests and in production; passkey login works on the iPhone; the ADR template is vendored. The board engine was evaluated and decided (ADR006). The Ed25519 approval round trip is proven in tests and in the browser end-to-end check (sign on the server, verify in `octosprout validate`); it still has to run once against the private repository's CI. Decisions taken so far are ADR001–ADR006.
 - **Phase 1:** complete and deployed. The exit criterion was met with the share link and home screen app instead of the token Shortcut (ADR001).
-- **Phase 2:** in progress. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief; Record detail with editing; triage; and proposals with signed approvals, which enable consequential moves on the boards (below). Next: proposals with signed approvals (which enable consequential moves on the boards), promotion, ADR creation, research and experts lists, search and the health panel.
+- **Phase 2:** in progress. Built: JSON Schemas for every record type; the full validator (OSV001–OSV013), including Ed25519 approval signatures checked against `approval_public_keys`; the lifecycle transition table in `@octosprout/core`; the in-memory record index; the status-move API; the Ideas, Tasks, Projects and Decisions boards in the sidebar shell of the UI brief; Record detail with editing; triage; proposals with signed approvals, which enable consequential moves on the boards; and the promotion wizard (below). Next: ADR creation, Research and Experts lists, search and the health panel.
 - **Phase 3:** not started.
 
 ### Phase 0 — Compatibility and safety spike

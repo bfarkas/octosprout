@@ -169,6 +169,12 @@ export const BOARD_JS = String.raw`
 
   /** Asks first when a task with open blockers moves to In progress or Done. */
   function request(el, to) {
+    // Promotion is a workflow, not a column move (§10): it opens the wizard.
+    const option = el.querySelector('.move option[value="' + CSS.escape(to) + '"]');
+    if (option && option.dataset.kind === "promotion") {
+      location.assign("/ideas/" + encodeURIComponent(el.dataset.id) + "/promote");
+      return;
+    }
     const blockers = (el.dataset.blockedBy || "").split(" ").filter(Boolean);
     if (blockers.length && (to === "in_progress" || to === "done")) {
       const dialog = document.getElementById("dlg-blocked");
