@@ -404,13 +404,13 @@ A `transplanted` idea MUST have exactly one `promoted_to` link and an `approval`
 
 ### 7.3 Task
 
-`backlog`, `ready`, `in_progress`, `blocked`, `done`
+`backlog`, `ready`, `in_progress`, `blocked`, `done`, `archived`
 
-There is no status for a task that will not be done. Decided in §23 (item 4).
+A task that will not be done is `archived`. Decided in §23 (item 4).
 
 Allowed transitions: from any status to any other.
 
-`blocked` is a status set by hand, for anything that holds a task up, including reasons outside the workspace. Separately, a task is *blocked by* every task that `blocks` it and is not `done`; the index computes this and the UI shows it on the card, whatever the task's status. The two meet in one rule:
+`blocked` is a status set by hand, for anything that holds a task up, including reasons outside the workspace. Separately, a task is *blocked by* every task that `blocks` it and is neither `done` nor `archived`; the index computes this and the UI shows it on the card, whatever the task's status. The two meet in one rule:
 
 - Moving a task to `done` also moves to `ready`, **in the same commit**, every task whose status is `blocked` and for which this task was the last open blocker. The operation carries a `base_blob` precondition for every file it touches, so it applies completely or not at all. The unblocked tasks count towards `bulk_threshold` (§9.2).
 - Cancelling a blocker does not move anything, and neither does a status changed by editing a file directly. The UI offers a one-tap move to `ready` for a `blocked` task with no open blockers left.
