@@ -108,8 +108,9 @@ describe("startServer", () => {
     const token = running.tokens.create("iphone-shortcut");
     await capture(running.address, token, "shortcut-run-0004");
 
-    await sandbox.macPush({ "notes.txt": "unrelated" });
+    // Read the head first: the sync loop may pull the push before the next line runs.
     const before = (await running.writer.status()).head;
+    await sandbox.macPush({ "notes.txt": "unrelated" });
     const deadline = Date.now() + 10_000;
     while ((await running.writer.status()).head === before && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
     expect((await running.writer.status()).head).not.toBe(before);

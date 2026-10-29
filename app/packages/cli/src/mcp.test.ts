@@ -170,5 +170,5 @@ describe("octosprout mcp", () => {
     const promotion = await call<{ consequential: boolean }>("propose_promotion", { idea, project_title: "Weekly digest", tasks: ["Pick a day"], rationale: "Ready." });
     expect(promotion.isError).toBe(false);
     expect(promotion.data.consequential).toBe(true);
-  });
+  }, 20_000); // Several git commits; slow under the full parallel suite.
 });
