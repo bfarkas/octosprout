@@ -9,6 +9,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { WriteStatus } from "../git/write-service.js";
 import type { PasskeyStore } from "../auth/passkeys.js";
 import type { TokenStore } from "../http/tokens.js";
+import type { OAuthStore } from "../oauth/store.js";
 import type { CaptureSummary, InboxService } from "../inbox/service.js";
 import { esc, page } from "./html.js";
 
@@ -20,6 +21,7 @@ export interface UiOptions {
   status: () => Promise<WriteStatus>;
   /** The approval key section of Settings, when the server handles approvals. */
   approvalKey?: () => string;
+  agents?: () => ReturnType<OAuthStore["grants"]>;
 }
 
 /** Up to this many characters of a capture are shown in the list; the rest sits behind "Show all". */
@@ -134,6 +136,9 @@ export function registerSettings(app: FastifyInstance, options: UiOptions): void
       .list()
       .map((key) => `<li class="card"><strong>${esc(key.name)}</strong> <span class="meta">added ${esc(formatTime(key.created))}${key.lastUsed ? `, last used ${esc(formatTime(key.lastUsed))}` : ""}</span></li>`)
       .join("\n");
+    const agents = options.agents?.()
+      .map((agent) => `<li class="card"><strong>${esc(agent.client.name)}</strong> <span class="meta">connected ${esc(formatTime(agent.created))}${agent.lastUsed ? `, last used ${esc(formatTime(agent.lastUsed))}` : ""}</span><button type="button" class="link" data-action="revoke-agent" data-id="${esc(agent.id)}">Revoke</button></li>`)
+      .join("\n");
     return reply.type("text/html; charset=utf-8").send(
       page({
         title: "Settings",
@@ -157,6 +162,7 @@ export function registerSettings(app: FastifyInstance, options: UiOptions): void
 </div>
 <p id="status" class="status" role="status" aria-live="polite"></p>
 ${options.approvalKey ? options.approvalKey() : ""}
+${agents !== undefined ? `<h2>Connected agents</h2><ul class="plain">${agents || `<li class="meta">No agents connected.</li>`}</ul>` : ""}
 <h2>Passkeys</h2>
 <ul class="plain">${keys}</ul>
 <p class="hint">Add another device at <a href="/setup">/setup</a> with the setup token.</p>`,

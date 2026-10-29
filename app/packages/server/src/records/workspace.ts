@@ -27,6 +27,11 @@ export class WorkspaceRecords {
     this.#index = new RecordIndex(readWorkspaceFiles(repoDir));
   }
 
+  /** The checkout root, for the shared MCP validator. */
+  get root(): string {
+    return this.#repoDir;
+  }
+
   get index(): RecordIndex {
     return this.#index;
   }

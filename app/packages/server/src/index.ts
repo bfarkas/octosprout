@@ -19,3 +19,7 @@ export * from "./server.js";
 export * from "./auth/passkeys.js";
 export * from "./auth/routes.js";
 export * from "./auth/sessions.js";
+export * from "./mcp/backend.js";
+export * from "./mcp/routes.js";
+export * from "./oauth/routes.js";
+export * from "./oauth/store.js";

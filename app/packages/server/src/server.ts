@@ -16,6 +16,9 @@ import { CiStatus, githubRepo } from "./health/ci.js";
 import { HealthService } from "./health/health.js";
 import { ProposalService } from "./records/proposals.js";
 import { WorkspaceRecords } from "./records/workspace.js";
+import { ServerMcpBackend } from "./mcp/backend.js";
+import { OAuthStore, sanitizeClientName } from "./oauth/store.js";
+import { RateLimiter } from "./http/rate-limit.js";
 
 export interface RunningServer {
   /** The address the server is listening on. */
@@ -38,6 +41,8 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     if (paths !== "all" && paths.some((path) => path.startsWith("records/captures/"))) inbox.reindex();
   });
   const tokens = new TokenStore(config.stateDir);
+  const oauth = new OAuthStore(config.stateDir);
+  const passkeys = new PasskeyStore(config.stateDir);
   const recordDeps = { records, writer: { ...records.indexing(writer), readBlob: (sha: string) => writer.readBlob(sha), history: (path: string, limit?: number) => writer.history(path, limit) } };
   const signingKey = config.approvalKeyFile ? loadSigningKey(config.approvalKeyFile) : undefined;
   const proposals = new ProposalService({ ...recordDeps, ...(signingKey ? { signingKey } : {}), head: async () => (await writer.status()).head });
@@ -46,7 +51,7 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
     inbox,
     tokens,
     auth: {
-      passkeys: new PasskeyStore(config.stateDir),
+      passkeys,
       sessions: new SessionStore(config.stateDir),
       rpId: config.rpId,
       origin: config.origin,
@@ -54,6 +59,16 @@ export async function startServer(config: ServerConfig): Promise<RunningServer> 
       status: () => writer.status(),
     },
     records: { ...recordDeps, proposals },
+    remoteMcp: {
+      origin: config.origin,
+      backend: new ServerMcpBackend(records, proposals),
+      authenticateBearer: (request) => {
+        const match = /^Bearer (\S+)$/.exec(request.headers.authorization ?? "");
+        const verified = match ? oauth.verifyAccess(match[1]!, `${config.origin}/mcp`) : undefined;
+        return verified ? { actor: `agent:${sanitizeClientName(verified.client.name)}` } : undefined;
+      },
+      oauth: { origin: config.origin, rpId: config.rpId, passkeys, store: oauth, rateLimiter: new RateLimiter() },
+    },
     health: new HealthService({
       repoDir: config.repoDir,
       status: () => writer.status(),

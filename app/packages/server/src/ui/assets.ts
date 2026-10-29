@@ -631,6 +631,18 @@ export const APP_JS = `
         }
       });
     }
+
+    for (const button of document.querySelectorAll('[data-action="revoke-agent"]')) {
+      button.addEventListener("click", async () => {
+        if (!window.confirm("Revoke this connected agent? It will lose workspace access immediately.")) return;
+        try {
+          await call("DELETE", "/api/v1/agents/" + encodeURIComponent(button.dataset.id));
+          window.location.reload();
+        } catch (error) {
+          show(error.message, "error");
+        }
+      });
+    }
   }
 
   for (const button of document.querySelectorAll('[data-action="logout"]')) {

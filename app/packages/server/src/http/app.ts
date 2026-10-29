@@ -25,6 +25,9 @@ import { registerTriagePage } from "../ui/triage.js";
 import { registerSettings, registerUi } from "../ui/routes.js";
 import { RateLimiter } from "./rate-limit.js";
 import type { TokenStore } from "./tokens.js";
+import { registerMcpRoutes, type McpRouteOptions } from "../mcp/routes.js";
+import { registerOAuthRoutes, type OAuthRouteOptions } from "../oauth/routes.js";
+import type { OAuthStore } from "../oauth/store.js";
 
 /** Body limit, also enforced at Caddy (spec §15.2). */
 export const MAX_BODY_BYTES = 512 * 1024;
@@ -44,6 +47,8 @@ export interface AppOptions {
   trustProxy?: FastifyServerOptions["trustProxy"];
   /** Called for every route as it is registered; the authorization matrix test lists them with it. */
   onRoute?: (route: { method: string | string[]; url: string }) => void;
+  /** Remote MCP and its OAuth authorization server. */
+  remoteMcp?: Omit<McpRouteOptions, "origin"> & { origin: string; oauth: OAuthRouteOptions };
 }
 
 declare module "fastify" {
@@ -101,6 +106,13 @@ export function buildApp(options: AppOptions): FastifyInstance {
       done(error as Error);
     }
   });
+  app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "buffer" }, (_request, body, done) => {
+    try {
+      const values: Record<string, string> = {};
+      for (const [key, value] of new URLSearchParams((body as Buffer).toString("utf8"))) values[key] = value;
+      done(null, values);
+    } catch (error) { done(error as Error); }
+  });
 
   app.addHook("onSend", async (_request, reply) => {
     reply.header("Cache-Control", "no-store");
@@ -130,6 +142,11 @@ export function buildApp(options: AppOptions): FastifyInstance {
   });
 
   app.get("/healthz", async () => ({ status: "ok" }));
+
+  if (options.remoteMcp) {
+    registerOAuthRoutes(app, options.remoteMcp.oauth);
+    registerMcpRoutes(app, { origin: options.remoteMcp.origin, backend: options.remoteMcp.backend, authenticateBearer: options.remoteMcp.authenticateBearer });
+  }
 
   if (options.auth) {
     const { status, ...authOptions } = options.auth;
@@ -188,6 +205,13 @@ export function buildApp(options: AppOptions): FastifyInstance {
       request.log.info({ name: request.params.name }, "inbox token revoked");
       return { ok: true };
     });
+    if (options.remoteMcp) {
+      app.get("/api/v1/agents", { preHandler: requireSession }, async () => ({ agents: options.remoteMcp!.oauth.store.grants() }));
+      app.delete<{ Params: { id: string } }>("/api/v1/agents/:id", { preHandler: requireSession }, async (request, reply) => {
+        if (!options.remoteMcp!.oauth.store.revoke(request.params.id)) return reply.code(404).send({ error: "not_found" });
+        return { ok: true };
+      });
+    }
 
     if (options.records) {
       registerRecordRoutes(app, { ...options.records, requireSession, recentlyVerified });
@@ -208,6 +232,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
       requireSession,
       inbox,
       tokens,
+      ...(options.remoteMcp ? { agents: () => options.remoteMcp!.oauth.store.grants() } : {}),
       passkeys: options.auth.passkeys,
       status,
       ...(proposalService && recordsForUi ? { approvalKey: () => approvalKeySection(proposalService, recordsForUi) } : {}),

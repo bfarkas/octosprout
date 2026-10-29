@@ -20,6 +20,8 @@ import { buildApp } from "./app.js";
 import { RateLimiter } from "./rate-limit.js";
 import { signIn, TEST_ORIGIN, TEST_RP_ID, TEST_SETUP_TOKEN } from "./test-session.js";
 import { TokenStore } from "./tokens.js";
+import { OAuthStore } from "../oauth/store.js";
+import { ServerMcpBackend } from "../mcp/backend.js";
 
 let sandbox: Sandbox;
 let stateDir: string;
@@ -31,14 +33,22 @@ beforeAll(async () => {
   stateDir = mkdtempSync(join(tmpdir(), "octosprout-authz-"));
   const writer = new GitWriteService({ repoDir: sandbox.server, retryBaseMs: 1, lockTimeoutMs: 2000, networkTimeoutMs: 5000 });
   const records = new WorkspaceRecords(sandbox.server);
+  const passkeys = new PasskeyStore(stateDir);
+  const oauth = new OAuthStore(stateDir);
   const deps = { records, writer: { ...records.indexing(writer), readBlob: (sha: string) => writer.readBlob(sha), history: (path: string, limit?: number) => writer.history(path, limit) } };
   app = buildApp({
     inbox: new InboxService({ writer, repoDir: sandbox.server }),
     tokens: new TokenStore(stateDir),
-    auth: { passkeys: new PasskeyStore(stateDir), sessions: new SessionStore(stateDir), rpId: TEST_RP_ID, origin: TEST_ORIGIN, setupToken: TEST_SETUP_TOKEN, status: () => writer.status() },
+    auth: { passkeys, sessions: new SessionStore(stateDir), rpId: TEST_RP_ID, origin: TEST_ORIGIN, setupToken: TEST_SETUP_TOKEN, status: () => writer.status() },
     records: { ...deps, proposals: new ProposalService({ ...deps, signingKey: signingKeyFrom(generateKeyPairSync("ed25519").privateKey), head: async () => (await writer.status()).head }) },
     // Room for every inbox route in one test; the limiter has tests of its own.
     rateLimiter: new RateLimiter({ capacity: 1000, perMinute: 1000 }),
+    remoteMcp: {
+      origin: TEST_ORIGIN,
+      backend: new ServerMcpBackend(records, new ProposalService({ ...deps, signingKey: signingKeyFrom(generateKeyPairSync("ed25519").privateKey), head: async () => (await writer.status()).head })),
+      authenticateBearer: (request) => { const token = /^Bearer (\S+)$/.exec(request.headers.authorization ?? "")?.[1]; const verified = token ? oauth.verifyAccess(token, `${TEST_ORIGIN}/mcp`) : undefined; return verified ? { actor: `agent:${verified.client.name}` } : undefined; },
+      oauth: { origin: TEST_ORIGIN, rpId: TEST_RP_ID, passkeys, store: oauth, rateLimiter: new RateLimiter({ capacity: 1000, perMinute: 1000 }) },
+    },
     health: new HealthService({ repoDir: sandbox.server, status: () => writer.status(), ci: new CiStatus({}) }),
     onRoute: ({ method, url }) => {
       for (const m of [method].flat()) routes.push({ method: m, url });
@@ -84,13 +94,16 @@ async function request(route: { method: string; url: string }, as: "anonymous" |
 /** Reachable without signing in: sign-in itself, the health check and static assets (spec §18.2). */
 const PUBLIC = (r: { method: string; url: string }) =>
   (r.method === "GET" && (["/healthz", "/login", "/setup", "/manifest.webmanifest", "/favicon.ico"].includes(r.url) || r.url.startsWith("/static/"))) ||
-  (r.method === "POST" && r.url === "/api/v1/auth/login/options");
+  (r.method === "GET" && ["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-authorization-server", "/oauth/authorize"].includes(r.url)) ||
+  (r.method === "POST" && ["/api/v1/auth/login/options", "/oauth/register", "/oauth/token", "/oauth/consent/options", "/oauth/consent/approve", "/oauth/consent/deny"].includes(r.url));
 /** Sign-in endpoints: they authenticate the request themselves, so a session neither helps nor is needed. */
 const SIGN_IN = (r: { url: string }) => r.url.startsWith("/api/v1/auth/login/");
 /** Passkey registration needs the setup token, even with a session. */
 const SETUP_ONLY = (r: { url: string }) => r.url.startsWith("/api/v1/auth/register/");
 const INBOX = (r: { url: string }) => r.url === "/api/v1/inbox" || r.url.startsWith("/api/v1/inbox/");
 const LOGOUT = (r: { url: string }) => r.url === "/api/v1/auth/logout";
+const MCP = (r: { url: string }) => r.url === "/mcp";
+const OAUTH_PUBLIC = (r: { url: string }) => r.url.startsWith("/.well-known/oauth-") || r.url.startsWith("/oauth/");
 
 describe("the authorization matrix (spec §18.2), over every registered route", () => {
   beforeAll(async () => {
@@ -106,7 +119,7 @@ describe("the authorization matrix (spec §18.2), over every registered route", 
 
   it("answers 401 to anonymous requests except on the public routes", async () => {
     const open: string[] = [];
-    for (const route of routes) if ((await hit(route, "anonymous")) !== 401) open.push(`${route.method} ${route.url}`);
+    for (const route of routes) if (OAUTH_PUBLIC(route) || (await hit(route, "anonymous")) !== 401) open.push(`${route.method} ${route.url}`);
     expect(open.sort()).toEqual(routes.filter(PUBLIC).map((r) => `${r.method} ${r.url}`).sort());
   });
 
@@ -119,17 +132,17 @@ describe("the authorization matrix (spec §18.2), over every registered route", 
   });
 
   it("lets a session do everything except the inbox API and passkey registration", async () => {
-    for (const route of routes.filter((r) => !LOGOUT(r) && !SIGN_IN(r))) {
+    for (const route of routes.filter((r) => !LOGOUT(r) && !SIGN_IN(r) && !OAUTH_PUBLIC(r))) {
       const response = await request(route, "session");
       // A 401 for the session itself says "unauthorized"; re-verification's 401 is for the empty passkey assertion.
       const refused = response.statusCode === 401 && (response.json() as { error?: string }).error !== "reverify_failed";
-      expect(refused, `${route.method} ${route.url}: ${response.statusCode} ${response.body}`).toBe(INBOX(route) || SETUP_ONLY(route));
+      expect(refused, `${route.method} ${route.url}: ${response.statusCode} ${response.body}`).toBe(INBOX(route) || SETUP_ONLY(route) || MCP(route));
     }
   });
 
   it("needs the CSRF token and the exact Origin for every state change a session makes", async () => {
     // Logout goes last: it ends the session.
-    const changes = routes.filter((r) => MUTATING.has(r.method) && !INBOX(r) && !SIGN_IN(r) && !SETUP_ONLY(r)).sort((a, b) => Number(LOGOUT(a)) - Number(LOGOUT(b)));
+    const changes = routes.filter((r) => MUTATING.has(r.method) && !INBOX(r) && !SIGN_IN(r) && !SETUP_ONLY(r) && !OAUTH_PUBLIC(r) && !MCP(r)).sort((a, b) => Number(LOGOUT(a)) - Number(LOGOUT(b)));
     expect(changes.length).toBeGreaterThan(15);
     for (const route of changes) {
       expect(await hit(route, "session", { csrf: false }), `${route.method} ${route.url} without CSRF`).toBe(403);
