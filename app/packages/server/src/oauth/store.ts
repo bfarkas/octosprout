@@ -9,6 +9,7 @@ interface Code { hash: string; clientId: string; redirectUri: string; challenge:
 interface Grant { id: string; clientId: string; resource: string; scope: string[]; created: string; lastUsed?: string; revoked?: string; access: Array<{ hash: string; expires: string }>; refresh: Array<{ hash: string; expires: string; used?: string }> }
 interface Data { clients: OAuthClient[]; pending: Pending[]; codes: Code[]; grants: Grant[] }
 
+const MAX_CLIENTS = 200;
 const hash = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
 const random = (prefix: string) => `${prefix}${randomBytes(32).toString("base64url")}`;
 const equal = (a: string, b: string) => timingSafeEqual(Buffer.from(hash(a), "hex"), Buffer.from(b, "hex"));
@@ -59,7 +60,11 @@ export class OAuthStore {
   clients(): readonly OAuthClient[] { this.#refresh(); return this.#data.clients; }
   client(id: string): OAuthClient | undefined { this.#refresh(); return this.#data.clients.find((x) => x.id === id); }
   register(name: string, redirectUris: string[]): OAuthClient {
-    this.#refresh(); const client = { id: random("osc_"), name: sanitizeClientName(name), redirectUris, created: this.now().toISOString() }; this.#data.clients.push(client); this.#save(); return client;
+    this.#refresh(); const client = { id: random("osc_"), name: sanitizeClientName(name), redirectUris, created: this.now().toISOString() }; this.#data.clients.push(client);
+    // Registration is anonymous: past the cap, drop the oldest clients that never got a grant.
+    const granted = new Set(this.#data.grants.map((g) => g.clientId));
+    while (this.#data.clients.length > MAX_CLIENTS) { const index = this.#data.clients.findIndex((c) => !granted.has(c.id) && c.id !== client.id); if (index < 0) break; this.#data.clients.splice(index, 1); }
+    this.#save(); return client;
   }
   pending(input: Omit<Pending, "id" | "expires">): Pending {
     this.#refresh(); const value = { ...input, id: random("osp_"), expires: new Date(this.now().getTime() + 10 * 60_000).toISOString() }; this.#data.pending.push(value); this.#save(); return value;
@@ -76,8 +81,9 @@ export class OAuthStore {
     this.#data.grants.push({ id: grant, clientId: pending.clientId, resource: pending.resource, scope: pending.scope, created: this.now().toISOString(), access: [], refresh: [] });
     this.#data.codes.push({ hash: hash(secret), clientId: pending.clientId, redirectUri: pending.redirectUri, challenge: pending.challenge, resource: pending.resource, scope: pending.scope, grant, expires: new Date(this.now().getTime() + 60_000).toISOString() }); this.#save(); return secret;
   }
-  exchangeCode(code: string): Code | undefined {
-    this.#refresh(); const index = this.#data.codes.findIndex((x) => equal(code, x.hash)); if (index < 0) return undefined; const [value] = this.#data.codes.splice(index, 1); this.#save(); return value;
+  /** Consumes the code only when `valid` accepts it, so a bad redemption cannot burn the client's code. */
+  exchangeCode(code: string, valid: (value: Code) => boolean = () => true): Code | undefined {
+    this.#refresh(); const index = this.#data.codes.findIndex((x) => equal(code, x.hash)); if (index < 0 || !valid(this.#data.codes[index]!)) return undefined; const [value] = this.#data.codes.splice(index, 1); this.#save(); return value;
   }
   issueTokens(grantId: string, offline: boolean): { access: string; refresh?: string; expiresIn: number } | undefined {
     this.#refresh(); const grant = this.#data.grants.find((x) => x.id === grantId && !x.revoked); if (!grant) return undefined;
@@ -97,7 +103,7 @@ export class OAuthStore {
   }
   verifyAccess(secret: string, resource: string): { client: OAuthClient; grant: Grant } | undefined {
     this.#refresh(); const now = this.now().toISOString();
-    for (const grant of this.#data.grants) for (const token of grant.access) if (equal(secret, token.hash) && !grant.revoked && token.expires > now && grant.resource === resource) {
+    for (const grant of this.#data.grants) for (const token of grant.access) if (equal(secret, token.hash) && !grant.revoked && token.expires > now && grant.resource === resource && grant.scope.includes("workspace")) {
       const client = this.#data.clients.find((x) => x.id === grant.clientId); if (!client) return undefined; grant.lastUsed = now; this.#save(); return { client, grant };
     }
     return undefined;

@@ -34,6 +34,19 @@ describe("OAuthStore", () => {
     expect(store.verifyAccess(tokens.access, RESOURCE)).toBeUndefined();
   });
 
+  it("caps anonymous registrations by dropping the oldest clients without a grant", () => {
+    const { client } = connect();
+    for (let i = 0; i < 250; i++) store.register(`spam${i}`, ["http://localhost/cb"]);
+    expect(store.clients()).toHaveLength(200);
+    expect(store.client(client.id)).toBeDefined();
+  });
+
+  it("refuses a grant without the workspace scope", () => {
+    const client = store.register("Claude", ["https://claude.ai/api/mcp/auth_callback"]);
+    const code = store.exchangeCode(store.issueCode(store.pending({ clientId: client.id, redirectUri: client.redirectUris[0]!, challenge: "c", resource: RESOURCE, scope: ["offline_access"] })))!;
+    expect(store.verifyAccess(store.issueTokens(code.grant, true)!.access, RESOURCE)).toBeUndefined();
+  });
+
   it("uses each code once", () => {
     const client = store.register("Claude", ["https://claude.ai/api/mcp/auth_callback"]);
     const code = store.issueCode(store.pending({ clientId: client.id, redirectUri: client.redirectUris[0]!, challenge: "c", resource: RESOURCE, scope: ["workspace"] }));

@@ -257,7 +257,8 @@ describe("hardening", () => {
   it("sets security headers and forbids caching", async () => {
     const response = await post(valid);
     expect(response.headers["x-content-type-options"]).toBe("nosniff");
-    expect(response.headers["content-security-policy"]).toBe("default-src 'self'");
+    expect(response.headers["content-security-policy"]).toBe("default-src 'self'; frame-ancestors 'none'");
+    expect(response.headers["x-frame-options"]).toBe("DENY");
     expect(response.headers["cache-control"]).toBe("no-store");
   });
 });

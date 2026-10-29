@@ -117,7 +117,8 @@ export function buildApp(options: AppOptions): FastifyInstance {
   app.addHook("onSend", async (_request, reply) => {
     reply.header("Cache-Control", "no-store");
     reply.header("X-Content-Type-Options", "nosniff");
-    reply.header("Content-Security-Policy", "default-src 'self'");
+    reply.header("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'");
+    reply.header("X-Frame-Options", "DENY");
   });
 
   // Anonymous requests get 401 everywhere, including for paths that do not exist.

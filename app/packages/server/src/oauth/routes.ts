@@ -58,7 +58,7 @@ export function registerOAuthRoutes(app: FastifyInstance, options: OAuthRouteOpt
     if (limited(request, reply)) return;
     const body = fields(request); const redirects = body.redirect_uris;
     if (body.token_endpoint_auth_method !== undefined && body.token_endpoint_auth_method !== "none") return oauthError(reply, "invalid_client_metadata", "Only public clients are supported.");
-    if (!Array.isArray(redirects) || redirects.length === 0 || redirects.some((x) => typeof x !== "string" || !allowedRedirect(x))) return oauthError(reply, "invalid_redirect_uri", "Every redirect URI must be allowlisted.");
+    if (!Array.isArray(redirects) || redirects.length === 0 || redirects.length > 10 || redirects.some((x) => typeof x !== "string" || x.length > 512 || !allowedRedirect(x))) return oauthError(reply, "invalid_redirect_uri", "Every redirect URI must be allowlisted.");
     const client = options.store.register(typeof body.client_name === "string" ? body.client_name : "mcp", redirects as string[]);
     return reply.code(201).send({ client_id: client.id, client_name: client.name, redirect_uris: client.redirectUris, token_endpoint_auth_method: "none", grant_types: ["authorization_code", "refresh_token"], response_types: ["code"] });
   });
@@ -72,7 +72,7 @@ export function registerOAuthRoutes(app: FastifyInstance, options: OAuthRouteOpt
     if (query.response_type !== "code") return invalid("response_type must be code.");
     if (!query.code_challenge || query.code_challenge_method !== "S256") return invalid("PKCE S256 is required.");
     if (!resourceMatches(query.resource, resource)) return invalid("This authorization request is for a different resource.");
-    const scope = (query.scope ?? "workspace").split(/\s+/).filter(Boolean); if (scope.length === 0 || scope.some((value) => !SCOPES.has(value))) return invalid("The requested scope is not supported.");
+    const scope = (query.scope ?? "workspace").split(/\s+/).filter(Boolean); if (scope.length === 0 || scope.some((value) => !SCOPES.has(value)) || !scope.includes("workspace")) return invalid("The requested scope is not supported.");
     const pending = options.store.pending({ clientId: client.id, redirectUri: query.redirect_uri, ...(query.state ? { state: query.state } : {}), challenge: query.code_challenge, resource, scope });
     const warning = loopback(query.redirect_uri) ? `<p class="banner">This redirects to a local application on your device.</p>` : "";
     return reply.type("text/html; charset=utf-8").send(page({ title: "Connect agent", page: "oauth", scripts: ["oauth.js"], body: `<h1>Connect ${esc(client.name)}?</h1><p>${esc(client.name)} will be able to read this workspace and create proposals for your review.</p><p class="hint">Redirect: ${esc(new URL(query.redirect_uri).host)}</p>${warning}<div class="actions"><button id="approve" type="button">Approve with passkey</button><form method="post" action="/oauth/consent/deny"><input type="hidden" name="pending" value="${esc(pending.id)}"><button class="secondary" type="submit">Deny</button></form></div><p id="status" class="status" role="status"></p>` }).replace("<body", `<body data-pending="${esc(pending.id)}"`));
@@ -80,6 +80,7 @@ export function registerOAuthRoutes(app: FastifyInstance, options: OAuthRouteOpt
 
   app.get("/static/oauth.js", async (_request, reply) => reply.type("text/javascript; charset=utf-8").send(consentScript()));
   app.post("/oauth/consent/options", async (request, reply) => {
+    if (limited(request, reply)) return;
     if (request.headers.origin !== options.origin) return reply.code(403).send({ error: "bad_origin" });
     const pending = options.store.getPending(field(fields(request), "pending") ?? ""); if (!pending) return oauthError(reply, "invalid_request", "The authorization request expired.");
     const authentication = await generateAuthenticationOptions({ rpID: options.rpId, userVerification: "required", allowCredentials: options.passkeys.list().map((key) => ({ id: key.id, ...(key.transports ? { transports: transports(key.transports)! } : {}) })) });
@@ -87,6 +88,7 @@ export function registerOAuthRoutes(app: FastifyInstance, options: OAuthRouteOpt
     return authentication;
   });
   app.post("/oauth/consent/approve", async (request, reply) => {
+    if (limited(request, reply)) return;
     if (request.headers.origin !== options.origin) return reply.code(403).send({ error: "bad_origin" });
     const body = fields(request); const id = field(body, "pending") ?? ""; const response = body.response as AuthenticationResponseJSON | undefined; const key = typeof response?.id === "string" ? options.passkeys.find(response.id) : undefined;
     let assertedChallenge: string | undefined;
@@ -109,7 +111,7 @@ export function registerOAuthRoutes(app: FastifyInstance, options: OAuthRouteOpt
     if (limited(request, reply)) return; const body = fields(request); const clientId = field(body, "client_id") ?? ""; if (!options.store.client(clientId)) return oauthError(reply.header("WWW-Authenticate", "Basic realm=oauth"), "invalid_client", undefined, 401);
     const grantType = field(body, "grant_type");
     if (grantType === "authorization_code") {
-      const code = field(body, "code") ?? ""; const value = options.store.exchangeCode(code); if (!value || value.clientId !== clientId || !field(body, "redirect_uri") || !redirectMatches(value.redirectUri, field(body, "redirect_uri")!) || !resourceMatches(field(body, "resource"), value.resource) || !field(body, "code_verifier") || b64uSha256(field(body, "code_verifier")!) !== value.challenge) return oauthError(reply, "invalid_grant");
+      const code = field(body, "code") ?? ""; const value = options.store.exchangeCode(code, (c) => c.clientId === clientId && !!field(body, "redirect_uri") && redirectMatches(c.redirectUri, field(body, "redirect_uri")!) && resourceMatches(field(body, "resource"), c.resource) && !!field(body, "code_verifier") && b64uSha256(field(body, "code_verifier")!) === c.challenge); if (!value) return oauthError(reply, "invalid_grant");
       const tokens = options.store.issueTokens(value.grant, value.scope.includes("offline_access")); if (!tokens) return oauthError(reply, "invalid_grant"); return { access_token: tokens.access, token_type: "Bearer", expires_in: tokens.expiresIn, ...(tokens.refresh ? { refresh_token: tokens.refresh } : {}), scope: value.scope.join(" ") };
     }
     if (grantType === "refresh_token") { const tokens = options.store.refresh(field(body, "refresh_token") ?? "", clientId); if (!tokens || tokens === "reuse") return oauthError(reply, "invalid_grant"); return { access_token: tokens.access, token_type: "Bearer", expires_in: tokens.expiresIn, ...(tokens.refresh ? { refresh_token: tokens.refresh } : {}) }; }

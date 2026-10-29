@@ -21,6 +21,8 @@ export function registerMcpRoutes(app: FastifyInstance, options: McpRouteOptions
           .header("WWW-Authenticate", `Bearer resource_metadata="${options.origin}/.well-known/oauth-protected-resource", scope="workspace"`)
           .send({ error: "unauthorized" });
       }
+      // Stateless with no server-initiated messages: no SSE stream (GET) and no session to end (DELETE).
+      if (request.method !== "POST") return reply.code(405).header("Allow", "POST").send({ error: "method_not_allowed" });
       // Omitting the generator is the SDK's stateless mode.
       const transport = new StreamableHTTPServerTransport();
       const server = createMcpServerForBackend(() => options.backend, { actor: auth.actor, sync: false });

@@ -53,6 +53,7 @@ describe("OAuth discovery and dynamic registration", () => {
     expect((await app.inject({ method: "GET", url: "/.well-known/oauth-protected-resource/mcp" })).json()).toMatchObject({ resource: `${ORIGIN}/mcp`, authorization_servers: [ORIGIN], scopes_supported: ["workspace"] });
     expect((await post("/oauth/register", { client_name: "Claude", redirect_uris: ["https://evil.example/callback"] })).statusCode).toBe(400);
     const registered = await post("/oauth/register", { client_name: "Claude / Desktop", token_endpoint_auth_method: "none", redirect_uris: ["https://claude.ai/api/mcp/auth_callback"] });
+    expect((await post("/oauth/register", { client_name: "Many", redirect_uris: Array.from({ length: 11 }, (_, i) => `http://localhost/${i}`) })).statusCode).toBe(400);
     expect(registered.statusCode).toBe(201); expect(registered.json()).toMatchObject({ client_name: "Claude-Desktop" });
   });
 
@@ -63,6 +64,11 @@ describe("OAuth discovery and dynamic registration", () => {
     expect(authorize.body).toContain("Connect Claude?");
     const wrongResource = await app.inject({ method: "GET", url: `/oauth/authorize?client_id=${client.client_id}&redirect_uri=${encodeURIComponent("https://claude.ai/api/mcp/auth_callback")}&response_type=code&code_challenge=x&code_challenge_method=S256&resource=https%3A%2F%2Fevil.example%2Fmcp` });
     expect(wrongResource.statusCode).toBe(400);
+    const offlineOnly = await app.inject({ method: "GET", url: `/oauth/authorize?client_id=${client.client_id}&redirect_uri=${encodeURIComponent("https://claude.ai/api/mcp/auth_callback")}&response_type=code&code_challenge=x&code_challenge_method=S256&resource=${encodeURIComponent(`${ORIGIN}/mcp`)}&scope=offline_access` });
+    expect(offlineOnly.statusCode).toBe(400);
+    // The consent page must not be framed (clickjacking).
+    expect(authorize.headers["x-frame-options"]).toBe("DENY");
+    expect(authorize.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
     expect((await app.inject({ method: "GET", url: "/mcp" })).statusCode).toBe(401);
   });
 
@@ -80,10 +86,12 @@ describe("OAuth discovery and dynamic registration", () => {
     const approved = await post("/oauth/consent/approve", { pending, response: authenticator.get(assertionOptions.json() as { challenge: string }) }, { origin: ORIGIN });
     expect(approved.statusCode).toBe(200);
     const code = new URL((approved.json() as { redirect: string }).redirect).searchParams.get("code")!;
+    const wrongVerifier = await post("/oauth/token", { grant_type: "authorization_code", client_id: client.client_id, code, redirect_uri: "https://claude.ai/api/mcp/auth_callback", code_verifier: "wrong", resource: `${ORIGIN}/mcp` });
+    expect(wrongVerifier.statusCode).toBe(400); // and the code survives for the real client
     const exchanged = await post("/oauth/token", { grant_type: "authorization_code", client_id: client.client_id, code, redirect_uri: "https://claude.ai/api/mcp/auth_callback", code_verifier: verifier, resource: `${ORIGIN}/mcp` });
     expect(exchanged.statusCode).toBe(200);
     const tokens = exchanged.json() as { access_token: string; refresh_token: string };
-    expect((await app.inject({ method: "GET", url: "/mcp", headers: { authorization: `Bearer ${tokens.access_token}` } })).statusCode).not.toBe(401);
+    expect((await app.inject({ method: "GET", url: "/mcp", headers: { authorization: `Bearer ${tokens.access_token}` } })).statusCode).toBe(405);
     const initialized = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${tokens.access_token}`, "content-type": "application/json", accept: "application/json, text/event-stream" }, payload: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "Claude Test", version: "1" } } }) });
     expect(initialized.statusCode).toBe(200);
     const tools = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${tokens.access_token}`, "content-type": "application/json", accept: "application/json, text/event-stream" }, payload: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }) });
