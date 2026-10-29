@@ -1,5 +1,5 @@
 /** The MCP view of the server workspace. Writes remain pending proposals. */
-import { generateId, type Operation, type RecordType } from "@octosprout/core";
+import { generateId, readWorkspaceFiles, validateWorkspace, type Finding, type Operation, type RecordType, type SourceFile } from "@octosprout/core";
 import type { McpBackend, McpProposal, McpSyncResult } from "@octosprout/cli/mcp";
 
 import { formatTimestamp } from "../inbox/capture.js";
@@ -35,6 +35,7 @@ export class ServerMcpBackend implements McpBackend {
   async propose(input: { title: string; rationale: string; operations: readonly Operation[]; actor: string; session?: string }): Promise<McpProposal> {
     const preview = this.proposals.preview(input.operations);
     if (!preview.ok) throw new Error(preview.message ?? "The operations do not apply.");
+    this.#check(preview.diff!);
     const outcome = await this.proposals.create(input);
     if (outcome.kind === "invalid") throw new Error(outcome.message);
     return {
@@ -43,6 +44,24 @@ export class ServerMcpBackend implements McpBackend {
       consequential: preview.classification!.consequential,
       reasons: preview.classification!.reasons,
     };
+  }
+
+  /**
+   * Refuses up front a proposal that could never be applied, as the stdio
+   * server does. OSV008 is left out: the approval it asks for is what the
+   * proposal is for.
+   */
+  #check(diff: ReadonlyArray<{ path: string; after: string | null }>): void {
+    const before = readWorkspaceFiles(this.records.root);
+    const after = new Map<string, SourceFile>(before.map((f) => [f.path, f]));
+    for (const change of diff) {
+      if (change.after === null) after.delete(change.path);
+      else after.set(change.path, { path: change.path, content: change.after });
+    }
+    const key = (f: Finding): string => `${f.code}|${f.path}|${f.message}`;
+    const baseline = new Set(validateWorkspace(before).filter((f) => f.severity === "error").map(key));
+    const added = validateWorkspace([...after.values()]).filter((f) => f.severity === "error" && f.code !== "OSV008" && !baseline.has(key(f)));
+    if (added.length > 0) throw new Error(`The change would add ${added.length} validation error(s): ${added.map((f) => `${f.code} ${f.message}`).join("; ")}`);
   }
 
   sync(): McpSyncResult {

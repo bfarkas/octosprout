@@ -101,7 +101,14 @@ describe("OAuth discovery and dynamic registration", () => {
     const proposal = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${tokens.access_token}`, "content-type": "application/json", accept: "application/json, text/event-stream" }, payload: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "propose", arguments: { title: "Remote proposal", rationale: "Test remote MCP attribution.", operations: [{ op: "create", path: draft.path, content: draft.content }] } } }) });
     expect(proposal.statusCode).toBe(200);
     expect(proposal.body).toContain("proposed");
+    expect(proposal.body).toContain('\\"pushed\\": true');
     expect(await git(sandbox.server, "log", "-1", "--format=%B")).toContain("OctoSprout-Actor: agent:Claude");
+    // A proposal that could never be approved is refused before it is committed.
+    const head = await git(sandbox.server, "rev-parse", "HEAD");
+    const done = buildNewRecord({ type: "task", id: "OS-T-ABCDE", title: "Done without criteria", now: "2026-10-29T00:00:00Z" });
+    const invalid = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${tokens.access_token}`, "content-type": "application/json", accept: "application/json, text/event-stream" }, payload: JSON.stringify({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "propose", arguments: { title: "Invalid", rationale: "Adds OSV009.", operations: [{ op: "create", path: done.path, content: done.content.replace(/^status: .*$/m, "status: done") }] } } }) });
+    expect(invalid.body).toContain("OSV009");
+    expect(await git(sandbox.server, "rev-parse", "HEAD")).toBe(head);
     const rotated = await post("/oauth/token", { grant_type: "refresh_token", client_id: client.client_id, refresh_token: tokens.refresh_token });
     expect(rotated.statusCode).toBe(200);
     expect((await post("/oauth/token", { grant_type: "refresh_token", client_id: client.client_id, refresh_token: tokens.refresh_token })).statusCode).toBe(400);

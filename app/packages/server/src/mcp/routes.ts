@@ -25,7 +25,7 @@ export function registerMcpRoutes(app: FastifyInstance, options: McpRouteOptions
       if (request.method !== "POST") return reply.code(405).header("Allow", "POST").send({ error: "method_not_allowed" });
       // Omitting the generator is the SDK's stateless mode.
       const transport = new StreamableHTTPServerTransport();
-      const server = createMcpServerForBackend(() => options.backend, { actor: auth.actor, sync: false });
+      const server = createMcpServerForBackend(() => options.backend, { actor: auth.actor });
       // The CLI's public MCP factory and the server resolve the same SDK at runtime.
       await server.connect(transport as never);
       reply.hijack();
