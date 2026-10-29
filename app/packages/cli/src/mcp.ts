@@ -21,8 +21,11 @@ import {
 import { z } from "zod";
 
 import { summary } from "./commands.js";
+import type { McpBackend } from "./mcp-backend.js";
+
+export type { McpBackend, McpProposal, McpSyncResult } from "./mcp-backend.js";
 import { ADVICE_SHAPE, advicePlan, draftRecord, findRecord, handoffBundle, promotionPlan, REPORT_SHAPE, reportPlan, triagePlan, type TriageInput } from "./plans.js";
-import { actorFrom, isAgent, Workspace, WorkspaceError, type WriteOutcome } from "./workspace.js";
+import { actorFrom, isAgent, Workspace, WorkspaceError } from "./workspace.js";
 
 const VERSION = "0.0.0";
 
@@ -43,7 +46,8 @@ export interface McpOptions {
   sync?: boolean;
 }
 
-export function createMcpServer(cwd: string, options: McpOptions = {}): McpServer {
+/** Registers the tools; `open` gives the workspace for one tool call. */
+export function createMcpServerForBackend(open: () => McpBackend, options: McpOptions = {}): McpServer {
   const server = new McpServer({ name: "octosprout", version: VERSION }, { instructions: "OctoSprout workspace tools. Read tools are free to use. Write tools only create proposals, which the owner approves in the browser; they never change records directly." });
 
   // An explicit actor must be an agent: everything the MCP server writes is an agent's proposal.
@@ -54,14 +58,13 @@ export function createMcpServer(cwd: string, options: McpOptions = {}): McpServe
     const client = server.server.getClientVersion()?.name ?? "mcp";
     return `agent:${client.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 64) || "mcp"}`;
   };
-  const open = () => Workspace.open(cwd);
 
   /** Runs a tool body, turning workspace errors into tool errors. */
   const guarded =
-    <A>(body: (args: A) => ToolResult) =>
+    <A>(body: (args: A) => ToolResult | Promise<ToolResult>) =>
     async (args: A): Promise<ToolResult> => {
       try {
-        return body(args);
+        return await body(args);
       } catch (error) {
         if (error instanceof WorkspaceError) return fail(error.message, error.findings.length ? error.findings : undefined);
         return fail((error as Error).message);
@@ -69,12 +72,12 @@ export function createMcpServer(cwd: string, options: McpOptions = {}): McpServe
     };
 
   /** Commits the proposal and, unless disabled, pushes it (§16.3). */
-  const proposeAndSync = (ws: Workspace, input: { title: string; rationale: string; operations: Operation[]; session?: string | undefined }): ToolResult => {
-    const outcome: WriteOutcome = ws.propose({ title: input.title, rationale: input.rationale, operations: input.operations, actor: actor(), ...(input.session ? { session: input.session } : {}) });
+  const proposeAndSync = async (ws: McpBackend, input: { title: string; rationale: string; operations: Operation[]; session?: string | undefined }): Promise<ToolResult> => {
+    const outcome = await ws.propose({ title: input.title, rationale: input.rationale, operations: input.operations, actor: actor(), ...(input.session ? { session: input.session } : {}) });
     let synced: { pushed: boolean; error?: string } = { pushed: false };
     if (options.sync !== false) {
       try {
-        synced = { pushed: ws.sync().pushed };
+        synced = { pushed: (await ws.sync()).pushed };
       } catch (error) {
         synced = { pushed: false, error: (error as Error).message };
       }
@@ -201,7 +204,7 @@ export function createMcpServer(cwd: string, options: McpOptions = {}): McpServe
       description: "Propose changes as operations (spec §9.3). Commits only the proposal file, then syncs. Nothing changes until the owner approves it in the browser.",
       inputSchema: { title: z.string().min(1).max(200), rationale: z.string(), operations: z.array(operationSchema).min(1), session: z.string().max(500).optional() },
     },
-    guarded(({ title, rationale, operations, session }) => proposeAndSync(open(), { title, rationale, operations: operations as unknown as Operation[], session })),
+    guarded(async ({ title, rationale, operations, session }) => proposeAndSync(open(), { title, rationale, operations: operations as unknown as Operation[], session })),
   );
 
   server.registerTool(
@@ -295,13 +298,18 @@ export function createMcpServer(cwd: string, options: McpOptions = {}): McpServe
   server.registerTool(
     "sync",
     { description: "Fetch, rebase and push the checkout. Pushes only if validation passes." },
-    guarded(() => {
-      const result = open().sync();
-      return ok({ pushed: result.pushed, errors: result.findings.filter((f) => f.severity === "error").length });
+    guarded(async () => {
+      const result = await open().sync();
+      return ok({ pushed: result.pushed, errors: result.findings?.filter((f) => f.severity === "error").length ?? 0 });
     }),
   );
 
   return server;
+}
+
+/** Registers the local backend so `octosprout mcp` remains the public CLI entry point. */
+export function createMcpServer(cwd: string, options: McpOptions = {}): McpServer {
+  return createMcpServerForBackend(() => Workspace.open(cwd), options);
 }
 
 export async function runMcpServer(cwd: string): Promise<void> {

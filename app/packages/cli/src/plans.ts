@@ -20,9 +20,10 @@ import {
 
 import { z } from "zod";
 
-import { Workspace, WorkspaceError } from "./workspace.js";
+import type { McpBackend } from "./mcp-backend.js";
+import { WorkspaceError } from "./workspace.js";
 
-export function findRecord(ws: Workspace, id: string): IndexedRecord {
+export function findRecord(ws: McpBackend, id: string): IndexedRecord {
   const record = ws.index.get(id);
   if (!record) throw new WorkspaceError(`There is no record ${id}.`);
   return record;
@@ -37,7 +38,7 @@ export interface DraftInput {
 }
 
 /** A new record with a fresh ID, from its template; nothing is written. */
-export function draftRecord(ws: Workspace, input: DraftInput): { id: string; path: string; content: string } {
+export function draftRecord(ws: McpBackend, input: DraftInput): { id: string; path: string; content: string } {
   const project = input.project ? findRecord(ws, input.project) : undefined;
   const supersedes = input.supersedes ? findRecord(ws, input.supersedes) : undefined;
   if (project && project.type !== "project") throw new WorkspaceError(`${project.id} is not a project.`);
@@ -63,7 +64,7 @@ export type TriageInput =
   | { capture: string; action: "compost" };
 
 /** A triage (§7.1): its title and operations, and the ID of a record it creates. */
-export function triagePlan(ws: Workspace, input: TriageInput): { title: string; operations: Operation[]; created?: string } {
+export function triagePlan(ws: McpBackend, input: TriageInput): { title: string; operations: Operation[]; created?: string } {
   const capture = findRecord(ws, input.capture);
   switch (input.action) {
     case "create": {
@@ -91,7 +92,7 @@ export interface PromotionInput {
 }
 
 /** A promotion (§10): its title and operations, and the new project's ID. */
-export function promotionPlan(ws: Workspace, input: PromotionInput): { title: string; operations: Operation[]; project: string } {
+export function promotionPlan(ws: McpBackend, input: PromotionInput): { title: string; operations: Operation[]; project: string } {
   const idea = findRecord(ws, input.idea);
   if (idea.type !== "idea" || idea.status !== "ready") throw new WorkspaceError(`${idea.id} is not a ready idea.`);
   const taken = new Set<string>();
@@ -137,7 +138,7 @@ export const ADVICE_SHAPE = {
 export type AdviceInput = z.infer<z.ZodObject<typeof ADVICE_SHAPE>> & { decision: string };
 
 /** An `advise` run (§14): its title and operations. */
-export function advicePlan(ws: Workspace, input: AdviceInput): { title: string; operations: Operation[] } {
+export function advicePlan(ws: McpBackend, input: AdviceInput): { title: string; operations: Operation[] } {
   const decision = findRecord(ws, input.decision);
   if (decision.type !== "decision") throw new WorkspaceError(`${decision.id} is not a decision.`);
   const taken = new Set<string>();
@@ -182,7 +183,7 @@ export function advicePlan(ws: Workspace, input: AdviceInput): { title: string; 
 }
 
 /** The handoff bundle for a task (§11.3): Markdown, never committed. */
-export function handoffBundle(ws: Workspace, taskId: string): string {
+export function handoffBundle(ws: McpBackend, taskId: string): string {
   const task = findRecord(ws, taskId);
   if (task.type !== "task") throw new WorkspaceError(`${task.id} is not a task.`);
   return handoffContext(ws.index, task.id, ws.now());
@@ -205,7 +206,7 @@ export const REPORT_SHAPE = {
 export type ReportInput = z.infer<z.ZodObject<typeof REPORT_SHAPE>> & { task: string };
 
 /** A handoff report (§11.4): its title and operations. */
-export function reportPlan(ws: Workspace, input: ReportInput, actor: string): { title: string; operations: Operation[] } {
+export function reportPlan(ws: McpBackend, input: ReportInput, actor: string): { title: string; operations: Operation[] } {
   const task = findRecord(ws, input.task);
   if (task.type !== "task") throw new WorkspaceError(`${task.id} is not a task.`);
   const project = parentProject(ws.index, task);
