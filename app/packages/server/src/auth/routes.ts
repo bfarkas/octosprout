@@ -57,7 +57,7 @@ declare module "fastify" {
 
 /** `packages/server/static/`, resolved from `src/auth/` or `dist/auth/`. */
 const STATIC_DIR = new URL("../../static/", import.meta.url);
-const ICONS = ["icon-180.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png"];
+const ICONS = ["icon-180.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "logo.png"];
 
 const sha256 = (value: string): Buffer => createHash("sha256").update(value, "utf8").digest();
 const safeEqual = (a: string, b: string): boolean => timingSafeEqual(sha256(a), sha256(b));
@@ -125,6 +125,7 @@ export function registerAuth(app: FastifyInstance, options: AuthOptions): Guards
   asset("/static/triage.js", "text/javascript; charset=utf-8", TRIAGE_JS);
   asset("/manifest.webmanifest", "application/manifest+json; charset=utf-8", MANIFEST);
   for (const icon of ICONS) asset(`/static/${icon}`, "image/png", readFileSync(new URL(icon, STATIC_DIR)));
+  asset("/favicon.ico", "image/x-icon", readFileSync(new URL("favicon.ico", STATIC_DIR)));
 
   app.get("/login", async (_request, reply) =>
     reply.type("text/html; charset=utf-8").send(

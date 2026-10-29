@@ -48,10 +48,7 @@ code, .mono { font-family: var(--mono); font-size: 0.88em; }
 .shell { display: grid; grid-template-columns: 14rem minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
 .side { background: var(--sidebar); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 1.25rem; padding: 1.1rem 0.9rem; position: sticky; top: 0; height: 100vh; height: 100dvh; }
 .brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 800; font-size: 1.2rem; letter-spacing: -0.02em; padding: 0 0.3rem; color: var(--text); text-decoration: none; }
-.brand svg { width: 1.9rem; height: 1.9rem; flex: none; }
-.brand .leaf { fill: var(--green); }
-.brand .head { fill: var(--violet); }
-.brand .eye { fill: var(--paper); }
+.brand img { width: 2.2rem; height: 2.2rem; object-fit: contain; flex: none; }
 .sidenav { display: grid; gap: 0.2rem; }
 .sidenav a, .sidefoot a, .sidefoot button { display: flex; align-items: center; gap: 0.65rem; padding: 0.55rem 0.7rem; border-radius: 12px; color: var(--muted); text-decoration: none; font-weight: 500; }
 .sidenav svg, .sidefoot svg { width: 1.15rem; height: 1.15rem; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }

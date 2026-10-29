@@ -327,8 +327,11 @@ describe("home screen install", () => {
       const html = (await page(url)).body;
       expect(html, url).toContain('<link rel="manifest" href="/manifest.webmanifest">');
       expect(html, url).toContain('<link rel="apple-touch-icon" href="/static/icon-180.png">');
+      expect(html, url).toContain('<link rel="icon" href="/favicon.ico" sizes="any">');
     }
     expect((await app.inject({ method: "GET", url: "/static/icon-180.png" })).statusCode).toBe(200);
+    expect((await app.inject({ method: "GET", url: "/favicon.ico" })).headers["content-type"]).toBe("image/x-icon");
+    expect((await app.inject({ method: "GET", url: "/static/logo.png" })).statusCode).toBe(200);
   });
 
   it("remembers where a signed-out visitor was going", async () => {

@@ -59,7 +59,7 @@ const NAV: ReadonlyArray<{ key: NavKey; href: string; label: string; icon: keyof
 
 const icon = (name: keyof typeof ICONS): string => `<svg viewBox="0 0 20 20" aria-hidden="true">${ICONS[name]}</svg>`;
 
-const BRAND = `<a class="brand" href="/" title="OctoSprout"><svg viewBox="0 0 32 32" aria-hidden="true"><path class="leaf" d="M16.4 7.2c-.2-2.6 1.2-4.6 4.4-5.4.6 2.9-1.2 5-4.4 5.4z"/><path class="head" d="M16 7C9.8 7 6 11.3 6 16.8v6.4c0 1.5 1.1 2.6 2.4 2.6s2.4-1.1 2.4-2.6v-.6c0 1.5 1.1 2.6 2.4 2.6s2.4-1.1 2.4-2.6c0 1.5 1.1 2.6 2.4 2.6s2.4-1.1 2.4-2.6v.6c0 1.5 1.1 2.6 2.4 2.6S26 24.7 26 23.2v-6.4C26 11.3 22.2 7 16 7z"/><circle class="eye" cx="12.6" cy="16.4" r="1.7"/><circle class="eye" cx="19.4" cy="16.4" r="1.7"/></svg><span>OctoSprout</span></a>`;
+const BRAND = `<a class="brand" href="/" title="OctoSprout"><img src="/static/logo.png" alt=""><span>OctoSprout</span></a>`;
 
 function sidebar(current: NavKey): string {
   const link = (item: { key: NavKey; href: string; label: string; icon: keyof typeof ICONS }) =>
@@ -112,6 +112,7 @@ ${main}
 <title>${esc(options.title)} · OctoSprout</title>
 <link rel="stylesheet" href="/static/app.css">
 <link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="apple-touch-icon" href="/static/icon-180.png">
 <meta name="apple-mobile-web-app-title" content="OctoSprout">
 <meta name="theme-color" content="#f8faf6" media="(prefers-color-scheme: light)">

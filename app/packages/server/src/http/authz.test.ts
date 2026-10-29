@@ -83,7 +83,7 @@ async function request(route: { method: string; url: string }, as: "anonymous" |
 
 /** Reachable without signing in: sign-in itself, the health check and static assets (spec §18.2). */
 const PUBLIC = (r: { method: string; url: string }) =>
-  (r.method === "GET" && (["/healthz", "/login", "/setup", "/manifest.webmanifest"].includes(r.url) || r.url.startsWith("/static/"))) ||
+  (r.method === "GET" && (["/healthz", "/login", "/setup", "/manifest.webmanifest", "/favicon.ico"].includes(r.url) || r.url.startsWith("/static/"))) ||
   (r.method === "POST" && r.url === "/api/v1/auth/login/options");
 /** Sign-in endpoints: they authenticate the request themselves, so a session neither helps nor is needed. */
 const SIGN_IN = (r: { url: string }) => r.url.startsWith("/api/v1/auth/login/");
