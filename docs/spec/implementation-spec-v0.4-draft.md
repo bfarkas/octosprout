@@ -33,7 +33,7 @@ The terms MUST, MUST NOT, SHOULD and MAY are used in their RFC 2119 sense.
 | D10 | Lifecycle vocabulary | Captures and Ideas use garden names. Tasks and Projects use plain names. ADRs use the upstream vocabulary. |
 | D11 | Capture triage | A capture can become an Idea, Task or Research record, be attached to an existing record, or be composted. |
 | D12 | Approvals | Agents can only create proposals. You approve them in the browser UI, which applies each approved proposal in one signed commit. |
-| D13 | MCP | MVP: local stdio MCP server plus CLI on the Mac. Remote MCP comes after the MVP. |
+| D13 | MCP | Local stdio MCP server plus CLI on the Mac. Post-MVP: the same tools at `https://app.octosprout.de/mcp`, with OctoSprout as its own OAuth server and passkey consent (ADR007). |
 | D14 | Network exposure | Public internet through Caddy on rei3, with Let's Encrypt TLS. Every endpoint requires authentication. |
 | D15 | Browser authentication | App-native, single-user passkey (WebAuthn) login. |
 | D16 | Domain | `octosprout.de`. The app is served at `app.octosprout.de` (in production since Phase 1), and the apex domain is reserved for a future public library/docs site. |
@@ -59,6 +59,7 @@ The terms MUST, MUST NOT, SHOULD and MAY are used in their RFC 2119 sense.
 | §21 | Records Phase 0 and Phase 1 status. | — |
 | §5.1, §23 | The application code is licensed Apache-2.0 (D22). | — |
 | §0.2 D5, D6, §3.1, §7.3, §7.4, §7.6, §9.2, §12, §21, §22, §23 | Boards are a thin custom server-rendered UI. Decisions get a board. Transitions are defined for tasks, projects and decisions; moving a task to `done` unblocks the tasks it was the last open blocker of; archiving an `active` project is consequential. | ADR006 |
+| §0.2 D13, §3.2, §16.3, §18.2, §21 | Remote MCP at `/mcp` (Streamable HTTP, stateless), with OctoSprout as its own OAuth 2.1 server: DCR with a redirect allowlist, PKCE S256, passkey consent, rotating refresh tokens, and *Connected agents* in Settings. | ADR007 |
 
 ---
 
@@ -105,7 +106,7 @@ OctoSprout is a planning and knowledge layer. It does not replace GitHub, code r
 ### 3.2 Out of scope for the MVP
 
 - Public resource library publishing, installation and catalog (§17).
-- Remote MCP, and direct MCP from the ChatGPT or Claude mobile apps.
+- Direct MCP from ChatGPT. (Remote MCP for Claude clients was added after the MVP, ADR007.)
 - Automatic import of ChatGPT or Claude conversation history.
 - Apple Notes synchronization beyond share-sheet capture.
 - Fetching `source_url` contents.
@@ -831,7 +832,7 @@ Simulated advice is never presented as human review. Agreement among personas ne
 | UC | Flow |
 |---|---|
 | UC1 Quick mobile capture | Share text or a URL from any app (including Apple Notes) to the **OctoSprout** Shortcut, which opens the capture page with the text filled in; tap **Save**. Or copy text and tap **Paste & save** in the home screen app. A Capture record is created, with no title, tags or project needed. |
-| UC2 Explore with Claude | Claude Code on the Mac uses the skills and the local MCP (§16). Results arrive as proposals. Other Claude clients use the ChatGPT-style handoff via share sheet until remote MCP exists. |
+| UC2 Explore with Claude | Claude Code on the Mac uses the skills and the local MCP (§16). Results arrive as proposals. Other Claude clients (web, desktop, phone) use remote MCP (§16.3, ADR007). |
 | UC3 Explore with ChatGPT | 1. Explore the idea in the ChatGPT app. 2. Send `/octosprout` (defined once in Custom Instructions; Appendix B), and ChatGPT replies with a structured brief. 3. Copy the brief. 4. Tap **Paste & save** in the home screen app; or share the chat to **OctoSprout from ChatGPT** and tap **Paste & save**, which keeps the chat link as `source_url` and records `source: chatgpt`. 5. Triage it into an Idea later. ChatGPT's share button shares only a link, never the brief; the link is never fetched. |
 
 Arbitrary text can always be captured without a handoff brief.
@@ -984,6 +985,12 @@ Write tools only create and commit the proposal file (`git commit -- <proposal p
 > - `propose_triage` fills in the same defaults as the triage page: the quoted capture plus the template, and the capture's first line as the title.
 > - Beyond the table, `draft_record` returns a new record from its template, with a fresh ID, for use in a larger `propose`.
 
+> **Remote MCP (post-MVP, ADR007):**
+> - The server offers the same tools at `https://app.octosprout.de/mcp` over Streamable HTTP in stateless mode: a fresh MCP server per request, `POST` only (`GET` and `DELETE` get `405`). Claude on the web, desktop and phone connects to it as a custom connector; Claude Code with `claude mcp add --transport http`.
+> - The tool definitions sit behind a backend interface. On the server, reads come from `WorkspaceRecords` and proposals are committed through the write service, under its lock and journal. `sync` is a no-op, because every write pushes.
+> - The actor is `agent:<client name>`, sanitized as for the stdio server. Write tools still only create proposals.
+> - Authentication is OAuth (§18.2).
+
 ### 16.4 ChatGPT
 
 ChatGPT has no MCP in the MVP. The handoff brief (Appendix B) is produced by an `/octosprout` command defined once in ChatGPT's Custom Instructions, with the pasted prompt as a fallback (ADR005). Both are kept in `prompts/chatgpt-handoff.md`. The workflow never depends on access to ChatGPT conversation history.
@@ -1053,9 +1060,16 @@ app.octosprout.de {
   - Stored as SHA-256 hashes in the state directory.
   - Created and revoked in the UI (Settings), or with `octosprout-server token create|revoke|list`. Changes made with the CLI apply to the running server immediately.
   - Accepted only on `/api/v1/inbox*`.
+- **Remote MCP agents (OAuth 2.1, ADR007):**
+  - Discovery: protected resource metadata at `/.well-known/oauth-protected-resource[/mcp]` and authorization server metadata at `/.well-known/oauth-authorization-server`. A `401` from `/mcp` carries `WWW-Authenticate` with `resource_metadata` and `scope="workspace"`.
+  - Dynamic client registration only, for public clients. Every `redirect_uri` must be on the allowlist: Claude's callbacks on `claude.ai` and `claude.com`, or loopback `localhost`/`127.0.0.1` with any port. At most 10 redirects per client and 200 clients; the oldest clients without a grant are dropped.
+  - `/oauth/authorize` requires PKCE S256, `resource` equal to the MCP URL, and the `workspace` scope. The consent page is approved with a passkey assertion with user verification, not the session cookie; it cannot be framed. Codes are single-use, live 60 seconds, and are consumed only by a valid redemption.
+  - Opaque tokens, stored as SHA-256 hashes in `oauth.json` in the state directory. Access tokens live 1 hour and are bound to the resource. Refresh tokens live 30 days, sliding, and rotate on every use; reusing a rotated one revokes the grant.
+  - Settings lists *Connected agents*; revoking one ends its grant at once. Registration, authorize, consent and token endpoints are rate-limited per IP.
 - **Authorization matrix** (as built: `authz.test.ts` checks every registered route): test separately for each actor:
-  - an anonymous request gets `401` everywhere except `/login`, `/setup` (with a valid setup token) and static assets;
+  - an anonymous request gets `401` everywhere except `/login`, `/setup` (with a valid setup token), static assets and the OAuth discovery, registration, consent and token endpoints;
   - an inbox token is accepted only on the inbox routes;
+  - `/mcp` accepts only an OAuth access token;
   - a session can do everything except operations restricted to the setup token.
 
 ### 18.3 Secrets hygiene
@@ -1253,7 +1267,7 @@ Tests use Vitest. Git tests run against temporary bare repositories that act as 
 ### Post-MVP (candidates, ordered by expected value)
 
 1. Public resource library (§17).
-2. Remote MCP on `app.octosprout.de` with OAuth, for Claude web, desktop and mobile.
+2. ~~Remote MCP on `app.octosprout.de` with OAuth, for Claude web, desktop and mobile.~~ Done (ADR007), deployed on 29 October 2026.
 3. Optional GitHub Issues linking.
 4. Optional MemPalace evaluation.
 5. Bundled publishing.
