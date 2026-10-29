@@ -18,10 +18,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@octosprout/core": "workspace:*",
     "@simplewebauthn/server": "^13.3.3",
     "fastify": "^5.12.7",
-    "markdown-it": "^14.3.3"
+    "markdown-it": "^14.3.3",
+    "zod": "^4.6.7"
   },
   "bin": {
     "octosprout-server": "./dist/main.js"
