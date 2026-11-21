@@ -8,6 +8,8 @@ import {
   parentProject,
   planAdvice,
   planHandoffReport,
+  planProgress,
+  unblockedBy,
   type AdviceEntry,
   planPromotion,
   planTriage,
@@ -27,6 +29,35 @@ export function findRecord(ws: McpBackend, id: string): IndexedRecord {
   const record = ws.index.get(id);
   if (!record) throw new WorkspaceError(`There is no record ${id}.`);
   return record;
+}
+
+/** Finishing a blocker moves to ready the tasks it was the last open blocker of (§7.3). */
+export function unblockOperations(ws: McpBackend, taskId: string): Operation[] {
+  return unblockedBy(taskId, ws.index.list("task")).map((id) => ({ op: "set_status", id, base_blob: ws.index.get(id)!.blob, status: "ready" }));
+}
+
+function requireTask(ws: McpBackend, id: string): IndexedRecord {
+  const task = findRecord(ws, id);
+  if (task.type !== "task") throw new WorkspaceError(`${task.id} is not a task.`);
+  return task;
+}
+
+/** The input of `log_progress` and `octosprout progress`, besides the task. */
+export const PROGRESS_SHAPE = {
+  note: z.string().min(1).max(4000).describe("What happened since the last note: started, a milestone, what blocks it."),
+  status: z.enum(["backlog", "ready", "in_progress", "blocked", "done"]).optional().describe("Move the task: in_progress when you start, blocked when you cannot go on, done when its acceptance criteria are met."),
+};
+
+/** A progress note on a task (ADR008): its title and operations. */
+export function progressPlan(ws: McpBackend, input: { task: string; note: string; status?: string | undefined }, actor: string): { title: string; operations: Operation[] } {
+  const task = requireTask(ws, input.task);
+  try {
+    const operations = planProgress({ task, note: input.note, ...(input.status ? { status: input.status } : {}), actor, now: ws.now() });
+    if (input.status === "done" && task.status !== "done") operations.push(...unblockOperations(ws, task.id));
+    return { title: `Progress on ${task.id}: ${task.title}${input.status && input.status !== task.status ? ` (${input.status})` : ""}`, operations };
+  } catch (error) {
+    throw new WorkspaceError((error as Error).message);
+  }
 }
 
 export interface DraftInput {
@@ -189,7 +220,7 @@ export function handoffBundle(ws: McpBackend, taskId: string): string {
   return handoffContext(ws.index, task.id, ws.now());
 }
 
-/** The input of `propose_handoff_report` and `octosprout report`, besides the task. */
+/** The input of `report_handoff` and `octosprout report`, besides the task. */
 export const REPORT_SHAPE = {
   outcome: z.string().min(1).describe("What was done, and what was not."),
   verification: z.string().describe("How it was verified: the tests and checks run, and their results."),
@@ -207,8 +238,7 @@ export type ReportInput = z.infer<z.ZodObject<typeof REPORT_SHAPE>> & { task: st
 
 /** A handoff report (§11.4): its title and operations. */
 export function reportPlan(ws: McpBackend, input: ReportInput, actor: string): { title: string; operations: Operation[] } {
-  const task = findRecord(ws, input.task);
-  if (task.type !== "task") throw new WorkspaceError(`${task.id} is not a task.`);
+  const task = requireTask(ws, input.task);
   const project = parentProject(ws.index, task);
   const repoUrl = [...task.refs, ...(project?.refs ?? [])].find((r) => r.kind === "repo")?.url;
   const taken = new Set<string>();
@@ -231,6 +261,7 @@ export function reportPlan(ws: McpBackend, input: ReportInput, actor: string): {
       actor,
       now: ws.now(),
     });
+    if (input.status === "done" && task.status !== "done") operations.push(...unblockOperations(ws, task.id));
     return { title: `Report on ${task.id}: ${task.title}${input.status ? ` (${input.status})` : ""}`, operations };
   } catch (error) {
     throw new WorkspaceError((error as Error).message);

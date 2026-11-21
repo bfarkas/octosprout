@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { adrBody, decision, record, research } from "./fixtures.js";
-import { demoteHeadings, firstParagraph, handoffContext, planHandoffReport } from "./handoff.js";
-import { applyOperations, workspaceLookup } from "./proposals.js";
+import { demoteHeadings, firstParagraph, handoffContext, planHandoffReport, planProgress } from "./handoff.js";
+import { agentMayCommit, applyOperations, workspaceLookup } from "./proposals.js";
 import { parseRecord } from "./record.js";
 import { RecordIndex } from "./record-index.js";
 import { validateWorkspace, type SourceFile } from "./validate.js";
@@ -46,7 +46,8 @@ describe("handoffContext", () => {
     expect(bundle).toContain("Supersedes OS-D-11111: Poll daily (SUPERSEDED).");
     expect(bundle).not.toContain("OS-D-33333");
     expect(bundle).toContain("- **When people read email** (OS-R-B7N2C, `records/research/OS-R-B7N2C--example.md`): Monday mornings.");
-    expect(bundle).toContain("propose_handoff_report");
+    expect(bundle).toContain("log_progress");
+    expect(bundle).toContain("report_handoff");
   });
 
   it("asks for the repository when none is recorded, and refuses non-tasks", () => {
@@ -112,5 +113,31 @@ describe("planHandoffReport", () => {
     expect(() => planHandoffReport({ ...base, prs: ["http://x"] })).toThrow(/https/);
     expect(() => planHandoffReport({ ...base, commits: ["not a sha"] })).toThrow(/SHA/);
     expect(() => planHandoffReport({ ...base, outcome: " " })).toThrow(/outcome/);
+  });
+});
+
+describe("planProgress", () => {
+  it("logs a progress note and moves the task, as changes an agent may commit", () => {
+    const index = new RecordIndex(workspace());
+    const task = index.get("OS-T-QF81M")!;
+    const operations = planProgress({ task, note: "Started on the scheduler.", status: "in_progress", actor: "agent:claude-code", now: NOW });
+    const applied = applyOperations(operations, workspaceLookup(index), NOW);
+    if (!applied.ok) throw new Error(applied.message);
+    const text = (applied.changes[0] as { content: string }).content;
+    expect(text).toContain("## Handoff log\n\n### 2026-10-27: progress, ready → in_progress (agent:claude-code)\n\nStarted on the scheduler.");
+    expect(text).toContain("status: in_progress");
+    expect(agentMayCommit(applied.changes)).toBe(true);
+    expect(planProgress({ task, note: "Same status.", status: "ready", actor: "agent:x", now: NOW }).map((op) => op.op)).toEqual(["update"]);
+    expect(() => planProgress({ task, note: " ", actor: "agent:x", now: NOW })).toThrow();
+  });
+});
+
+describe("agentMayCommit", () => {
+  it("allows creating and updating tasks only", () => {
+    expect(agentMayCommit([{ path: "records/tasks/OS-T-AAAAA--x.md", content: "" }])).toBe(true);
+    expect(agentMayCommit([{ path: "records/tasks/OS-T-AAAAA--x.md", delete: true }])).toBe(false);
+    expect(agentMayCommit([{ path: "records/tasks/OS-T-AAAAA--x.md", content: "" }, { path: "records/ideas/OS-I-AAAAA.md", content: "" }])).toBe(false);
+    expect(agentMayCommit([{ path: "records/tasks/../ideas/x.md", content: "" }])).toBe(false);
+    expect(agentMayCommit([])).toBe(false);
   });
 });

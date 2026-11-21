@@ -36,11 +36,20 @@ backlinks are computed. The relationships:
 - `implements`: a task to the decision it carries out.
 - `consulted`: a decision to an expert profile.
 
-## Proposals
+## Tasks and proposals
 
-You change this workspace only through **proposals**. A proposal is a file
-under `proposals/` listing operations; the owner reviews its diff and approves
-it in the browser, and only then do records change. Commit nothing else.
+- **Tasks you work on, you change directly.** Routine changes that touch only
+  tasks are committed at once: moving a task, a progress note or report in
+  its `## Handoff log`, ticked acceptance criteria, PR and commit refs, new
+  follow-up tasks. Keep the task you work on current with `log_progress`:
+  `in_progress` when you start, a note at each milestone, `blocked` or `done`
+  at the end, then `report_handoff`.
+- **Everything else is a proposal.** A proposal is a file under `proposals/`
+  listing operations; the owner reviews its diff and approves it in the
+  browser, and only then do records change. A task change that is
+  consequential (a delete, more than the bulk threshold) also becomes one.
+  The task tools say which happened: `{ applied }` or `{ proposal, reasons }`.
+- Commit nothing else.
 
 - **Tools.** Use the `octosprout` MCP server. The skills name its tools.
   Without it, the CLI does the same; add `--json` to every command:
@@ -56,13 +65,15 @@ it in the browser, and only then do records change. Commit nothing else.
   | `propose_adr` | `octosprout new decision <title> --body-file -` |
   | `propose_advice` | `octosprout advise <decision> -` with the advice JSON on stdin |
   | `get_handoff_context` | `octosprout handoff <task>` |
-  | `propose_handoff_report` | `octosprout report <task> -` with the report JSON on stdin |
+  | `log_progress` | `octosprout progress <task> <note> --status S` |
+  | `report_handoff` | `octosprout report <task> -` with the report JSON on stdin |
+  | `update_task` | `octosprout update -` with `{title, operations}` on stdin |
   | `validate`, `sync` | `octosprout validate`, `sync` |
 - **Operations:** `create` (path, content), `update` (id, base_blob, the whole
   new content), `set_status`, `add_link`, `remove_link` and `delete`. Every
   operation on an existing record carries its `base_blob` from `get_record`
-  (`octosprout show`). A stale `base_blob` makes the proposal fail; read
-  again and re-propose.
+  (`octosprout show`). A stale `base_blob` makes the write or proposal fail;
+  read again and retry.
 - **New records** come from `draft_record` (`octosprout new <type> <title>
   --draft --json`), which gives a fresh ID, the path and the template content.
   Fill in the sections and add the `create` operation to your proposal.

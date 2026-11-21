@@ -68,7 +68,7 @@ describe("the skills", () => {
   it.each(SKILLS)("%s names only tools and commands that exist, and ends on a completion criterion", (name) => {
     const text = readFileSync(join(SKILLS_DIR, name, "SKILL.md"), "utf8");
     expect(text).toMatch(new RegExp(`^---\\nname: ${name}\\ndescription: .+\\n---\\n`));
-    for (const [, tool] of text.matchAll(/`((?:get|list|search|propose|draft)_[a-z_]+)`/g)) expect(tools, `${name}: ${tool}`).toContain(tool);
+    for (const [, tool] of text.matchAll(/`((?:get|list|search|propose|draft|log|report|update)_[a-z_]+)`/g)) expect(tools, `${name}: ${tool}`).toContain(tool);
     for (const [, command] of text.matchAll(/octosprout ([a-z]+)/g)) expect(command! in COMMANDS || OTHER_COMMANDS.includes(command!), `${name}: octosprout ${command}`).toBe(true);
     expect(text).toMatch(/\*\*Done when\*\*/);
   });

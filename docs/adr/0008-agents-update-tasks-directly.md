@@ -1,6 +1,6 @@
 # ADR008 - Agents commit routine task changes directly
 * Date: Nov 21, 2026
-* Status: ACCEPTED
+* Status: ADOPTED
 * Author: bfarkas (drafted with Claude Code)
 
 ## Decision
@@ -28,7 +28,7 @@ Anything else falls back to a proposal, as today. In practice an agent can:
 - `report_handoff` replaces `propose_handoff_report`, with the same input and the same entry format (§11.4).
 - `update_task(operations)` is new: generic task operations, for edits the typed tools don't cover.
 - Every write tool returns either `{ applied: <commit> }` or, when the rules above send it to a proposal, `{ proposal: <id>, reasons }`, so the agent always knows which one happened.
-- The CLI gets the same commands: `octosprout progress` and `octosprout report`, which now applies directly.
+- The CLI gets the same commands: `octosprout progress`, `octosprout report`, which now applies directly, and `octosprout update` for `update_task`.
 - `propose` and the other `propose_*` tools are unchanged.
 
 **Commits.**

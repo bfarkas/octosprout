@@ -10,6 +10,7 @@
  * same commit.
  */
 import {
+  agentMayCommit,
   applyOperations,
   classifyOperations,
   CONFIG_PATH,
@@ -138,6 +139,33 @@ export class ProposalService {
       return { kind: "created", id, status: result.status === "committed" ? "committed" : "pending" };
     } catch (error) {
       if (error instanceof ValidationRejectedError) return { kind: "invalid", message: "The proposal is not valid.", findings: error.findings };
+      throw error;
+    }
+  }
+
+  /**
+   * Commits an agent's routine change to tasks directly, without a proposal
+   * (ADR008). Anything consequential, or touching more than tasks, answers
+   * `not_routine` for the caller to propose instead.
+   */
+  async commitTaskUpdate(input: { operations: readonly Operation[]; actor: string; subject: string }): Promise<
+    | { kind: "committed"; commit: string; status: "committed" | "pending" }
+    | { kind: "not_routine"; reasons: string[] }
+    | { kind: "invalid" | "stale"; message: string; findings?: ValidationRejectedError["findings"] }
+    | { kind: "conflict"; path: string }
+  > {
+    const lookup = this.#lookup();
+    const applied = applyOperations(input.operations, lookup, this.#now());
+    if (!applied.ok) return { kind: applied.kind, message: applied.message };
+    const classification = classifyOperations(input.operations, lookup, applied, this.#deps.records.config().bulkThreshold);
+    if (classification.consequential || !agentMayCommit(applied.changes)) return { kind: "not_routine", reasons: classification.reasons };
+    try {
+      const result = await this.#deps.writer.submit({ operation: "task-update", actor: input.actor, subject: input.subject, preconditions: applied.preconditions, changes: applied.changes });
+      if (result.status === "unchanged") return { kind: "invalid", message: "Nothing changed." };
+      return { kind: "committed", commit: result.commit, status: result.status };
+    } catch (error) {
+      if (error instanceof ConflictError) return { kind: "conflict", path: error.path };
+      if (error instanceof ValidationRejectedError) return { kind: "invalid", message: `It would add ${error.findings.length} validation error(s).`, findings: error.findings };
       throw error;
     }
   }

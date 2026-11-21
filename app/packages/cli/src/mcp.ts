@@ -1,9 +1,11 @@
 /**
  * `octosprout mcp`: the local stdio MCP server for Claude Code (spec §16.3).
  *
- * It runs against the current checkout. Read tools read the record index;
- * write tools only create and commit a proposal file, then sync, and never
- * change records: changes take effect after approval in the browser (§9.1).
+ * It runs against the current checkout. Read tools read the record index.
+ * The task tools (`log_progress`, `report_handoff`, `update_task`) commit
+ * routine changes to tasks directly (ADR008); everything else, and anything
+ * consequential, becomes a proposal to approve in the browser (§9.1).
+ * Every write then syncs.
  * The actor is `agent:<client>`, from OCTOSPROUT_ACTOR or the MCP client's
  * name.
  */
@@ -23,8 +25,8 @@ import { z } from "zod";
 import { summary } from "./commands.js";
 import type { McpBackend } from "./mcp-backend.js";
 
-export type { McpBackend, McpProposal, McpSyncResult } from "./mcp-backend.js";
-import { ADVICE_SHAPE, advicePlan, draftRecord, findRecord, handoffBundle, promotionPlan, REPORT_SHAPE, reportPlan, triagePlan, type TriageInput } from "./plans.js";
+export type { McpBackend, McpProposal, McpSyncResult, McpWrite } from "./mcp-backend.js";
+import { ADVICE_SHAPE, advicePlan, draftRecord, findRecord, handoffBundle, PROGRESS_SHAPE, progressPlan, promotionPlan, REPORT_SHAPE, reportPlan, triagePlan, type TriageInput } from "./plans.js";
 import { actorFrom, isAgent, Workspace, WorkspaceError } from "./workspace.js";
 
 const VERSION = "0.0.0";
@@ -48,7 +50,7 @@ export interface McpOptions {
 
 /** Registers the tools; `open` gives the workspace for one tool call. */
 export function createMcpServerForBackend(open: () => McpBackend, options: McpOptions = {}): McpServer {
-  const server = new McpServer({ name: "octosprout", version: VERSION }, { instructions: "OctoSprout workspace tools. Read tools are free to use. Write tools only create proposals, which the owner approves in the browser; they never change records directly." });
+  const server = new McpServer({ name: "octosprout", version: VERSION }, { instructions: "OctoSprout workspace tools. Read tools are free to use. While working on a task, keep it current with log_progress (in_progress when you start, notes at milestones, blocked or done) and finish with report_handoff: routine task changes are committed directly. Every other write creates a proposal, which the owner approves in the browser." });
 
   // An explicit actor must be an agent: everything the MCP server writes is an agent's proposal.
   const configured = options.actor ?? process.env.OCTOSPROUT_ACTOR?.trim();
@@ -71,18 +73,29 @@ export function createMcpServerForBackend(open: () => McpBackend, options: McpOp
       }
     };
 
-  /** Commits the proposal and, unless disabled, pushes it (§16.3). */
+  /** Pushes, unless disabled; a failed push leaves the commit for the next sync (§16.3). */
+  const syncAfter = async (ws: McpBackend): Promise<{ pushed: boolean; error?: string }> => {
+    if (options.sync === false) return { pushed: false };
+    try {
+      return { pushed: (await ws.sync()).pushed };
+    } catch (error) {
+      return { pushed: false, error: (error as Error).message };
+    }
+  };
+  const PROPOSED_NEXT = "The owner reviews and approves it in the browser under Proposals.";
+
+  /** Commits the proposal and syncs it. */
   const proposeAndSync = async (ws: McpBackend, input: { title: string; rationale: string; operations: Operation[]; session?: string | undefined }): Promise<ToolResult> => {
     const outcome = await ws.propose({ title: input.title, rationale: input.rationale, operations: input.operations, actor: actor(), ...(input.session ? { session: input.session } : {}) });
-    let synced: { pushed: boolean; error?: string } = { pushed: false };
-    if (options.sync !== false) {
-      try {
-        synced = { pushed: (await ws.sync()).pushed };
-      } catch (error) {
-        synced = { pushed: false, error: (error as Error).message };
-      }
-    }
-    return ok({ ...outcome, synced, next: "The owner reviews and approves it in the browser under Proposals." });
+    return ok({ ...outcome, synced: await syncAfter(ws), next: PROPOSED_NEXT });
+  };
+
+  /** Commits a routine task change directly, or proposes it when it is not one (ADR008), then syncs. */
+  const writeAndSync = async (ws: McpBackend, input: { title: string; subject: string; rationale: string; operations: Operation[]; session?: string | undefined }): Promise<ToolResult> => {
+    const outcome = await ws.write({ title: input.title, subject: input.subject, rationale: input.rationale, operations: input.operations, actor: actor(), operation: "task-update", ...(input.session ? { session: input.session } : {}) });
+    const synced = await syncAfter(ws);
+    if (outcome.kind === "committed") return ok({ applied: outcome.commit, synced });
+    return ok({ proposal: outcome.proposal, consequential: outcome.consequential, reasons: outcome.reasons.length ? outcome.reasons : ["It changes more than tasks."], synced, next: PROPOSED_NEXT });
   };
 
   // --- Read tools ------------------------------------------------------------
@@ -196,7 +209,7 @@ export function createMcpServerForBackend(open: () => McpBackend, options: McpOp
     guarded((input) => ok(draftRecord(open(), input))),
   );
 
-  // --- Write tools: proposals only -------------------------------------------
+  // --- Proposals ---------------------------------------------------------------
 
   server.registerTool(
     "propose",
@@ -262,17 +275,41 @@ export function createMcpServerForBackend(open: () => McpBackend, options: McpOp
     }),
   );
 
+  // --- Task tools: routine changes commit directly (ADR008) -------------------
+
   server.registerTool(
-    "propose_handoff_report",
+    "log_progress",
     {
-      description: "Report a coding agent's outcome on a task (spec §11.4): a dated entry in its Handoff log with the outcome, the verification and the references, refs for PRs and commits, optionally a status change and follow-up tasks.",
+      description: "Log progress on a task you are working on: a dated note in its Handoff log, optionally moving it (in_progress when you start, blocked, done). Committed directly; returns { applied } or, if the change is not routine, { proposal, reasons }.",
+      inputSchema: { task: z.string(), ...PROGRESS_SHAPE },
+    },
+    guarded(({ task, note, status }) => {
+      const ws = open();
+      const plan = progressPlan(ws, { task, note, status }, actor());
+      return writeAndSync(ws, { title: plan.title, subject: `progress: ${plan.title.replace(/^Progress on /, "")}`, rationale: note, operations: plan.operations });
+    }),
+  );
+
+  server.registerTool(
+    "report_handoff",
+    {
+      description: "Report a coding agent's outcome on a task (spec §11.4): a dated entry in its Handoff log with the outcome, the verification and the references, refs for PRs and commits, optionally a status change and follow-up tasks. Committed directly; returns { applied } or, if the change is not routine, { proposal, reasons }.",
       inputSchema: { task: z.string(), ...REPORT_SHAPE, rationale: z.string().optional() },
     },
     guarded(({ rationale, ...input }) => {
       const ws = open();
       const plan = reportPlan(ws, input, actor());
-      return proposeAndSync(ws, { title: plan.title, rationale: rationale ?? input.outcome, operations: plan.operations });
+      return writeAndSync(ws, { title: plan.title, subject: `report: ${plan.title.replace(/^Report on /, "")}`, rationale: rationale ?? input.outcome, operations: plan.operations });
     }),
+  );
+
+  server.registerTool(
+    "update_task",
+    {
+      description: "Change tasks with operations (spec §9.3): update a task's content (e.g. tick acceptance criteria), set_status, add_link or remove_link on a task, or create a task (draft_record). Routine changes that touch only tasks are committed directly; anything else becomes a proposal. Returns { applied } or { proposal, reasons }.",
+      inputSchema: { title: z.string().min(1).max(200), operations: z.array(operationSchema).min(1), session: z.string().max(500).optional() },
+    },
+    guarded(({ title, operations, session }) => writeAndSync(open(), { title, subject: `task-update: ${title}`, rationale: title, operations: operations as unknown as Operation[], session })),
   );
 
   server.registerTool(

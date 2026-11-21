@@ -130,6 +130,16 @@ function projectOf(record: IndexedRecord): string | undefined {
   return record.links.find((l) => l.rel === "belongs_to")?.id;
 }
 
+/** The date and actor of a task's latest Handoff log entry (§11.4, ADR008). */
+export function lastLogEntry(body: string): { date: string; actor: string } | undefined {
+  const log = /^## Handoff log[ \t]*$/m.exec(body);
+  if (!log) return undefined;
+  const section = body.slice(log.index + log[0].length).split(/^## /m)[0]!;
+  const entries = [...section.matchAll(/^### (\d{4}-\d{2}-\d{2}):.*\(([^()\n]+)\)[ \t]*$/gm)];
+  const last = entries[entries.length - 1];
+  return last ? { date: last[1]!, actor: last[2]! } : undefined;
+}
+
 function chips(record: IndexedRecord, index: RecordIndex): string {
   const out: string[] = record.tags.map((tag) => `<span class="chip">#${esc(tag)}</span>`);
   const backlinks = index.backlinks(record.id);
@@ -141,6 +151,8 @@ function chips(record: IndexedRecord, index: RecordIndex): string {
     if (captures > 0) out.push(`<span class="chip">${count(captures, "capture")}</span>`);
     if (research > 0) out.push(`<span class="chip">${research} research</span>`);
   } else if (record.type === "task") {
+    const last = lastLogEntry(record.body);
+    if (last) out.push(`<span class="chip" title="Latest Handoff log entry">logged ${esc(last.date)} · ${esc(last.actor)}</span>`);
     const blockers = index.blockedBy(record.id);
     for (const id of blockers) out.push(`<span class="chip block">blocked by ${esc(id)}</span>`);
     const hasBlockers = backlinks.some((b) => b.rel === "blocks");

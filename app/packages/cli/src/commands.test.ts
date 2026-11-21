@@ -145,14 +145,23 @@ describe("writing as a person", () => {
     expect(run(["advise", decision, "-"], AGENT, JSON.stringify({ advice: [] }))).toBe(2);
   });
 
-  it("handoff prints the bundle, and report proposes the outcome for an agent", () => {
+  it("handoff prints the bundle, and an agent's report and progress commit to the task directly", () => {
     run(["new", "task", "Pick", "a", "day", "--json"]);
     const task = json<{ id: string }>().id;
     expect(run(["handoff", task])).toBe(0);
     expect(out[out.length - 1]).toContain(`# Handoff: ${task} Pick a day`);
     expect(run(["report", task, "-", "--json"], AGENT, JSON.stringify({ outcome: "Monday.", verification: "Ran it.", commits: ["abcdef1"] }))).toBe(0);
-    const proposal = json<{ kind: string; proposal: string }>();
-    expect(proposal.kind).toBe("proposed");
+    expect(json<{ kind: string }>().kind).toBe("committed");
+    expect(ws.git("log", "-1", "--format=%B")).toContain("OctoSprout-Operation: task-update\nOctoSprout-Actor: agent:claude-code");
+    expect(run(["progress", task, "Looking", "at", "it", "--json"], AGENT)).toBe(0);
+    expect(json<{ kind: string }>().kind).toBe("committed");
+    expect(ws.git("show", "HEAD:" + ws.git("show", "--name-only", "--format=", "HEAD"))).toContain("progress (agent:claude-code)\n\nLooking at it");
+    expect(run(["progress", task], AGENT)).toBe(2);
+    run(["show", task, "--json"]);
+    const blob = json<{ base_blob: string }>().base_blob;
+    const update = { title: "Tag it", operations: [{ op: "set_status", id: task, base_blob: blob, status: "archived" }] };
+    expect(run(["update", "-", "--json"], AGENT, JSON.stringify(update))).toBe(0);
+    expect(json<{ kind: string }>().kind).toBe("committed");
     expect(run(["report", task, "-"], AGENT, JSON.stringify({ outcome: "x" }))).toBe(2);
     expect(run(["handoff"])).toBe(2);
   });
@@ -171,7 +180,7 @@ describe("writing as a person", () => {
 });
 
 describe("writing as an agent", () => {
-  it("every write becomes a proposal, and records stay unchanged", () => {
+  it("every write to anything but a task becomes a proposal, and records stay unchanged", () => {
     expect(run(["new", "idea", "From", "Claude", "--json"], AGENT)).toBe(0);
     const proposed = json<{ id: string; kind: string; proposal: string }>();
     expect(proposed).toMatchObject({ kind: "proposed" });

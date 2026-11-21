@@ -23,9 +23,10 @@ afterEach(async () => {
 });
 
 /** A record made directly by a person, through the CLI. */
-const make = (...args: string[]): string => {
+const make = (...args: string[]): string => makeWith("", ...args);
+const makeWith = (stdin: string, ...args: string[]): string => {
   const out: string[] = [];
-  expect(runCommand(args[0]!, [...args.slice(1), "--json"], { cwd: ws.root, io: { out: (t) => out.push(t), err: () => {} }, env: {}, stdin: () => "" })).toBe(0);
+  expect(runCommand(args[0]!, [...args.slice(1), "--json"], { cwd: ws.root, io: { out: (t) => out.push(t), err: () => {} }, env: {}, stdin: () => stdin })).toBe(0);
   return (JSON.parse(out[out.length - 1]!) as { id: string }).id;
 };
 
@@ -34,13 +35,17 @@ const call = async <T = Record<string, unknown>>(name: string, args: Record<stri
   return { data: JSON.parse(result.content[0]!.text) as T, isError: result.isError === true };
 };
 
+/** A task with the contract a task needs from ready on (§11.2). */
+const CONTRACT = "## Objective\n\nDo it.\n\n## Acceptance criteria\n\n- [ ] it is done\n\n## Verification\n\nLook.\n";
+const makeTask = (title: string): string => makeWith(CONTRACT, "new", "task", title, "--body-file", "-");
+
 const remoteSubject = () => ws.git("log", "-1", "--format=%s", "origin/main");
 
 describe("octosprout mcp", () => {
-  it("lists the read and proposal tools of §16.3", async () => {
+  it("lists the read, task and proposal tools of §16.3", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
-      ["draft_record", "propose_advice", "get_handoff_context", "propose_handoff_report", "get_record", "get_related", "list_inbox", "list_proposals", "propose", "propose_adr", "propose_promotion", "propose_triage", "search_records", "sync", "validate"].sort(),
+      ["draft_record", "propose_advice", "get_handoff_context", "report_handoff", "log_progress", "update_task", "get_record", "get_related", "list_inbox", "list_proposals", "propose", "propose_adr", "propose_promotion", "propose_triage", "search_records", "sync", "validate"].sort(),
     );
     expect(tools.find((t) => t.name === "get_record")?.annotations?.readOnlyHint).toBe(true);
   });
@@ -133,24 +138,59 @@ describe("octosprout mcp", () => {
     expect((await call("propose_advice", { decision, model: "m", advice: [{ expert: "Nobody", role: "x", advice: "x" }], rationale: "x" })).isError).toBe(true);
   });
 
-  it("gives the handoff context and proposes the report", async () => {
+  it("gives the handoff context and commits the report directly", async () => {
     const project = make("new", "project", "Weekly digest");
-    const task = make("new", "task", "Pick a send day", "--project", project);
+    const task = makeWith(CONTRACT, "new", "task", "Pick a send day", "--project", project, "--body-file", "-");
     const context = await client.callTool({ name: "get_handoff_context", arguments: { task } });
     const markdown = (context.content as Array<{ text: string }>)[0]!.text;
     expect(markdown).toContain(`# Handoff: ${task} Pick a send day`);
     expect(markdown).toContain(`## Project ${project}: Weekly digest`);
 
-    const report = await call<{ kind: string; proposal: string }>("propose_handoff_report", {
+    const report = await call<{ applied: string; synced: { pushed: boolean } }>("report_handoff", {
       task,
       outcome: "Chose Monday.",
       verification: "Tests pass.",
       prs: ["https://github.com/bfarkas/digest/pull/3"],
+      status: "done",
       follow_ups: [{ title: "Add a time-zone setting" }],
     });
     expect(report.isError).toBe(false);
-    expect(remoteSubject()).toBe(`propose: ${report.data.proposal} Report on ${task}: Pick a send day`);
+    expect(report.data).toMatchObject({ applied: expect.stringMatching(/^[0-9a-f]{40}$/), synced: { pushed: true } });
+    expect(remoteSubject()).toBe(`report: ${task}: Pick a send day (done)`);
+    expect(ws.git("log", "-1", "--format=%B", "origin/main")).toContain("OctoSprout-Operation: task-update\nOctoSprout-Actor: agent:test");
+    expect((await call<{ status: string }>("get_record", { id: task })).data.status).toBe("done");
     expect((await call("get_handoff_context", { task: project })).isError).toBe(true);
+  });
+
+  it("logs progress on a task directly and unblocks on done", async () => {
+    const task = makeTask("Build it");
+    const waiting = makeTask("Ship it");
+    make("link", task, "blocks", waiting);
+    make("move", waiting, "blocked");
+
+    const started = await call<{ applied: string }>("log_progress", { task, note: "Started.", status: "in_progress" });
+    expect(started.isError).toBe(false);
+    expect(remoteSubject()).toBe(`progress: ${task}: Build it (in_progress)`);
+    const record = await call<{ status: string; body: string }>("get_record", { id: task });
+    expect(record.data.status).toBe("in_progress");
+    expect(record.data.body).toMatch(/### \d{4}-\d{2}-\d{2}: progress, backlog → in_progress \(agent:test\)\n\nStarted\./);
+
+    await call("log_progress", { task, note: "Done.", status: "done" });
+    expect((await call<{ status: string }>("get_record", { id: waiting })).data.status).toBe("ready");
+  });
+
+  it("update_task commits task changes and proposes anything else", async () => {
+    const task = makeTask("Tick it");
+    const idea = make("new", "idea", "Not a task");
+    const t = await call<{ base_blob: string }>("get_record", { id: task });
+    const direct = await call<{ applied?: string }>("update_task", { title: "Start it", operations: [{ op: "set_status", id: task, base_blob: t.data.base_blob, status: "ready" }] });
+    expect(direct.data.applied).toMatch(/^[0-9a-f]{40}$/);
+
+    const i = await call<{ base_blob: string }>("get_record", { id: idea });
+    const proposed = await call<{ proposal?: string; reasons: string[] }>("update_task", { title: "Grow it", operations: [{ op: "set_status", id: idea, base_blob: i.data.base_blob, status: "sprouting" }] });
+    expect(proposed.data.proposal).toMatch(/^OS-PROP-/);
+    expect(proposed.data.reasons).toEqual(["It changes more than tasks."]);
+    expect((await call<{ status: string }>("get_record", { id: idea })).data.status).not.toBe("sprouting");
   });
 
   it("proposes triage, ADRs and promotions", async () => {

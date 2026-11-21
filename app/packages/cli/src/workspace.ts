@@ -6,15 +6,17 @@
  *   validation errors is refused (§8.1).
  * - Commits touch only the files of the operation and use the local Git
  *   identity, with the trailers of §8.6.
- * - An agent (`OCTOSPROUT_ACTOR=agent:<name>`) never changes records: every
- *   write becomes a proposal (§9.1). A person's routine writes commit
- *   directly; consequential ones become proposals to approve in the browser.
+ * - A person's routine writes commit directly; consequential ones become
+ *   proposals to approve in the browser (§9.1).
+ * - An agent (`OCTOSPROUT_ACTOR=agent:<name>`) commits routine changes to
+ *   tasks directly (ADR008); every other agent write becomes a proposal.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 import {
+  agentMayCommit,
   applyOperations,
   classifyOperations,
   CONFIG_PATH,
@@ -140,15 +142,16 @@ export class Workspace {
   }
 
   /**
-   * Makes a change: committed directly when a person makes a routine one,
-   * otherwise written as a proposal.
+   * Makes a change: committed directly when it is routine and, for an agent,
+   * only touches tasks (ADR008); otherwise written as a proposal.
    */
-  write(input: { operations: readonly Operation[]; title: string; rationale: string; actor: string; operation: string; subject: string }): WriteOutcome {
+  write(input: { operations: readonly Operation[]; title: string; rationale: string; actor: string; operation: string; subject: string; session?: string }): WriteOutcome {
     const { changes, classification } = this.plan(input.operations);
-    if (isAgent(input.actor) || classification.consequential) {
-      return this.propose({ title: input.title, rationale: input.rationale, operations: input.operations, actor: input.actor });
+    const agent = isAgent(input.actor);
+    if (classification.consequential || (agent && !agentMayCommit(changes))) {
+      return this.propose({ title: input.title, rationale: input.rationale, operations: input.operations, actor: input.actor, ...(input.session ? { session: input.session } : {}) });
     }
-    const commit = this.commit(changes, { operation: input.operation, actor: input.actor, subject: input.subject });
+    const commit = this.commit(changes, { operation: agent ? "task-update" : input.operation, actor: input.actor, subject: input.subject });
     return { kind: "committed", commit, changed: changes.map((c) => c.path) };
   }
 

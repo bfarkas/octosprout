@@ -73,29 +73,33 @@ octosprout promote OS-I-2HD9W Weekly digest --tasks-file tasks.txt
 octosprout new research "Prior art" --draft --json   # a record for a larger proposal
 octosprout advise OS-D-9PKVR - < advice.json        # simulated expert advice on a decision
 octosprout handoff OS-T-QF81M                       # the context bundle for a coding agent
+octosprout progress OS-T-QF81M "Scheduler done" --status in_progress  # a note in its Handoff log
 octosprout report OS-T-QF81M - < report.json        # its outcome: log entry, refs, status, follow-ups
 octosprout propose - < proposal.json  # { title, rationale, operations }
+octosprout update - < changes.json    # the same, committed when routine
 octosprout sync                       # fetch, rebase, validate, push
 octosprout mcp                        # the stdio MCP server for Claude Code
 ```
 
 Every command takes `--json`. `init` never overwrites existing files and
 installs a `pre-push` hook that runs `validate`. With
-`OCTOSPROUT_ACTOR=agent:<name>` (set for Claude Code), every writing command
-creates a proposal instead of changing records; you approve it in the
-browser (spec §9.1).
+`OCTOSPROUT_ACTOR=agent:<name>` (set for Claude Code), a writing command
+commits only routine changes to tasks, so an agent can keep the task it works
+on current (ADR008). Everything else becomes a proposal that you approve in
+the browser (spec §9.1).
 
 `init` also copies the starter skills into `skills/`. It writes `.mcp.json`,
 which registers `octosprout mcp` with Claude Code, and `.claude/settings.json`,
 which sets `OCTOSPROUT_ACTOR=agent:claude-code` so that Claude Code's CLI
-calls also become proposals. Its read tools (`search_records`, `get_record`,
+calls follow the same rules. Its read tools (`search_records`, `get_record`,
 `get_related`, `list_inbox`, `list_proposals`, `validate`, `draft_record`,
 `get_handoff_context`) read the checkout.
-Its write tools (`propose`, `propose_triage`, `propose_adr`,
-`propose_advice`, `propose_handoff_report`, `propose_promotion`) commit one
-proposal file, then push it. Nothing changes
-until you approve the proposal in the browser. A proposal that could not
-validate once applied is refused up front.
+Its task tools (`log_progress`, `report_handoff`, `update_task`) commit
+routine changes to tasks directly, then push. Its proposal tools (`propose`,
+`propose_triage`, `propose_adr`, `propose_advice`, `propose_promotion`), and
+any task change that is consequential, commit one proposal file, then push
+it; nothing changes until you approve it in the browser. A write that would
+not validate is refused up front.
 
 ## License
 

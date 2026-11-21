@@ -28,9 +28,11 @@ const USAGE = `usage: octosprout <command> [args] [--json]
   advise <decision> <file.json | ->  simulated expert advice { model, advice, new_experts?, synthesis? }
   handoff <task>                     the context bundle for a coding agent (Markdown)
   report <task> <file.json | ->      a handoff report { outcome, verification, prs?, commits?, status?, follow_ups? }
+  progress <task> <note…> | -        a progress note in the task's Handoff log [--status S]
   move <ID> <status>                 a status change (consequential ones become proposals)
   link|unlink <ID> <rel> <target>    add or remove a typed link
   propose <file.json | ->            a proposal { title, rationale, operations }
+  update <file.json | ->             the same, committed when routine (an agent: tasks only)
   proposals                          pending proposals [--status S]
   sync                               fetch, rebase, validate, push
   mcp                                the stdio MCP server for Claude Code`;

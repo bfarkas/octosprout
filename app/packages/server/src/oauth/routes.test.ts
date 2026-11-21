@@ -109,6 +109,16 @@ describe("OAuth discovery and dynamic registration", () => {
     const invalid = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${tokens.access_token}`, "content-type": "application/json", accept: "application/json, text/event-stream" }, payload: JSON.stringify({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "propose", arguments: { title: "Invalid", rationale: "Adds OSV009.", operations: [{ op: "create", path: done.path, content: done.content.replace(/^status: .*$/m, "status: done") }] } } }) });
     expect(invalid.body).toContain("OSV009");
     expect(await git(sandbox.server, "rev-parse", "HEAD")).toBe(head);
+    // A routine change to tasks is committed directly (ADR008).
+    const task = buildNewRecord({ type: "task", id: "OS-T-FGHJK", title: "Remote task", now: "2026-10-29T00:00:00Z" });
+    const direct = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${tokens.access_token}`, "content-type": "application/json", accept: "application/json, text/event-stream" }, payload: JSON.stringify({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "update_task", arguments: { title: "Add a task", operations: [{ op: "create", path: task.path, content: task.content }] } } }) });
+    expect(direct.body).toContain('\\"applied\\"');
+    expect(await git(sandbox.server, "log", "-1", "--format=%B")).toContain("OctoSprout-Operation: task-update\nOctoSprout-Actor: agent:Claude");
+    expect(await git(sandbox.server, "show", "--name-only", "--format=", "HEAD")).toBe(task.path);
+    const idea = buildNewRecord({ type: "idea", id: "OS-I-FGHJK", title: "Not a task", now: "2026-10-29T00:00:00Z" });
+    const routed = await app.inject({ method: "POST", url: "/mcp", headers: { authorization: `Bearer ${tokens.access_token}`, "content-type": "application/json", accept: "application/json, text/event-stream" }, payload: JSON.stringify({ jsonrpc: "2.0", id: 6, method: "tools/call", params: { name: "update_task", arguments: { title: "Add an idea", operations: [{ op: "create", path: idea.path, content: idea.content }] } } }) });
+    expect(routed.body).toContain("OS-PROP-");
+    expect(await git(sandbox.server, "show", "--name-only", "--format=", "HEAD")).toMatch(/^proposals\//);
     const rotated = await post("/oauth/token", { grant_type: "refresh_token", client_id: client.client_id, refresh_token: tokens.refresh_token });
     expect(rotated.statusCode).toBe(200);
     expect((await post("/oauth/token", { grant_type: "refresh_token", client_id: client.client_id, refresh_token: tokens.refresh_token })).statusCode).toBe(400);

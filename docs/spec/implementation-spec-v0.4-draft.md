@@ -32,7 +32,7 @@ The terms MUST, MUST NOT, SHOULD and MAY are used in their RFC 2119 sense.
 | D9 | ID allocation | Non-sequential random IDs (§6.1). No coordination is needed between writers. |
 | D10 | Lifecycle vocabulary | Captures and Ideas use garden names. Tasks and Projects use plain names. ADRs use the upstream vocabulary. |
 | D11 | Capture triage | A capture can become an Idea, Task or Research record, be attached to an existing record, or be composted. |
-| D12 | Approvals | Agents can only create proposals. You approve them in the browser UI, which applies each approved proposal in one signed commit. |
+| D12 | Approvals | Agents commit routine changes to tasks directly (ADR008); every other agent change is a proposal. You approve proposals in the browser UI, which applies each approved proposal in one signed commit. |
 | D13 | MCP | Local stdio MCP server plus CLI on the Mac. Post-MVP: the same tools at `https://app.octosprout.de/mcp`, with OctoSprout as its own OAuth server and passkey consent (ADR007). |
 | D14 | Network exposure | Public internet through Caddy on rei3, with Let's Encrypt TLS. Every endpoint requires authentication. |
 | D15 | Browser authentication | App-native, single-user passkey (WebAuthn) login. |
@@ -60,6 +60,7 @@ The terms MUST, MUST NOT, SHOULD and MAY are used in their RFC 2119 sense.
 | §5.1, §23 | The application code is licensed Apache-2.0 (D22). | — |
 | §0.2 D5, D6, §3.1, §7.3, §7.4, §7.6, §9.2, §12, §21, §22, §23 | Boards are a thin custom server-rendered UI. Decisions get a board. Transitions are defined for tasks, projects and decisions; moving a task to `done` unblocks the tasks it was the last open blocker of; archiving an `active` project is consequential. | ADR006 |
 | §0.2 D13, §3.2, §16.3, §18.2, §21 | Remote MCP at `/mcp` (Streamable HTTP, stateless), with OctoSprout as its own OAuth 2.1 server: DCR with a redirect allowlist, PKCE S256, passkey consent, rotating refresh tokens, and *Connected agents* in Settings. | ADR007 |
+| §0.2 D12, §8.6, §9.1, §11.3, §11.4, §12.2, §16.3 | Agents commit routine changes to tasks directly: `log_progress`, `report_handoff` (was `propose_handoff_report`) and `update_task`, with `octosprout progress` and `update`. Task cards show the latest Handoff log entry. | ADR008 |
 
 ---
 
@@ -523,7 +524,7 @@ Unpushed commits survive process restarts because they are on disk in the clone.
 - **Author:** `OctoSprout <octosprout@octosprout.de>` for server commits. The CLI uses the local git identity.
 - **Subject:** `<operation>: <ID> <short title>`, for example `capture: OS-C-7K3QX (chatgpt)` or `promote: OS-I-2HD9W -> OS-P-0XZ4K`.
 - **Trailers:**
-  - `OctoSprout-Operation: capture|edit|create|triage|promote|apply-proposal|reject-proposal|status`
+  - `OctoSprout-Operation: capture|edit|create|triage|promote|apply-proposal|reject-proposal|status|task-update`
   - `OctoSprout-Actor: user:web | token:<name> | cli | agent:<client>`
   - `OctoSprout-Proposal: OS-PROP-…`, when one applies.
 
@@ -535,10 +536,10 @@ Unpushed commits survive process restarts because they are on disk in the clone.
 |---|---|---|
 | You, in the browser | Direct commit | Confirmation dialog with diff and passkey re-verification, producing a signed approval in the same commit |
 | You, on the Mac (CLI or editor) | Direct commit | Must create a proposal (`octosprout propose …`) and approve it in the browser |
-| Agents (MCP, skills) | **Proposal only** | Proposal only |
+| Agents (MCP, skills) | Direct commit for tasks (ADR008); **proposal** for everything else | Proposal only |
 | Inbox token | Create captures only | Never |
 
-Agent-originated changes always go through proposals, including routine ones, because v0.2 requires AI-assisted changes to be reviewable. The UI supports bulk approval for routine agent proposals.
+Agent changes to other records go through proposals, including routine ones, because v0.2 requires AI-assisted changes to be reviewable. Routine changes to tasks are the exception (ADR008): the agent working on a task keeps it current while it works, and every such commit carries `OctoSprout-Operation: task-update` and the agent's actor, so it can be reviewed and reverted afterwards. A change counts as routine for an agent when every changed file is a task under `records/tasks/`, nothing is deleted, the change is not consequential (§9.2) and it adds no validation errors. The UI supports bulk approval for routine agent proposals.
 
 ### 9.2 Consequential operations
 
@@ -696,22 +697,22 @@ The contract for a task moving to `ready` or beyond has these parts:
    - Investigate the existing code before planning.
    - Follow the repository's own workflow and tests.
    - Surface any conflict between the code and the task or decisions instead of resolving it silently.
-   - Report back via `propose_handoff_report`.
+   - Keep the task current with `log_progress` while working, and report back via `report_handoff`.
 
 The bundle is generated on demand and never committed.
 
 ### 11.4 Outcome reporting
 
-`propose_handoff_report` (MCP) or `octosprout report` (CLI) creates a proposal that:
+`report_handoff` (MCP) or `octosprout report` (CLI) commits a change to the task (ADR008; a consequential one becomes a proposal) that:
 - appends a dated entry to the task's `## Handoff log`, covering the outcome, verification results, and the commit and PR references;
 - adds `refs` for the PR or commits;
 - optionally moves the task to `done` or `blocked`;
 - optionally drafts follow-up tasks.
 
-You review and approve it in the UI.
+It shows on the board and in the task's Handoff log at once. While working, the agent adds `### <date>: progress (<actor>)` entries with `log_progress` (`octosprout progress`), optionally moving the task; moving it to `done` unblocks as in §7.3.
 
 > **As built (Phase 3):**
-> - **Shared code.** `handoffContext` and `planHandoffReport` in `@octosprout/core` back both the CLI (`octosprout handoff`, `octosprout report <task> -` with JSON) and MCP (`get_handoff_context`, `propose_handoff_report`). The `handoff` and `report` skills drive them.
+> - **Shared code.** `handoffContext` and `planHandoffReport` in `@octosprout/core` back both the CLI (`octosprout handoff`, `octosprout report <task> -` with JSON) and MCP (`get_handoff_context`, `report_handoff`). The `handoff` and `report` skills drive them.
 > - **The bundle.**
 >   - Embedded records have their headings demoted to nest under the bundle's own.
 >   - Without a repo ref on the task or its project, the first instruction is to ask the owner which repository to change.
@@ -745,7 +746,7 @@ If Kanban Lite fails any criterion, build the custom UI. The frontend framework 
 | | *As built:* each Inbox card has **Triage**, which opens `/inbox/<ID>/triage`. A new record is prefilled with a title from the capture's first line (without a `Working title:` label) and its template, with the capture quoted at the top; it gets `derived_from` the capture. Attaching adds `derived_from` to an existing Idea, Task or Research record. Creating or attaching plants a `new` capture in the same commit; a planted capture can be triaged again. Compost and Restore move between `new` and `composted`. |
 | Capture form | `/capture`: a mobile-first single text area, an optional URL field, **Save** and **Paste & save**. Text shared through `/capture#text=…` is filled in (§15.4). Uses the same pipeline as the inbox API, through `POST /api/v1/capture`. The start page of the home screen app. |
 | Settings | Inbox tokens (create, shown once; revoke) and registered passkeys. |
-| Ideas, Tasks, Projects and Decisions boards | Columns by status. Moving a card is a status change. Promotion opens the wizard. Consequential moves open the confirmation dialog. Tasks and Decisions filter by project. Decisions: create from template, advice panel. |
+| Ideas, Tasks, Projects and Decisions boards | Columns by status. Moving a card is a status change. Promotion opens the wizard. Consequential moves open the confirmation dialog. Tasks and Decisions filter by project. Decisions: create from template, advice panel. Task cards show the date and actor of the latest Handoff log entry (ADR008). |
 | Research and Experts | Lists |
 | | *As built:* `/research` and `/experts` list current records (research: all; experts: not retired) newest first, with status filters, tags, and how many records a research record supports or how many decisions consulted an expert; each has a **New** button. |
 | Record detail | Rendered body, frontmatter form, links and backlinks, refs, git history (commits touching the file), and an edit mode with a Markdown editor and `base_blob` |
@@ -971,11 +972,12 @@ The MCP server runs against the current checkout. It is registered in Claude Cod
 | `get_handoff_context` | read | §11.3 |
 | `validate` | read | Runs validation and returns structured results |
 | `propose` | write (proposal) | Generic operations (§9.3) |
-| `propose_promotion`, `propose_adr`, `propose_handoff_report`, `propose_triage` | write (proposal) | Typed helpers that build operations |
+| `propose_promotion`, `propose_adr`, `propose_triage` | write (proposal) | Typed helpers that build operations |
+| `log_progress`, `report_handoff`, `update_task` | write (task) | Commit routine task changes directly; anything else becomes a proposal (ADR008) |
 | `list_proposals` | read | Including status |
 | `sync` | git | Fetch, rebase and push. Pushes only if validation passes. |
 
-Write tools only create and commit the proposal file (`git commit -- <proposal path>`) and then call `sync`. They never modify records.
+Proposal tools only create and commit the proposal file (`git commit -- <proposal path>`) and then call `sync`. Task tools commit routine task changes and then call `sync`; they return `{ applied }` or, when the change is not routine for an agent, `{ proposal, reasons }`.
 
 > **As built (Phase 3):**
 > - `octosprout mcp` uses the official MCP TypeScript SDK over stdio. It reopens the checkout on every call, so it sees edits made outside it.
@@ -988,7 +990,7 @@ Write tools only create and commit the proposal file (`git commit -- <proposal p
 > **Remote MCP (post-MVP, ADR007):**
 > - The server offers the same tools at `https://app.octosprout.de/mcp` over Streamable HTTP in stateless mode: a fresh MCP server per request, `POST` only (`GET` and `DELETE` get `405`). Claude on the web, desktop and phone connects to it as a custom connector; Claude Code with `claude mcp add --transport http`.
 > - The tool definitions sit behind a backend interface. On the server, reads come from `WorkspaceRecords` and proposals are committed through the write service, under its lock and journal. `sync` is a no-op, because every write pushes.
-> - The actor is `agent:<client name>`, sanitized as for the stdio server. Write tools still only create proposals.
+> - The actor is `agent:<client name>`, sanitized as for the stdio server. Task tools commit through the write service like browser edits (ADR008); other write tools create proposals.
 > - Authentication is OAuth (§18.2).
 
 ### 16.4 ChatGPT

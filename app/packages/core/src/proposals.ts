@@ -62,6 +62,15 @@ export function isGuardedPath(path: string): boolean {
 }
 
 /**
+ * Whether an agent may commit these changes without a proposal (ADR008):
+ * every change creates or updates a task. The caller still checks that the
+ * operations are routine (`classifyOperations`) and keep the workspace valid.
+ */
+export function agentMayCommit(changes: readonly FileChange[]): boolean {
+  return changes.length > 0 && changes.every((c) => !("delete" in c) && /^records\/tasks\/[^/]+\.md$/.test(c.path));
+}
+
+/**
  * Applies operations in order to an in-memory copy of the files they touch.
  * Every operation was prepared against the workspace as it was, so each
  * `base_blob` must equal the file's current blob, also when several

@@ -1,7 +1,7 @@
 /**
  * The workspace commands of the CLI (spec §4.1, §8.5, §16.2): new,
  * capture, show, search, inbox, triage, promote, advise, handoff, report,
- * move, link, unlink, propose, proposals and sync. Each takes `--json` for machine-readable output, so the skills can
+ * progress, * move, link, unlink, propose, proposals and sync. Each takes `--json` for machine-readable output, so the skills can
  * use the CLI when MCP is not available.
  *
  * Exit codes: 0 done, 1 refused (validation, lifecycle, missing record),
@@ -18,7 +18,6 @@ import {
   RECORD_TYPES,
   renderRecord,
   sha256Hex,
-  unblockedBy,
   type CreatableType,
   type IndexedRecord,
   type Operation,
@@ -28,7 +27,7 @@ import {
 import { z } from "zod";
 
 import type { Io } from "./io.js";
-import { ADVICE_SHAPE, advicePlan, draftRecord, handoffBundle, promotionPlan, REPORT_SHAPE, reportPlan, triagePlan, type TriageInput } from "./plans.js";
+import { ADVICE_SHAPE, advicePlan, draftRecord, handoffBundle, PROGRESS_SHAPE, progressPlan, promotionPlan, REPORT_SHAPE, reportPlan, triagePlan, unblockOperations, type TriageInput } from "./plans.js";
 import { actorFrom, Workspace, WorkspaceError, type WriteOutcome } from "./workspace.js";
 
 export interface Parsed {
@@ -215,6 +214,20 @@ const reportCommand: Command = (args, context, ws) => {
   return 0;
 };
 
+const progressCommand: Command = (args, context, ws) => {
+  const parsed = parseArgs(args);
+  const [task, ...words] = parsed.positional;
+  const note = words.length === 1 && words[0] === "-" ? (context.stdin?.() ?? "") : words.join(" ");
+  if (!task || !note.trim()) throw new UsageError("usage: octosprout progress <task> <note…> | - [--status in_progress|blocked|done|ready|backlog]");
+  const input = z.object(PROGRESS_SHAPE).safeParse({ note: note.trim(), status: flag(parsed, "status") });
+  if (!input.success) throw new UsageError(z.prettifyError(input.error));
+  const actor = actorFrom(context.env);
+  const plan = progressPlan(ws, { ...input.data, task }, actor);
+  const outcome = ws.write({ operations: plan.operations, title: plan.title, rationale: input.data.note, actor, operation: "edit", subject: `progress: ${plan.title.replace(/^Progress on /, "")}` });
+  print(context, parsed.flags.has("json"), outcome, () => describeWrite(outcome));
+  return 0;
+};
+
 const SOURCES = ["shortcut", "chatgpt", "claude", "apple-notes", "web", "cli", "other"];
 
 const captureCommand: Command = (args, context, ws) => {
@@ -308,11 +321,11 @@ const moveCommand: Command = (args, context, ws) => {
   if (moveKind(record.type, record.status, to) === "triage") throw new WorkspaceError("A capture is planted by triaging it.");
   const operations: Operation[] = [{ op: "set_status", id: record.id, base_blob: record.blob, status: to }];
   // Finishing a blocker unblocks the tasks it was the last open blocker of (§7.3).
-  const unblocked = record.type === "task" && to === "done" ? unblockedBy(record.id, ws.index.list("task")) : [];
-  for (const id of unblocked) operations.push({ op: "set_status", id, base_blob: ws.index.get(id)!.blob, status: "ready" });
+  const unblocked = record.type === "task" && to === "done" ? unblockOperations(ws, record.id) : [];
+  operations.push(...unblocked);
   const suffix = unblocked.length ? ` (+${unblocked.length} unblocked)` : "";
   const outcome = ws.write({ operations, title: `Move ${record.id} to ${to}`, rationale: `Move ${record.id} from ${record.status} to ${to}${suffix}.`, actor: actorFrom(context.env), operation: "status", subject: `status: ${record.id} ${record.status} -> ${to}${suffix}` });
-  print(context, parsed.flags.has("json"), { id: record.id, from: record.status, to, unblocked, ...outcome }, () => describeWrite(outcome));
+  print(context, parsed.flags.has("json"), { id: record.id, from: record.status, to, unblocked: unblocked.map((op) => (op as { id: string }).id), ...outcome }, () => describeWrite(outcome));
   return 0;
 };
 
@@ -331,26 +344,30 @@ const linkCommand = (remove: boolean): Command => (args, context, ws) => {
   return 0;
 };
 
-const proposeCommand: Command = (args, context, ws) => {
+/** `propose` always writes a proposal; `update` commits what is routine (for an agent: tasks only, ADR008) and proposes the rest. */
+const operationsCommand =
+  (name: "propose" | "update"): Command =>
+  (args, context, ws) => {
   const parsed = parseArgs(args);
   const source = parsed.positional[0];
-  if (!source) throw new UsageError("usage: octosprout propose <file.json | -> where the JSON is { title, rationale, operations }");
+  if (!source) throw new UsageError(`usage: octosprout ${name} <file.json | -> where the JSON is { title, rationale, operations }`);
   const raw = source === "-" ? (context.stdin?.() ?? "") : readFileSync(source, "utf8");
   let input: { title?: unknown; rationale?: unknown; operations?: unknown; session?: unknown };
   try {
     input = JSON.parse(raw) as typeof input;
   } catch (error) {
-    throw new UsageError(`the proposal is not valid JSON: ${(error as Error).message}`);
+    throw new UsageError(`the operations are not valid JSON: ${(error as Error).message}`);
   }
-  if (typeof input.title !== "string" || !Array.isArray(input.operations)) throw new UsageError("the proposal needs 'title' and 'operations'");
+  if (typeof input.title !== "string" || !Array.isArray(input.operations)) throw new UsageError("the JSON needs 'title' and 'operations'");
   const actor = actorFrom(context.env);
-  const outcome = ws.propose({
+  const request = {
     title: input.title,
-    rationale: typeof input.rationale === "string" ? input.rationale : "",
+    rationale: typeof input.rationale === "string" ? input.rationale : name === "propose" ? "" : input.title,
     operations: input.operations as Operation[],
     actor,
     ...(typeof input.session === "string" ? { session: input.session } : {}),
-  });
+  };
+  const outcome = name === "propose" ? ws.propose(request) : ws.write({ ...request, operation: "edit", subject: `update: ${input.title}` });
   print(context, parsed.flags.has("json"), outcome, () => describeWrite(outcome));
   return 0;
 };
@@ -392,7 +409,9 @@ export const COMMANDS: Record<string, Command> = {
   advise: adviseCommand,
   handoff: handoffCommand,
   report: reportCommand,
-  propose: proposeCommand,
+  progress: progressCommand,
+  propose: operationsCommand("propose"),
+  update: operationsCommand("update"),
   proposals: proposalsCommand,
   sync: syncCommand,
 };

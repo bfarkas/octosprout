@@ -1,6 +1,6 @@
-/** The MCP view of the server workspace. Writes remain pending proposals. */
+/** The MCP view of the server workspace. Routine task changes commit directly (ADR008); other writes are pending proposals. */
 import { generateId, readWorkspaceFiles, validateWorkspace, type Finding, type Operation, type RecordType, type SourceFile } from "@octosprout/core";
-import type { McpBackend, McpProposal, McpSyncResult } from "@octosprout/cli/mcp";
+import type { McpBackend, McpProposal, McpSyncResult, McpWrite } from "@octosprout/cli/mcp";
 
 import { formatTimestamp } from "../inbox/capture.js";
 import type { ProposalService } from "../records/proposals.js";
@@ -30,6 +30,14 @@ export class ServerMcpBackend implements McpBackend {
 
   newId(type: RecordType, taken: ReadonlySet<string> = new Set()): string {
     return generateId(type, { exists: (id) => this.records.index.has(id) || taken.has(id) });
+  }
+
+  async write(input: { operations: readonly Operation[]; title: string; rationale: string; actor: string; operation: string; subject: string; session?: string }): Promise<McpWrite> {
+    const outcome = await this.proposals.commitTaskUpdate({ operations: input.operations, actor: input.actor, subject: input.subject });
+    if (outcome.kind === "committed") return { kind: "committed", commit: outcome.commit };
+    if (outcome.kind === "not_routine") return this.propose(input);
+    if (outcome.kind === "conflict") throw new Error(`${outcome.path} changed meanwhile; read it again and retry.`);
+    throw new Error(outcome.findings?.length ? `${outcome.message} ${outcome.findings.map((f) => `${f.code} ${f.message}`).join("; ")}` : outcome.message);
   }
 
   async propose(input: { title: string; rationale: string; operations: readonly Operation[]; actor: string; session?: string }): Promise<McpProposal> {
