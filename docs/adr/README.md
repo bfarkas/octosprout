@@ -14,6 +14,7 @@ supersedes it.
 | [ADR005](0005-chatgpt-handoff-as-a-custom-instructions-command.md) | ChatGPT handoff brief as an `/octosprout` Custom Instructions command | ADOPTED |
 | [ADR006](0006-board-engine-and-frontend.md) | Thin custom board UI, server-rendered, instead of Kanban Lite | ACCEPTED |
 | [ADR007](0007-remote-mcp-with-oauth.md) | Remote MCP on app.octosprout.de, with OctoSprout as its own OAuth server | ACCEPTED |
+| [ADR008](0008-agents-update-tasks-directly.md) | Agents commit routine task changes directly; everything else stays a proposal | ACCEPTED |
 
 The board engine and frontend (D5) are decided in ADR006. It is ACCEPTED
 rather than ADOPTED until the boards are built in Phase 2. The design is in
