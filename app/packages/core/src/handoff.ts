@@ -6,6 +6,7 @@
  * the agent's report into proposal operations on the task.
  */
 import { appendToSection } from "./advice.js";
+import { attachmentLinks } from "./attachments.js";
 import type { Operation } from "./proposals.js";
 import { parseRecord, setFrontmatterFields } from "./record.js";
 import type { IndexedRecord, RecordIndex, Ref } from "./record-index.js";
@@ -103,6 +104,10 @@ export function handoffContext(index: RecordIndex, taskId: string, now: string):
   if (research.length > 0) out.push("");
 
   out.push("## Repositories", "", ...(repoList.length > 0 ? repoList.map((r) => `- ${r}`) : ["None recorded."]), "");
+
+  // Image links above are relative to each record's file; list them as workspace paths (ADR009).
+  const images = [...new Set([task, ...(project ? [project] : []), ...decisions].flatMap((r) => attachmentLinks(r.path, r.body).map((l) => l.path)))];
+  if (images.length > 0) out.push("## Attachments", "", "Images the records above link to, as paths in the OctoSprout workspace checkout:", "", ...images.map((p) => `- \`${p}\``), "");
   return out.join("\n");
 }
 

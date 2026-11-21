@@ -213,6 +213,7 @@ records/
   research/OS-R-XXXXX--slug.md
 experts/OS-E-XXXXX--slug.md
 proposals/YYYY/MM/OS-PROP-XXXXX.md
+attachments/<ID>/<name>.png      # images records link to (ADR009)
 skills/<skill-name>/SKILL.md
 prompts/chatgpt-handoff.md
 deploy/                      # rei3 compose overrides, Caddy site block (no secrets)
@@ -1123,6 +1124,7 @@ app.octosprout.de {
 | `OSV011` | `updated ≥ created`; timestamps are UTC RFC 3339 |
 | `OSV012` | Proposal integrity (`ops_sha256`, status consistent with `approval`, signature by a key in `approval_public_keys`) |
 | `OSV013` | Possible secrets in records (warning) |
+| `OSV014` | Attachments are PNG, JPEG, GIF or WebP and at most 2 MB; image links into `attachments/` point at existing files (warning) (ADR009). Checked only with the whole checkout, not on single record writes. |
 
 Problems in `octosprout.yaml` are reported as `OSV003`. Every finding reports the code, severity, file path, line where possible, the record ID, a message and a fix hint. The same validator code runs in the CLI, the server and CI.
 

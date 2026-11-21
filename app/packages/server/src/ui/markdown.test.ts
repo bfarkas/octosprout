@@ -26,4 +26,12 @@ describe("renderMarkdown", () => {
     expect(html).toContain('<li class="task"><input type="checkbox" disabled> open</li>');
     expect(html).toContain('<li class="task"><input type="checkbox" disabled checked> done</li>');
   });
+
+  it("serves relative image links into attachments/ and drops other images", () => {
+    const html = renderMarkdown("![Mock](../../attachments/OS-P-0XZ4K/my%20mock.png)\n\n![Remote](https://example.com/x.png) ![Up](../../../etc/x.png)", "records/projects/OS-P-0XZ4K--x.md");
+    expect(html).toContain('<img src="/attachments/OS-P-0XZ4K/my%20mock.png" alt="Mock" loading="lazy">');
+    expect(html).not.toContain("example.com");
+    expect(html).toContain("Remote Up");
+    expect(renderMarkdown("![a](../../attachments/x.png)")).not.toContain("<img");
+  });
 });

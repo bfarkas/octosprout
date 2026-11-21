@@ -50,6 +50,14 @@ describe("handoffContext", () => {
     expect(bundle).toContain("report_handoff");
   });
 
+  it("lists the attachments the task and project link to", () => {
+    const files = workspace().map((f) => (f.path.startsWith("records/tasks/") ? { ...f, content: `${f.content}\n![Mock](../../attachments/OS-P-0XZ4K/mock.png)\n` } : f));
+    const bundle = handoffContext(new RecordIndex(files), "OS-T-QF81M", NOW);
+    expect(bundle).toContain("## Attachments");
+    expect(bundle).toContain("- `attachments/OS-P-0XZ4K/mock.png`");
+    expect(handoffContext(new RecordIndex(workspace()), "OS-T-QF81M", NOW)).not.toContain("## Attachments");
+  });
+
   it("asks for the repository when none is recorded, and refuses non-tasks", () => {
     const index = new RecordIndex([record("task", "records/tasks", "OS-T-QF81M", { title: "Alone" }, undefined, TASK_BODY)]);
     expect(handoffContext(index, "OS-T-QF81M", NOW)).toContain("No target repository is recorded.");

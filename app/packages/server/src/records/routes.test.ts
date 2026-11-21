@@ -468,6 +468,23 @@ describe("record pages", () => {
     await seed(ideaFile("OS-I-5VT4F"));
     expect((await get("/ideas")).body).toContain('<a class="btitle" href="/records/OS-I-5VT4F">');
   });
+
+  it("show attached images and serve them behind the session", async () => {
+    const idea = file("idea", "records/ideas", "OS-I-5VT4F", {}, "![Mock](../../attachments/OS-I-5VT4F/mock.png)\n");
+    await seed(idea, ["attachments/OS-I-5VT4F/mock.png", "PNGDATA"], ["attachments/OS-I-5VT4F/x.svg", "<svg/>"]);
+    expect((await get("/records/OS-I-5VT4F")).body).toContain('<img src="/attachments/OS-I-5VT4F/mock.png" alt="Mock" loading="lazy">');
+
+    const image = await get("/attachments/OS-I-5VT4F/mock.png");
+    expect(image.statusCode).toBe(200);
+    expect(image.headers["content-type"]).toBe("image/png");
+    expect(image.headers["x-content-type-options"]).toBe("nosniff");
+    expect(image.body).toBe("PNGDATA");
+
+    expect((await get("/attachments/OS-I-5VT4F/mock.png", "")).statusCode).toBe(401);
+    expect((await get("/attachments/OS-I-5VT4F/x.svg")).statusCode).toBe(404);
+    expect((await get("/attachments/OS-I-5VT4F/none.png")).statusCode).toBe(404);
+    expect((await get("/attachments/..%2Frecords%2Fideas%2Fx.png")).statusCode).toBe(404);
+  });
 });
 
 describe("POST /api/v1/captures/:id/triage", () => {

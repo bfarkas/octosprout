@@ -1,5 +1,5 @@
 /**
- * Workspace validation (spec §19): OSV001–OSV013.
+ * Workspace validation (spec §19): OSV001–OSV014.
  *
  * The validator is pure: it takes the workspace's files and returns findings.
  * The CLI, the server and CI all call it.
@@ -7,6 +7,7 @@
 import type { ErrorObject } from "ajv";
 
 import { ADR_FIELDS, ADR_SECTIONS, decisionBodySha256, parseAdr } from "./adr.js";
+import { attachmentLinks, attachmentType, MAX_ATTACHMENT_BYTES, type AttachmentFile } from "./attachments.js";
 import { verifyApproval, type Approval, type TrustedKey } from "./approvals.js";
 import { CONFIG_PATH, DEFAULT_CONFIG, parseWorkspaceConfig, type WorkspaceConfig } from "./config.js";
 import { type Finding, type Severity, type ValidationCode } from "./findings.js";
@@ -26,6 +27,8 @@ export interface SourceFile {
 
 export interface ValidateOptions {
   schemas?: SchemaRegistry;
+  /** Files under `attachments/` (ADR009). Only when given are attachments and image links checked (OSV014). */
+  attachments?: readonly AttachmentFile[];
 }
 
 /** Directories that hold records (spec §5.2). Everything else is not validated here. */
@@ -94,6 +97,7 @@ export function validateWorkspace(files: readonly SourceFile[], options: Validat
   checkContracts(loaded, index, findings);
   const validProposals = checkProposals(loaded, config.approvalKeys, findings);
   checkApprovals(loaded, index, validProposals, findings);
+  if (options.attachments) checkAttachments(loaded, options.attachments, findings);
 
   return findings.sort(compareFindings);
 }
@@ -797,6 +801,26 @@ function checkRefs(entry: LoadedRecord, findings: Finding[]): void {
       warn(`The ${kind} ref ${url} is not a GitHub URL.`, `${kind} refs should point at github.com (spec §6.4).`);
     } else if (!shape.test(parsed.pathname)) {
       warn(`${url} does not look like a GitHub ${kind} URL.`, "Check the ref's kind (spec §6.4).");
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// OSV014: image attachments (ADR009)
+
+function checkAttachments(loaded: readonly LoadedRecord[], attachments: readonly AttachmentFile[], findings: Finding[]): void {
+  for (const file of attachments) {
+    if (!attachmentType(file.path)) {
+      findings.push(finding("OSV014", "error", file.path, undefined, "Attachments must be PNG, JPEG, GIF or WebP images.", "Export the file as one of those, or keep it outside the workspace (ADR009)."));
+    } else if (file.size > MAX_ATTACHMENT_BYTES) {
+      findings.push(finding("OSV014", "error", file.path, undefined, `Attachment is ${(file.size / 1024 / 1024).toFixed(1)} MB, over the 2 MB limit.`, "Scale it down or export it again at a lower quality (ADR009)."));
+    }
+  }
+  const present = new Set(attachments.map((a) => a.path));
+  for (const entry of loaded) {
+    if (entry.effectiveType === "capture") continue; // shown verbatim, never as Markdown
+    for (const link of attachmentLinks(entry.path, entry.text)) {
+      if (!present.has(link.path)) reportAt(entry, findings, "OSV014", "warning", link.line, `Image ${link.path} does not exist.`, "Commit the image under attachments/<record ID>/ or fix the link (ADR009).");
     }
   }
 }

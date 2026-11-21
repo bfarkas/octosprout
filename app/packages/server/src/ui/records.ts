@@ -4,7 +4,9 @@
  * /static/record.js saves edits and status moves, and shows the three-way
  * merge after a conflict (§8.4).
  */
-import { ADVISABLE_STATUSES, allowedTargets, LINK_RELS, moveKind, parseAdr, type IndexedRecord, type RecordIndex, type RecordType } from "@octosprout/core";
+import { readFile, stat } from "node:fs/promises";
+
+import { ADVISABLE_STATUSES, allowedTargets, ATTACHMENTS_DIR, attachmentType, MAX_ATTACHMENT_BYTES, resolveInside, LINK_RELS, moveKind, parseAdr, type IndexedRecord, type RecordIndex, type RecordType } from "@octosprout/core";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 import type { WriteStatus } from "../git/write-service.js";
@@ -132,7 +134,7 @@ function detailBody(record: IndexedRecord, index: RecordIndex, history: Awaited<
         `<pre class="verbatim">${esc(record.body)}</pre>`
       : record.body.trim() === ""
         ? `<p class="hint">No text yet.</p>`
-        : `<div class="markdown">${renderMarkdown(record.body)}</div>`;
+        : `<div class="markdown">${renderMarkdown(record.body, record.path)}</div>`;
   const editable = record.type !== "proposal";
   return `<article class="record" id="record" data-id="${esc(record.id)}" data-blob="${esc(record.blob)}">
 <div class="recordhead"><div><div class="eyebrow">${esc(singular)} · ${esc(statusLabel(record, record.status))}</div>
@@ -222,4 +224,14 @@ export function registerRecordPages(app: FastifyInstance, options: RecordPageOpt
 
   app.get<{ Params: { id: string } }>("/records/:id", { preHandler: requireSession }, (request, reply) => render(request, reply, false));
   app.get<{ Params: { id: string } }>("/records/:id/edit", { preHandler: requireSession }, (request, reply) => render(request, reply, true));
+
+  // Image attachments (ADR009), from the write clone; resolveInside keeps the path inside the workspace and out of links.
+  app.get<{ Params: { "*": string } }>(`/${ATTACHMENTS_DIR}/*`, { preHandler: requireSession }, async (request, reply) => {
+    const path = `${ATTACHMENTS_DIR}/${request.params["*"]}`;
+    const type = attachmentType(path);
+    const target = type ? resolveInside(records.root, path) : undefined;
+    const info = target ? await stat(target).catch(() => undefined) : undefined;
+    if (!target || !info?.isFile() || info.size > MAX_ATTACHMENT_BYTES) return reply.code(404).type("text/plain; charset=utf-8").send("Not found");
+    return reply.type(type!).header("X-Content-Type-Options", "nosniff").header("Cache-Control", "private, max-age=300").send(await readFile(target));
+  });
 }

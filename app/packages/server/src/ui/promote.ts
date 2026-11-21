@@ -70,7 +70,7 @@ export function registerPromotion(app: FastifyInstance, options: PromoteOptions)
 ${notReady}${ready ? "" : `<p class="banner">Promotion needs an approval key the workspace trusts. See <a href="/settings">Settings</a>.</p>`}
 <form id="promote" class="wizard" data-id="${esc(idea.id)}" data-blob="${esc(idea.blob)}" autocomplete="off">
 <section><h2>1. Review</h2>
-<details class="card"><summary>The idea</summary><div class="markdown">${idea.body.trim() ? renderMarkdown(idea.body) : `<p class="hint">No text.</p>`}</div></details>
+<details class="card"><summary>The idea</summary><div class="markdown">${idea.body.trim() ? renderMarkdown(idea.body, idea.path) : `<p class="hint">No text.</p>`}</div></details>
 <div class="review"><div><h3>Captures</h3>${list(captures, "None.")}</div><div><h3>Research</h3>${list(research, "None.")}</div><div><h3>Related</h3>${list(others, "None.")}</div></div></section>
 <section><h2>2. The project</h2>
 <label for="title">Project title</label>

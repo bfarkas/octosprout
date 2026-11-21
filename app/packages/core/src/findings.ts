@@ -17,6 +17,7 @@ export const VALIDATION_CODES = [
   "OSV011",
   "OSV012",
   "OSV013",
+  "OSV014",
 ] as const;
 
 export type ValidationCode = (typeof VALIDATION_CODES)[number];

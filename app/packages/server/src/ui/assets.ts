@@ -282,6 +282,7 @@ mark { background: var(--violet-soft); color: inherit; border-radius: 4px; paddi
 .markdown th, .markdown td { border: 1px solid var(--border); padding: 0.3rem 0.5rem; }
 .markdown blockquote { margin: 0.5rem 0; padding-left: 0.8rem; border-left: 3px solid var(--violet-line); color: var(--muted); }
 .markdown li.task { list-style: none; margin-left: -1.3rem; }
+.markdown img { max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; }
 pre.verbatim { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: inherit; }
 .tabs { display: inline-flex; max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); margin: 1rem 0 0.25rem; scrollbar-width: none; }
 .tabs .tab { flex: none; white-space: nowrap; border: 0; border-radius: 0; background: none; color: var(--text); padding: 0.4rem 0.9rem; font-weight: 500; }

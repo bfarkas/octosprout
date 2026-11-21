@@ -4,6 +4,7 @@
 import { lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
 
+import { listAttachments } from "./attachments.js";
 import { CONFIG_PATH } from "./config.js";
 import type { Finding } from "./findings.js";
 import { validateWorkspace, type SourceFile, type ValidateOptions } from "./validate.js";
@@ -41,7 +42,7 @@ export function readWorkspaceFiles(root: string): SourceFile[] {
   return files;
 }
 
-/** Validates the workspace checked out at `root`. */
+/** Validates the workspace checked out at `root`, its attachments included. */
 export function validateDirectory(root: string, options?: ValidateOptions): Finding[] {
-  return validateWorkspace(readWorkspaceFiles(root), options);
+  return validateWorkspace(readWorkspaceFiles(root), { attachments: listAttachments(root), ...options });
 }
