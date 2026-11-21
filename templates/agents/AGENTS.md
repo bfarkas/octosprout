@@ -36,6 +36,16 @@ backlinks are computed. The relationships:
 - `implements`: a task to the decision it carries out.
 - `consulted`: a decision to an expert profile.
 
+### Images
+
+Records can show images, such as UI mockups or reference screenshots (ADR009
+in the OctoSprout repository). Commit them under `attachments/<record ID>/`
+and link them with a relative Markdown image link from the record, for
+example `![Settings mockup](../../attachments/OS-P-0XZ4K/settings-mockup.png)`.
+Only PNG, JPEG, GIF and WebP, at most 2 MB each; no SVG. `octosprout validate`
+reports other files (OSV014). When a handoff bundle lists attachments, open
+them from this checkout before you start.
+
 ## Tasks and proposals
 
 - **Tasks you work on, you change directly.** Routine changes that touch only

@@ -14,6 +14,7 @@ records/decisions/          architecture decision records
 records/research/           research notes
 experts/                    expert profiles
 proposals/YYYY/MM/          proposed changes and their signed approvals
+attachments/<record ID>/    images records link to, such as mockups
 skills/                     agent skills
 prompts/                    reusable prompts
 ```
