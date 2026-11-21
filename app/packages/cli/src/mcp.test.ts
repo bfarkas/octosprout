@@ -191,6 +191,13 @@ describe("octosprout mcp", () => {
     expect(proposed.data.proposal).toMatch(/^OS-PROP-/);
     expect(proposed.data.reasons).toEqual(["It changes more than tasks."]);
     expect((await call<{ status: string }>("get_record", { id: idea })).data.status).not.toBe("sprouting");
+
+    // `body` instead of `content` used to surface a raw Node error from the write.
+    const t2 = await call<{ base_blob: string }>("get_record", { id: task });
+    const malformed = await call<{ error: string }>("update_task", { title: "Bad shape", operations: [{ op: "update", id: task, base_blob: t2.data.base_blob, body: "x" }] });
+    expect(malformed.isError).toBe(true);
+    expect(malformed.data.error).toContain("operation 1 (update): must have required property 'content'");
+    expect(malformed.data.error).toContain("must NOT have additional properties: body");
   });
 
   it("proposes triage, ADRs and promotions", async () => {

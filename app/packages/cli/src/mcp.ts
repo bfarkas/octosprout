@@ -15,6 +15,7 @@ import {
   CREATABLE_TYPES,
   readWorkspaceFiles,
   RECORD_TYPES,
+  SchemaRegistry,
   validateWorkspace,
   type IndexedRecord,
   type Operation,
@@ -72,6 +73,14 @@ export function createMcpServerForBackend(open: () => McpBackend, options: McpOp
         return fail((error as Error).message);
       }
     };
+
+  /** Rejects operations the proposal schema does not allow, before anything is applied. */
+  const schemas = new SchemaRegistry();
+  const checked = (operations: ReadonlyArray<{ op: string }>): Operation[] => {
+    const problems = operations.flatMap((op, i) => schemas.operationProblems(op).map((p) => `operation ${i + 1} (${op.op}): ${p}`));
+    if (problems.length) throw new WorkspaceError(`Malformed operations. ${problems.join("; ")}.`);
+    return operations as unknown as Operation[];
+  };
 
   /** Pushes, unless disabled; a failed push leaves the commit for the next sync (§16.3). */
   const syncAfter = async (ws: McpBackend): Promise<{ pushed: boolean; error?: string }> => {
@@ -217,7 +226,7 @@ export function createMcpServerForBackend(open: () => McpBackend, options: McpOp
       description: "Propose changes as operations (spec §9.3). Commits only the proposal file, then syncs. Nothing changes until the owner approves it in the browser.",
       inputSchema: { title: z.string().min(1).max(200), rationale: z.string(), operations: z.array(operationSchema).min(1), session: z.string().max(500).optional() },
     },
-    guarded(async ({ title, rationale, operations, session }) => proposeAndSync(open(), { title, rationale, operations: operations as unknown as Operation[], session })),
+    guarded(async ({ title, rationale, operations, session }) => proposeAndSync(open(), { title, rationale, operations: checked(operations), session })),
   );
 
   server.registerTool(
@@ -309,7 +318,7 @@ export function createMcpServerForBackend(open: () => McpBackend, options: McpOp
       description: "Change tasks with operations (spec §9.3): update a task's content (e.g. tick acceptance criteria), set_status, add_link or remove_link on a task, or create a task (draft_record). Routine changes that touch only tasks are committed directly; anything else becomes a proposal. Returns { applied } or { proposal, reasons }.",
       inputSchema: { title: z.string().min(1).max(200), operations: z.array(operationSchema).min(1), session: z.string().max(500).optional() },
     },
-    guarded(({ title, operations, session }) => writeAndSync(open(), { title, subject: `task-update: ${title}`, rationale: title, operations: operations as unknown as Operation[], session })),
+    guarded(({ title, operations, session }) => writeAndSync(open(), { title, subject: `task-update: ${title}`, rationale: title, operations: checked(operations), session })),
   );
 
   server.registerTool(

@@ -124,6 +124,12 @@ describe("proposal.v1 schema", () => {
     expect(validate(proposal), JSON.stringify(validate.errors)).toBe(true);
   });
 
+  it("checks one operation against its own kind", () => {
+    for (const operation of proposal.operations) expect(registry.operationProblems(operation)).toEqual([]);
+    expect(registry.operationProblems({ op: "update", id: "OS-T-QF81M", base_blob: sha, body: "x" })).toEqual(["must have required property 'content'", "must NOT have additional properties: body"]);
+    expect(registry.operationProblems({ op: "rename" })[0]).toMatch(/^unknown op; use one of create, update,/);
+  });
+
   const op = (operation: object) => ({ ...proposal, operations: [operation] });
   it.each([
     ["no operations", { ...proposal, operations: [] }],
