@@ -73,6 +73,7 @@ export const RECORD_JS = String.raw`
         const { response, data } = await approveIfNeeded(await call("POST", url, body), "Move " + record.dataset.id + " to " + to + "?", "POST", url, body);
         if (response.ok) return location.reload();
         if (response.status === 409) show("This record changed since the page loaded. Reload to see the current version.", "error");
+        else if (data.error === "validation") show(explain(response, data) + " " + (data.findings || []).map((f) => f.message).join(" "), "error");
         else show(explain(response, data), "error");
       } catch (error) {
         show(error.message, "error");
