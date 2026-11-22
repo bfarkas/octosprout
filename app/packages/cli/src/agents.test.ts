@@ -74,6 +74,13 @@ describe("the skills", () => {
   });
 });
 
+describe("code-repo-AGENTS.md", () => {
+  it("names only tools that exist", () => {
+    const text = readFileSync(join(DEFAULT_TEMPLATES_DIR, "agents/code-repo-AGENTS.md"), "utf8");
+    for (const [, tool] of text.matchAll(/`((?:get|list|search|propose|draft|log|report|update)_[a-z_]+|propose)`/g)) expect(tools, tool).toContain(tool);
+  });
+});
+
 describe("dependencies", () => {
   it("nothing depends on MemPalace", () => {
     const root = join(DEFAULT_TEMPLATES_DIR, "..");
